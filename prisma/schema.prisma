@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  name          String?
+  role          String     @default("CUSTOMER") // CUSTOMER, DEVELOPER, ADMIN, PRO
+  avatarUrl     String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  businesses    Business[]
+  products      Product[]  @relation("DeveloperProducts")
+  licenses      License[]
+  tickets       SupportTicket[]
+}
+
+model Business {
+  id           String    @id @default(uuid())
+  ownerId      String
+  name         String
+  category     String    // Visual Services, Small Products, Beauty, Fashion, etc.
+  description  String?
+  logoUrl      String?
+  instagram    String?
+  whatsapp     String?
+  location     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  owner        User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  projects     Project[]
+}
+
+model Project {
+  id             String          @id @default(uuid())
+  businessId     String
+  productId      String?
+  name           String
+  slug           String          @unique
+  status         String          @default("DRAFT") // DRAFT, BUILDING, DEPLOYED, SUSPENDED
+  customConfig   String          @default("{}") // JSON string of AI theme, section order, copy
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  business       Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product        Product?        @relation(fields: [productId], references: [id])
+  modules        ProjectModule[]
+  deployments    Deployment[]
+  domains        Domain[]
+  licenses       License[]
+}
+
+model Product {
+  id             String           @id @default(uuid())
+  developerId    String
+  name           String
+  slug           String           @unique
+  category       String
+  description    String
+  priceCents     Int              @default(0)
+  previewUrl     String?
+  imageUrl       String?
+  isFeatured     Boolean          @default(false)
+  isApproved     Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  developer      User             @relation("DeveloperProducts", fields: [developerId], references: [id])
+  versions       ProductVersion[]
+  projects       Project[]
+  licenses       License[]
+}
+
+model ProductVersion {
+  id           String   @id @default(uuid())
+  productId    String
+  version      String   // e.g. "1.0.0"
+  changelog    String?
+  packageUrl   String?
+  createdAt    DateTime @default(now())
+
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ProjectModule {
+  id           String   @id @default(uuid())
+  projectId    String
+  moduleType   String   // CATALOG, CART, ORDERS, PAYMENTS, DELIVERY, BOOKING, CRM, ANALYTICS
+  isEnabled    Boolean  @default(true)
+  config       String   @default("{}")
+  createdAt    DateTime @default(now())
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model License {
+  id           String    @id @default(uuid())
+  licenseKey   String    @unique // e.g. CZ-98A1-42FE
+  userId       String
+  productId    String
+  projectId    String?
+  domain       String?
+  status       String    @default("ACTIVE") // ACTIVE, REVOKED, EXPIRED
+  signature    String?   // Cryptographic signature
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+  product      Product   @relation(fields: [productId], references: [id])
+  project      Project?  @relation(fields: [projectId], references: [id])
+}
+
+model Deployment {
+  id           String   @id @default(uuid())
+  projectId    String
+  provider     String   @default("CUZMIFY_ORCHESTRATOR") // VERCEL, NETLIFY, VPS
+  status       String   @default("PENDING") // PENDING, BUILDING, SUCCESS, FAILED
+  targetUrl    String?
+  logs         String?
+  deployedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Domain {
+  id             String    @id @default(uuid())
+  projectId      String
+  domainName     String    @unique
+  isSubdomain    Boolean   @default(true) // glorybeauty.cuzmify.com vs glorybeauty.com
+  dnsStatus      String    @default("PENDING") // PENDING, VERIFIED, FAILED
+  sslStatus      String    @default("PENDING") // PENDING, ACTIVE, FAILED
+  createdAt      DateTime  @default(now())
+
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model WebsiteImport {
+  id             String   @id @default(uuid())
+  url            String
+  status         String   @default("COMPLETED")
+  reportScore    Int      @default(85)
+  extractedData  String   // JSON string of business name, logo, services, images
+  createdAt      DateTime @default(now())
+}
+
+model SupportTicket {
+  id           String   @id @default(uuid())
+  userId       String
+  title        String
+  category     String   // DEPLOYMENT, DOMAIN, CUSTOMIZATION, PRO_HELP
+  status       String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
+  aiDiagnosis  String?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id])
+}
