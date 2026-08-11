@@ -66,7 +66,7 @@ export const VisualControls: React.FC<VisualControlsProps> = ({
       </div>
 
       {/* AI Prompt Box */}
-      <form onSubmit={handleAiSubmit} className="space-y-2">
+      <form onSubmit={handleAiSubmit} className="space-y-2" suppressHydrationWarning>
         <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
           Natural Language Prompt
         </label>
@@ -77,11 +77,13 @@ export const VisualControls: React.FC<VisualControlsProps> = ({
             onChange={(e) => setAiPrompt(e.target.value)}
             placeholder="e.g. Make it more luxury gold, focus on bridal makeup..."
             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 pr-10"
+            suppressHydrationWarning
           />
           <button
             type="submit"
             disabled={isAiLoading}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50"
+            suppressHydrationWarning
           >
             {isAiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
@@ -104,6 +106,7 @@ export const VisualControls: React.FC<VisualControlsProps> = ({
             value={businessName}
             onChange={(e) => onChangeBusinessName(e.target.value)}
             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500"
+            suppressHydrationWarning
           />
         </div>
 

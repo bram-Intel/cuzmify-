@@ -34,7 +34,7 @@ export const RevampUrlForm: React.FC = () => {
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
-      <form onSubmit={handleSubmit} className="relative space-y-3">
+      <form onSubmit={handleSubmit} className="relative space-y-3" suppressHydrationWarning>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500">
             <Globe className="w-5 h-5 text-brand-400" />
@@ -45,11 +45,13 @@ export const RevampUrlForm: React.FC = () => {
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Paste your existing website URL (e.g. www.glorybeauty.com)..."
             className="w-full bg-[#131A29] border border-slate-700/80 rounded-2xl pl-12 pr-36 py-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-2xl transition-all"
+            suppressHydrationWarning
           />
           <button
             type="submit"
             disabled={isLoading}
             className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 flex items-center gap-2 transition-all disabled:opacity-50"
+            suppressHydrationWarning
           >
             {isLoading ? (
               <>

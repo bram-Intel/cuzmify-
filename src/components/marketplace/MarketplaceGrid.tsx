@@ -69,6 +69,7 @@ export const MarketplaceGrid: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search digital products..."
             className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
+            suppressHydrationWarning
           />
         </div>
 
