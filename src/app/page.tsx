@@ -56,7 +56,7 @@ export default function HomePage() {
             {/* CTAs */}
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
-                href="/editor"
+                href="/onboarding"
                 className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[#0D5771] via-[#3498E3] to-[#72B9F3] hover:opacity-90 text-white font-bold text-base shadow-2xl shadow-[#3498E3]/30 flex items-center gap-3 transition-all hover:scale-[1.02]"
               >
                 <Rocket className="w-5 h-5" />

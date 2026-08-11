@@ -48,7 +48,7 @@ export const Header: React.FC = () => {
         {/* Action Button */}
         <div className="flex items-center gap-4">
           <Link
-            href="/editor"
+            href="/onboarding"
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0D5771] to-[#3498E3] hover:from-[#083D50] hover:to-[#72B9F3] text-white font-bold text-sm shadow-lg shadow-[#3498E3]/25 flex items-center gap-2 transition-all duration-200 hover:scale-[1.02]"
           >
             <Rocket className="w-4 h-4" />
