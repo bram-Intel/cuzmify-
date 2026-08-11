@@ -9,8 +9,8 @@ interface GlassCardProps extends React.HTMLAttributes<HTMLDivElement> {
 export const GlassCard: React.FC<GlassCardProps> = ({ children, className = '', glow = false, ...props }) => {
   return (
     <div
-      className={`relative rounded-2xl bg-[#131A29]/80 backdrop-blur-xl border border-slate-800/80 p-6 transition-all duration-300 ${
-        glow ? 'shadow-[0_0_25px_rgba(83,100,247,0.15)] border-brand-500/30 hover:border-brand-500/60' : 'hover:border-slate-700'
+      className={`relative rounded-2xl bg-[#0D2A38]/80 backdrop-blur-xl border border-[#1E3A4A] p-6 transition-all duration-300 ${
+        glow ? 'shadow-[0_0_25px_rgba(52,152,227,0.25)] border-[#3498E3]/60' : 'hover:border-[#3498E3]/40'
       } ${className}`}
       {...props}
     >

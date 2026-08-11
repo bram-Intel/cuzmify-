@@ -2,22 +2,42 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Kanit:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&family=Outfit:wght@500;600;700;800&display=swap');
 
 :root {
-  --background: #0B0F17;
-  --foreground: #F8FAFC;
+  /* Bram Intel Cinematic Dark Mode Palette */
+  --background: #071A24;
+  --surface: #0D2A38;
+  --primary: #0D5771;
+  --primary-dark: #083D50;
+  --accent: #3498E3;
+  --accent-light: #72B9F3;
+
+  --text: #F8FAFC;
+  --text-muted: #94A3B8;
+  --border: #1E3A4A;
+  --card-bg: #0D2A38;
+  --pill-bg: #0A222E;
+  --nav-hover: #3498E3;
+  --heading-gradient: linear-gradient(135deg, #72B9F3 0%, #3498E3 50%, #FFFFFF 100%);
 }
 
 body {
-  color: var(--foreground);
+  color: var(--text);
   background: var(--background);
   font-family: 'Inter', sans-serif;
   overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6, .font-display {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Kanit', 'Outfit', sans-serif;
+}
+
+.hero-heading {
+  background: var(--heading-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* Custom Scrollbar */
@@ -26,12 +46,12 @@ h1, h2, h3, h4, h5, h6, .font-display {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0F17;
+  background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: #1E293B;
+  background: var(--border);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: var(--accent);
 }

@@ -4,15 +4,11 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { RevampUrlForm } from '@/components/importer/RevampUrlForm';
 import {
   Sparkles,
-  ArrowRight,
   Globe,
   Layers,
   Rocket,
   ShieldCheck,
-  Zap,
   ShoppingBag,
-  RefreshCw,
-  Cpu,
   CheckCircle2,
 } from 'lucide-react';
 
@@ -21,18 +17,18 @@ export default function HomePage() {
     <div className="space-y-24 pb-20">
       {/* Hero Section */}
       <section className="relative pt-20 pb-16 px-6 overflow-hidden">
-        {/* Glow Effects */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-brand-600/30 via-indigo-600/20 to-amber-500/20 blur-[120px] rounded-full pointer-events-none" />
+        {/* Cinematic Glow Effects */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-gradient-to-tr from-[#0D5771]/40 via-[#3498E3]/25 to-[#72B9F3]/20 blur-[130px] rounded-full pointer-events-none" />
 
         <div className="max-w-5xl mx-auto text-center space-y-8 relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/90 border border-slate-800 text-xs font-semibold text-amber-400 backdrop-blur-xl shadow-xl">
-            <Sparkles className="w-4 h-4" />
-            <span>Introducing Cuzmify 3.0 Architecture</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#0A222E] border border-[#1E3A4A] text-xs font-semibold text-[#72B9F3] backdrop-blur-xl shadow-xl">
+            <Sparkles className="w-4 h-4 text-[#3498E3]" />
+            <span>Bram Intel Cinematic Architecture 3.0</span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight font-display text-white leading-[1.1]">
             Turn Your Business Idea Into A Live{' '}
-            <span className="bg-gradient-to-r from-brand-400 via-indigo-300 to-amber-400 bg-clip-text text-transparent">
+            <span className="hero-heading">
               Digital Business.
             </span>
           </h1>
@@ -44,11 +40,11 @@ export default function HomePage() {
           {/* Dual Entry Points */}
           <div className="pt-6 space-y-8 max-w-3xl mx-auto">
             {/* Entry Point B: URL Revamp Importer */}
-            <div className="bg-[#131A29]/90 border border-slate-800 p-6 rounded-3xl shadow-2xl backdrop-blur-xl space-y-4">
+            <div className="bg-[#0D2A38]/90 border border-[#1E3A4A] p-6 rounded-3xl shadow-2xl backdrop-blur-xl space-y-4">
               <div className="flex items-center justify-between text-left">
                 <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-brand-400" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 font-display">
+                    <Globe className="w-4 h-4 text-[#72B9F3]" />
                     Entry Point: Revamp An Existing Website
                   </h3>
                   <p className="text-xs text-slate-400">Already have a site? Paste your URL below for instant AI modernization report.</p>
@@ -61,14 +57,14 @@ export default function HomePage() {
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
                 href="/editor"
-                className="px-8 py-4 rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-700 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-base shadow-2xl shadow-brand-500/30 flex items-center gap-3 transition-all hover:scale-[1.02]"
+                className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[#0D5771] via-[#3498E3] to-[#72B9F3] hover:opacity-90 text-white font-bold text-base shadow-2xl shadow-[#3498E3]/30 flex items-center gap-3 transition-all hover:scale-[1.02]"
               >
                 <Rocket className="w-5 h-5" />
                 <span>Start New Project</span>
               </Link>
               <Link
                 href="/marketplace"
-                className="px-8 py-4 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-base flex items-center gap-3 transition-all"
+                className="px-8 py-4 rounded-2xl bg-[#0D2A38] hover:bg-[#0A222E] border border-[#1E3A4A] text-slate-200 font-bold text-base flex items-center gap-3 transition-all"
               >
                 <ShoppingBag className="w-5 h-5 text-amber-400" />
                 <span>Explore Product Marketplace</span>
@@ -81,7 +77,7 @@ export default function HomePage() {
       {/* The 6-Step Core Lifecycle Section */}
       <section className="max-w-7xl mx-auto px-6 space-y-12">
         <div className="text-center space-y-3">
-          <span className="text-xs font-bold text-brand-400 uppercase tracking-widest">
+          <span className="text-xs font-bold text-[#72B9F3] uppercase tracking-widest">
             Core Product Philosophy
           </span>
           <h2 className="text-3xl sm:text-4xl font-bold font-display text-white">
@@ -105,14 +101,14 @@ export default function HomePage() {
               step: '02',
               title: 'Import It',
               icon: Globe,
-              color: 'text-brand-400',
+              color: 'text-[#72B9F3]',
               desc: 'Bring your Instagram photos, WhatsApp contacts, business descriptions, or paste your legacy website URL for AI extraction.',
             },
             {
               step: '03',
               title: 'Cuzmify It',
               icon: Sparkles,
-              color: 'text-indigo-400',
+              color: 'text-[#3498E3]',
               desc: 'Customize colors, typography, layout, and service menus instantly using natural language AI or visual controls.',
             },
             {
@@ -141,10 +137,10 @@ export default function HomePage() {
             return (
               <GlassCard key={item.step} className="space-y-4 relative group">
                 <div className="flex items-center justify-between">
-                  <span className="text-3xl font-extrabold font-mono text-slate-700 group-hover:text-slate-500 transition-colors">
+                  <span className="text-3xl font-extrabold font-mono text-[#1E3A4A] group-hover:text-[#3498E3]/50 transition-colors">
                     {item.step}
                   </span>
-                  <div className={`p-3 rounded-xl bg-slate-900 border border-slate-800 ${item.color}`}>
+                  <div className={`p-3 rounded-xl bg-[#0A222E] border border-[#1E3A4A] ${item.color}`}>
                     <IconComponent className="w-5 h-5" />
                   </div>
                 </div>
@@ -158,9 +154,9 @@ export default function HomePage() {
 
       {/* Target Market Showcase */}
       <section className="max-w-7xl mx-auto px-6 space-y-12">
-        <div className="bg-gradient-to-br from-[#131A29] via-[#0D1321] to-[#070A10] p-8 md:p-12 rounded-3xl border border-slate-800 space-y-8">
+        <div className="bg-gradient-to-br from-[#0D2A38] via-[#0A222E] to-[#041017] p-8 md:p-12 rounded-3xl border border-[#1E3A4A] space-y-8">
           <div className="max-w-2xl space-y-3">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">
+            <span className="text-xs font-bold text-[#72B9F3] uppercase tracking-widest">
               Built for Visual Service & Small Product Businesses
             </span>
             <h2 className="text-3xl font-bold font-display text-white">
@@ -173,8 +169,8 @@ export default function HomePage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-semibold text-slate-300">
             {['Makeup Artists', 'Hairstylists', 'Event Planners', 'Photographers', 'Boutique Sellers', 'Tailors & Designers', 'Caterers & Chefs', 'Jewelry Sellers'].map((cat) => (
-              <div key={cat} className="flex items-center gap-2 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <div key={cat} className="flex items-center gap-2 bg-[#071A24] p-3 rounded-xl border border-[#1E3A4A]">
+                <CheckCircle2 className="w-4 h-4 text-[#72B9F3] flex-shrink-0" />
                 <span>{cat}</span>
               </div>
             ))}

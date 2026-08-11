@@ -12,18 +12,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Bram Intel Cinematic Palette
         brand: {
-          50: '#f0f4ff',
-          100: '#e0e9ff',
-          200: '#c7d7fe',
-          300: '#a4bcfd',
-          400: '#7a96fc',
-          500: '#5364f7',
-          600: '#3b43ed',
-          700: '#3132d8',
-          800: '#2829af',
-          900: '#25278b',
-          950: '#151552',
+          50: '#eef8ff',
+          100: '#d8f0ff',
+          200: '#b9e5ff',
+          300: '#72b9f3',
+          400: '#3498e3',
+          500: '#0d5771',
+          600: '#083d50',
+          700: '#0a3242',
+          800: '#0d2a38',
+          900: '#071a24',
+          950: '#041017',
+        },
+        cinematic: {
+          bg: '#071A24',
+          surface: '#0D2A38',
+          border: '#1E3A4A',
+          pill: '#0A222E',
+          accent: '#3498E3',
+          accentLight: '#72B9F3',
+          teal: '#0D5771',
         },
         gold: {
           400: '#fbbf24',
@@ -31,15 +41,15 @@ const config: Config = {
           600: '#d97706',
         },
         dark: {
-          bg: '#0B0F17',
-          card: '#131A29',
-          border: '#1E293B',
-          hover: '#1c263b',
+          bg: '#071A24',
+          card: '#0D2A38',
+          border: '#1E3A4A',
+          hover: '#0A222E',
         },
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
-        display: ['Outfit', 'sans-serif'],
+        display: ['Kanit', 'Outfit', 'sans-serif'],
       },
       animation: {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -47,8 +57,8 @@ const config: Config = {
       },
       keyframes: {
         glow: {
-          '0%': { boxShadow: '0 0 15px rgba(83, 100, 247, 0.3)' },
-          '100%': { boxShadow: '0 0 30px rgba(83, 100, 247, 0.7)' },
+          '0%': { boxShadow: '0 0 15px rgba(52, 152, 227, 0.3)' },
+          '100%': { boxShadow: '0 0 30px rgba(52, 152, 227, 0.7)' },
         },
       },
     },
