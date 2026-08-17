@@ -41,7 +41,7 @@ export class GrapesAdapter implements EditorAdapter {
           const sections = doc.querySelectorAll('section, nav, [data-cuzmify-type]');
           let closestSec: Element | null = null;
           let closestDist = Infinity;
-          let dropPos: 'top' | 'bottom' = 'bottom';
+          let isTop = false;
 
           sections.forEach((sec) => {
             const rect = sec.getBoundingClientRect();
@@ -50,14 +50,14 @@ export class GrapesAdapter implements EditorAdapter {
             if (dist < closestDist) {
               closestDist = dist;
               closestSec = sec;
-              dropPos = e.clientY < secMidY ? 'top' : 'bottom';
+              isTop = e.clientY < secMidY;
             }
           });
 
           if (closestSec && line) {
             const rect = (closestSec as Element).getBoundingClientRect();
             const yPos =
-              dropPos === 'top'
+              isTop
                 ? rect.top + doc.defaultView!.scrollY
                 : rect.bottom + doc.defaultView!.scrollY;
             line.style.top = `${yPos - 3}px`;
@@ -554,10 +554,11 @@ export class GrapesAdapter implements EditorAdapter {
     if (!block) return;
 
     const content = block.getContent();
+    if (!content) return;
     const wrapper = this.editor.getWrapper();
 
     if (wrapper) {
-      wrapper.append(content);
+      wrapper.append(content as any);
       const children = wrapper.components()?.models || [];
       const addedComp = children[children.length - 1];
       if (addedComp) {
@@ -570,7 +571,7 @@ export class GrapesAdapter implements EditorAdapter {
         }
       }
     } else {
-      this.editor.addComponents(content);
+      this.editor.addComponents(content as any);
     }
   }
 

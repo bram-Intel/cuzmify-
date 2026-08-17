@@ -56,3 +56,6 @@ export interface AIThemeConfig {
   businessName?: string;
   featuredServices: { title: string; price: string; description: string }[];
 }
+
+export type CuzmifyComponentTraits = Record<string, string | number | boolean | undefined>;
+

@@ -224,7 +224,15 @@ export class EditorService {
     this.adapter.updateSelectedTrait(name, value);
   }
 
+  updateSelectedTrait(name: string, value: string): void {
+    this.adapter.updateSelectedTrait(name, value);
+  }
+
   updateStyle(prop: string, value: string): void {
+    this.adapter.updateSelectedStyle(prop, value);
+  }
+
+  updateSelectedStyle(prop: string, value: string): void {
     this.adapter.updateSelectedStyle(prop, value);
   }
 
