@@ -12,39 +12,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Bram Intel Cinematic Palette
+        // Bram Intel Palette
         brand: {
-          50: '#eef8ff',
-          100: '#d8f0ff',
-          200: '#b9e5ff',
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          200: '#bae6fd',
           300: '#72b9f3',
           400: '#3498e3',
           500: '#0d5771',
           600: '#083d50',
           700: '#0a3242',
-          800: '#0d2a38',
-          900: '#071a24',
-          950: '#041017',
+          800: '#1a202c',
+          900: '#0f172a',
+          950: '#020617',
         },
         cinematic: {
-          bg: '#071A24',
-          surface: '#0D2A38',
-          border: '#1E3A4A',
-          pill: '#0A222E',
+          bg: '#FFFFFF',
+          surface: '#F7FAFC',
+          border: '#E2E8F0',
+          pill: '#F1F5F9',
           accent: '#3498E3',
           accentLight: '#72B9F3',
           teal: '#0D5771',
-        },
-        gold: {
-          400: '#fbbf24',
-          500: '#f59e0b',
-          600: '#d97706',
-        },
-        dark: {
-          bg: '#071A24',
-          card: '#0D2A38',
-          border: '#1E3A4A',
-          hover: '#0A222E',
+          text: '#1A202C',
         },
       },
       fontFamily: {
@@ -57,8 +47,8 @@ const config: Config = {
       },
       keyframes: {
         glow: {
-          '0%': { boxShadow: '0 0 15px rgba(52, 152, 227, 0.3)' },
-          '100%': { boxShadow: '0 0 30px rgba(52, 152, 227, 0.7)' },
+          '0%': { boxShadow: '0 0 15px rgba(52, 152, 227, 0.2)' },
+          '100%': { boxShadow: '0 0 30px rgba(52, 152, 227, 0.4)' },
         },
       },
     },

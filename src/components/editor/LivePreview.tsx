@@ -2,157 +2,104 @@
 
 import React from 'react';
 import { AIThemeConfig } from '@/core/types';
-import { Smartphone, Monitor, Globe, CheckCircle2, MessageCircle, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Smartphone, Monitor, Globe, Maximize2, Minimize2 } from 'lucide-react';
+import { GmakeupBeautyTemplate } from '@/components/templates/GmakeupBeautyTemplate';
 
 interface LivePreviewProps {
   config: AIThemeConfig;
+  onChangeConfig?: (newConfig: AIThemeConfig) => void;
   businessName: string;
+  onChangeBusinessName?: (newName: string) => void;
   category: string;
   activeModules: string[];
 }
 
 export const LivePreview: React.FC<LivePreviewProps> = ({
   config,
+  onChangeConfig,
   businessName,
+  onChangeBusinessName,
   category,
   activeModules,
 }) => {
   const [device, setDevice] = React.useState<'desktop' | 'mobile'>('desktop');
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  const isLight = config.style === 'bram-light' || config.style === 'minimal';
+  const bgColor = isLight ? '#FFFFFF' : config.style === 'apple-luxury' ? '#0F172A' : (config.primaryColor || '#071A24');
+  const cardBorder = isLight ? '#E2E8F0' : 'rgba(255, 255, 255, 0.1)';
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+    <div className={`flex flex-col h-full bg-[#071A24] rounded-2xl border border-[#1E3A4A] overflow-hidden shadow-2xl transition-all duration-300 ${
+      isExpanded ? 'fixed inset-4 z-50 rounded-3xl ring-4 ring-[#0D5771]/50' : ''
+    }`}>
       {/* Device Toolbar */}
-      <div className="bg-[#131A29] px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs text-slate-400">
+      <div className="bg-[#0D2A38] px-6 py-3 border-b border-[#1E3A4A] flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs text-slate-300">
           <Globe className="w-4 h-4 text-emerald-400" />
-          <span className="font-mono text-slate-300">
+          <span className="font-mono text-slate-200">
             {businessName ? businessName.toLowerCase().replace(/\s+/g, '') : 'glorybeauty'}.cuzmify.com
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold text-[10px] border border-emerald-500/20">
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold text-[10px] border border-emerald-500/30">
             SSL Verified
           </span>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-[#071A24] p-1 rounded-xl border border-[#1E3A4A]">
+            <button
+              onClick={() => setDevice('desktop')}
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
+                device === 'desktop' ? 'bg-[#3498E3] text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+              suppressHydrationWarning
+            >
+              <Monitor className="w-4 h-4" />
+              <span className="hidden sm:inline">Desktop</span>
+            </button>
+            <button
+              onClick={() => setDevice('mobile')}
+              className={`p-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
+                device === 'mobile' ? 'bg-[#3498E3] text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+              suppressHydrationWarning
+            >
+              <Smartphone className="w-4 h-4" />
+              <span className="hidden sm:inline">Mobile</span>
+            </button>
+          </div>
+
           <button
-            onClick={() => setDevice('desktop')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
-              device === 'desktop' ? 'bg-brand-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-2 rounded-xl bg-[#071A24] hover:bg-[#1E3A4A] text-slate-200 border border-[#1E3A4A] text-xs font-semibold flex items-center gap-1.5 transition-all"
+            title={isExpanded ? 'Exit Full Screen' : 'Full Width View'}
+            suppressHydrationWarning
           >
-            <Monitor className="w-4 h-4" />
-            <span className="hidden sm:inline">Desktop</span>
-          </button>
-          <button
-            onClick={() => setDevice('mobile')}
-            className={`p-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all ${
-              device === 'mobile' ? 'bg-brand-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Smartphone className="w-4 h-4" />
-            <span className="hidden sm:inline">Mobile</span>
+            {isExpanded ? <Minimize2 className="w-4 h-4 text-amber-400" /> : <Maximize2 className="w-4 h-4 text-[#3498E3]" />}
+            <span className="hidden md:inline">{isExpanded ? 'Minimize' : 'Full Width'}</span>
           </button>
         </div>
       </div>
 
       {/* Live Preview Container */}
-      <div className="flex-1 bg-slate-900/50 p-4 sm:p-8 overflow-y-auto flex justify-center items-start">
+      <div className="flex-1 bg-[#041017] p-2 sm:p-4 overflow-y-auto flex justify-center items-start">
         <div
-          className={`transition-all duration-500 shadow-2xl rounded-2xl overflow-hidden border border-slate-800 ${
-            device === 'mobile' ? 'w-[375px] min-h-[667px]' : 'w-full max-w-4xl min-h-[600px]'
+          className={`transition-all duration-500 shadow-2xl rounded-2xl overflow-hidden border ${
+            device === 'mobile' ? 'w-[375px] min-h-[667px]' : 'w-full min-h-[650px]'
           }`}
           style={{
-            backgroundColor: config.primaryColor || '#0B0F17',
-            color: '#FFFFFF',
-            fontFamily: config.fontFamily || 'Inter',
+            backgroundColor: bgColor,
+            borderColor: cardBorder,
+            fontFamily: config.fontFamily || 'Outfit',
           }}
         >
-          {/* Header Bar inside Preview */}
-          <nav className="px-6 py-4 flex items-center justify-between border-b border-white/10 backdrop-blur-md bg-black/20">
-            <span className="font-bold text-lg font-display tracking-tight" style={{ color: config.secondaryColor }}>
-              {businessName || 'Glory Beauty'}
-            </span>
-            <div className="flex items-center gap-4 text-xs font-medium text-slate-300">
-              <span>Services</span>
-              <span>Portfolio</span>
-              {activeModules.includes('CATALOG') && <span>Catalog</span>}
-              <button
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold shadow"
-                style={{ backgroundColor: config.secondaryColor, color: '#000000' }}
-              >
-                Book Now
-              </button>
-            </div>
-          </nav>
-
-          {/* Hero Section */}
-          <div className="px-8 py-16 text-center space-y-6 relative overflow-hidden">
-            <div
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl opacity-20 pointer-events-none"
-              style={{ backgroundColor: config.secondaryColor }}
-            />
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-white/10 backdrop-blur-md border border-white/10 text-amber-300">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{category || 'Visual Services'} Specialist</span>
-            </div>
-            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight max-w-2xl mx-auto leading-tight">
-              {config.heroHeadline || 'Transforming Elegance & Style'}
-            </h1>
-            <p className="text-sm sm:text-base text-slate-300 max-w-lg mx-auto leading-relaxed">
-              {config.heroSubheadline || 'Bespoke beauty services tailored for your grandest moments.'}
-            </p>
-
-            <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-              <button
-                className="px-6 py-3 rounded-xl font-bold text-sm shadow-xl flex items-center gap-2 transition-transform hover:scale-105"
-                style={{ backgroundColor: config.secondaryColor, color: '#000000' }}
-              >
-                <span>Book Appointment</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button className="px-6 py-3 rounded-xl font-medium text-sm bg-emerald-600/90 text-white flex items-center gap-2 hover:bg-emerald-500 transition-colors">
-                <MessageCircle className="w-4 h-4 fill-white" />
-                <span>WhatsApp Instant</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Featured Services Section */}
-          <div className="px-8 py-12 bg-black/30 border-t border-white/10 space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="text-xl font-bold tracking-tight">Signature Offerings</h2>
-              <p className="text-xs text-slate-400">Discover our most requested bespoke services</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {config.featuredServices?.map((srv, idx) => (
-                <div
-                  key={idx}
-                  className="p-5 rounded-xl bg-white/5 border border-white/10 space-y-3 hover:border-amber-400/40 transition-colors"
-                >
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-semibold text-sm">{srv.title}</h3>
-                    <span
-                      className="text-xs font-bold px-2 py-0.5 rounded bg-amber-400/20"
-                      style={{ color: config.secondaryColor }}
-                    >
-                      {srv.price}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">{srv.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Dynamic Composable Modules Banner */}
-          <div className="px-8 py-6 bg-slate-950/80 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-brand-400" />
-              <span>Active Cuzmify Modules ({activeModules.length}): {activeModules.join(', ')}</span>
-            </div>
-          </div>
+          <GmakeupBeautyTemplate
+            config={config}
+            onChangeConfig={onChangeConfig}
+            businessName={businessName}
+            onChangeBusinessName={onChangeBusinessName}
+            activeModules={activeModules}
+          />
         </div>
       </div>
     </div>

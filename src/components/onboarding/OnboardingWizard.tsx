@@ -1,22 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { SpotlightCard } from '@/components/ui/SpotlightCard';
+import { BorderBeam } from '@/components/ui/BorderBeam';
+import { HeroCanvasBackground } from '@/components/ui/HeroCanvasBackground';
 import {
   Camera,
-  Sparkles,
   Palette,
   Store,
   Utensils,
   CheckCircle2,
   ArrowRight,
-  ArrowLeft,
   MessageCircle,
   Plus,
-  Lightbulb,
-  X,
+  Zap,
   Instagram,
+  Rocket,
 } from 'lucide-react';
+
+import { AuthGate } from '@/components/auth/AuthGate';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 
 interface CategoryOption {
   id: string;
@@ -26,277 +31,309 @@ interface CategoryOption {
 }
 
 const CATEGORIES: CategoryOption[] = [
-  { id: 'Photography', name: 'Photography', sub: 'Studios, freelancers, videographers', icon: Camera },
-  { id: 'Beauty & Wellness', name: 'Beauty & Wellness', sub: 'Salons, makeup artists, spas, fitness', icon: Sparkles },
-  { id: 'Creative Studio', name: 'Creative Studio', sub: 'Designers, agencies, artists', icon: Palette },
-  { id: 'Retail', name: 'Retail & Fashion', sub: 'Boutiques, online stores, makers', icon: Store },
-  { id: 'Hospitality', name: 'Hospitality & Food', sub: 'Cafes, restaurants, event planners', icon: Utensils },
+  { id: 'Beauty & Wellness', name: 'Makeup Artists & Beauty', sub: 'Salons, makeup artists, spas, fitness', icon: Zap },
+  { id: 'Fashion & Retail', name: 'Fashion & Retail', sub: 'Boutiques, online stores, makers', icon: Store },
+  { id: 'Event Planning', name: 'Event Planning & Design', sub: 'Planners, caterers, venue decorators', icon: Utensils },
+  { id: 'Photography', name: 'Photography & Media', sub: 'Studios, freelancers, videographers', icon: Camera },
+  { id: 'Creative Studio', name: 'Creative Studio & Art', sub: 'Designers, agencies, artists', icon: Palette },
 ];
 
-export const OnboardingWizard: React.FC = () => {
+function WizardContent() {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedCategory, setSelectedCategory] = useState<string>('Beauty & Wellness');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('Modern Business Template');
   const [instagramConnected, setInstagramConnected] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [businessName, setBusinessName] = useState('');
 
+  useEffect(() => {
+    const templateFromUrl = searchParams.get('template');
+    if (templateFromUrl) {
+      setSelectedTemplate(templateFromUrl);
+      setStep(4);
+    }
+  }, [searchParams]);
+
   const handleNext = () => {
-    if (step < 3) {
-      setStep((prev) => (prev + 1) as 2 | 3);
+    if (step < 4) {
+      setStep((prev) => (prev + 1) as 1 | 2 | 3 | 4);
     } else {
-      // Step 3 Finish -> Redirect to AI Editor with parameters
       const nameParam = encodeURIComponent(businessName.trim() || 'My Business');
       const catParam = encodeURIComponent(selectedCategory);
-      router.push(`/editor?importName=${nameParam}&category=${catParam}`);
+      const tplParam = encodeURIComponent(selectedTemplate);
+      router.push(`/editor?importName=${nameParam}&category=${catParam}&template=${tplParam}`);
     }
   };
 
   const handleBack = () => {
     if (step > 1) {
-      setStep((prev) => (prev - 1) as 1 | 2);
+      setStep((prev) => (prev - 1) as 1 | 2 | 3 | 4);
     } else {
       router.push('/');
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#071A24] text-white flex flex-col justify-between">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-[#071A24]/90 backdrop-blur-md border-b border-[#1E3A4A]">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button
-            onClick={handleBack}
-            className="p-2 rounded-full hover:bg-[#0D2A38] text-[#72B9F3] transition-colors flex items-center gap-1 text-sm font-semibold"
-            suppressHydrationWarning
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="hidden sm:inline">Back</span>
-          </button>
+    <div className="min-h-[calc(100vh-80px)] bg-[#FFFFFF] text-[#1A202C] flex flex-col justify-between relative overflow-hidden pb-16">
+      {/* Background Particle Mesh Canvas */}
+      <HeroCanvasBackground />
 
-          <div className="font-extrabold text-xl tracking-tight text-white font-display">
-            CUZMIFY
+      {/* Radial Dot Grid Background Mask */}
+      <div className="absolute inset-0 bg-[radial-gradient(#0D5771_0.65px,transparent_0.65px)] [background-size:28px_28px] opacity-10 pointer-events-none" />
+
+      {/* Returning User Quick Resume Banner */}
+      {session?.user && (
+        <div className="w-full max-w-xl mx-auto px-6 pt-4 relative z-10">
+          <div className="bg-[#0D5771]/10 border border-[#0D5771]/20 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[#1A202C] font-medium">
+                Signed in as <strong>{session.user.name || session.user.email}</strong>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/dashboard"
+                className="px-3 py-1.5 rounded-xl bg-[#0D5771] text-white font-bold text-[11px] hover:bg-[#083D50] transition-colors shadow-sm"
+              >
+                Go to Dashboard →
+              </Link>
+            </div>
           </div>
-
-          <button
-            onClick={() => router.push('/')}
-            className="text-xs text-slate-400 hover:text-white transition-colors"
-            suppressHydrationWarning
-          >
-            Save & Exit
-          </button>
         </div>
+      )}
 
-        {/* Progress Bar */}
-        <div className="w-full bg-[#0D2A38] h-1 max-w-5xl mx-auto">
+      {/* Sleek Top Progress Indicator */}
+      <div className="w-full max-w-xl mx-auto px-6 pt-3 pb-2 relative z-10">
+        <div className="flex items-center justify-between text-xs font-mono font-bold text-[#0D5771] mb-1.5">
+          <span>STEP {step} OF 4</span>
+          <span className="uppercase text-[#64748B]">
+            {step === 1 && 'Business Category'}
+            {step === 2 && 'Social Presence'}
+            {step === 3 && 'Business Name'}
+            {step === 4 && 'Save & Launch'}
+          </span>
+        </div>
+        <div className="w-full bg-[#E2E8F0] h-1.5 rounded-full overflow-hidden">
           <div
-            className="bg-gradient-to-r from-[#0D5771] via-[#3498E3] to-[#72B9F3] h-1 transition-all duration-500 rounded-r-full"
-            style={{ width: `${(step / 3) * 100}%` }}
+            className="bg-gradient-to-r from-[#0D5771] to-[#3498E3] h-full transition-all duration-500 rounded-full"
+            style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
-      </header>
+      </div>
 
-      {/* Main Canvas */}
-      <main className="flex-1 max-w-xl w-full mx-auto px-6 pt-12 pb-32 flex flex-col items-center justify-center">
-        {/* Step 1: What do you do? */}
-        {step === 1 && (
-          <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="text-center space-y-3">
-              <span className="text-xs font-semibold text-[#72B9F3] uppercase tracking-widest">
-                Step 1 of 3
-              </span>
-              <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-white">
-                What do you do?
-              </h1>
-              <p className="text-sm text-slate-400">
-                Select your primary business category to customize your experience.
-              </p>
-            </div>
+      {/* Main Container */}
+      <main className="flex-1 max-w-xl w-full mx-auto px-6 py-4 flex flex-col justify-center relative z-10 mb-14">
+        {step === 4 ? (
+          <AuthGate
+            wizardSummary={{
+              category: selectedCategory,
+              template: selectedTemplate,
+              instagramHandle: instagramConnected ? 'connected_account' : undefined,
+            }}
+          />
+        ) : (
+          <>
+            {/* Step 1: What do you do? */}
+            {step === 1 && (
+              <div className="w-full space-y-4 animate-in fade-in duration-300">
+                <div className="text-center space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-[#1A202C]">
+                    What do you do?
+                  </h1>
+                  <p className="text-xs sm:text-sm text-[#64748B]">
+                    Select your primary business category to customize your experience.
+                  </p>
+                </div>
 
-            <div className="grid gap-3">
-              {CATEGORIES.map((cat) => {
-                const IconComp = cat.icon;
-                const isSelected = selectedCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`w-full p-5 rounded-2xl border text-left flex items-center justify-between transition-all duration-200 ${
-                      isSelected
-                        ? 'bg-[#0D2A38] border-[#3498E3] shadow-[0_0_20px_rgba(52,152,227,0.25)]'
-                        : 'bg-[#0D2A38]/50 border-[#1E3A4A] hover:border-slate-700 hover:-translate-y-0.5'
-                    }`}
-                    suppressHydrationWarning
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                          isSelected ? 'bg-[#3498E3] text-slate-950' : 'bg-[#0A222E] text-[#72B9F3]'
+                <div className="max-h-[300px] sm:max-h-[340px] overflow-y-auto custom-scrollbar pr-2 py-1 space-y-2.5">
+                  {CATEGORIES.map((cat) => {
+                    const IconComp = cat.icon;
+                    const isSelected = selectedCategory === cat.id;
+                    return (
+                      <SpotlightCard
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`w-full p-4 rounded-2xl cursor-pointer text-left flex items-center justify-between transition-all duration-200 ${
+                          isSelected
+                            ? 'bg-[#FFFFFF] border-[#0D5771] shadow-md shadow-[#0D5771]/10'
+                            : 'bg-[#F7FAFC] border-[#E2E8F0] hover:border-slate-300'
                         }`}
                       >
-                        <IconComp className="w-6 h-6" />
+                        <div className="flex items-center gap-3.5">
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                              isSelected ? 'bg-[#0D5771] text-white' : 'bg-[#F1F5F9] text-[#64748B]'
+                            }`}
+                          >
+                            <IconComp className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-sm text-[#1A202C] font-display">{cat.name}</h3>
+                            <p className="text-[11px] text-[#64748B] mt-0.5">{cat.sub}</p>
+                          </div>
+                        </div>
+                        {isSelected && <CheckCircle2 className="w-5 h-5 text-[#0D5771] flex-shrink-0" />}
+                      </SpotlightCard>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Connect your presence */}
+            {step === 2 && (
+              <div className="w-full space-y-4 animate-in fade-in duration-300">
+                <div className="text-center space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-[#1A202C]">
+                    Where do we find you?
+                  </h1>
+                  <p className="text-xs sm:text-sm text-[#64748B] leading-relaxed">
+                    Connect your social accounts or website so we can automatically pull your best photos and business details.
+                  </p>
+                </div>
+
+                <div className="max-h-[300px] sm:max-h-[340px] overflow-y-auto custom-scrollbar pr-2 py-1 space-y-3">
+                  <SpotlightCard
+                    onClick={() => setInstagramConnected(!instagramConnected)}
+                    className={`w-full p-4 rounded-2xl cursor-pointer text-left flex items-center justify-between transition-all ${
+                      instagramConnected
+                        ? 'bg-[#FFFFFF] border-pink-500 shadow-sm'
+                        : 'bg-[#F7FAFC] border-[#E2E8F0] hover:border-pink-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-400 flex items-center justify-center text-white">
+                        <Instagram className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-base text-white font-display">{cat.name}</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">{cat.sub}</p>
+                        <h3 className="font-bold text-sm text-[#1A202C] font-display">
+                          {instagramConnected ? 'Instagram Connected' : 'Connect Instagram'}
+                        </h3>
+                        <p className="text-[11px] text-[#64748B] mt-0.5">Import photos, portfolio gallery, and bio</p>
                       </div>
                     </div>
-                    {isSelected && <CheckCircle2 className="w-6 h-6 text-[#72B9F3] flex-shrink-0" />}
+                    {instagramConnected ? (
+                      <CheckCircle2 className="w-5 h-5 text-pink-600" />
+                    ) : (
+                      <ArrowRight className="w-4 h-4 text-slate-400" />
+                    )}
+                  </SpotlightCard>
+
+                  <SpotlightCard
+                    onClick={() => setWhatsappConnected(!whatsappConnected)}
+                    className={`w-full p-4 rounded-2xl cursor-pointer text-left flex items-center justify-between transition-all ${
+                      whatsappConnected
+                        ? 'bg-[#FFFFFF] border-emerald-500 shadow-sm'
+                        : 'bg-[#F7FAFC] border-[#E2E8F0] hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-[#25D366] flex items-center justify-center text-white">
+                        <MessageCircle className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-[#1A202C] font-display">
+                          {whatsappConnected ? 'WhatsApp Connected' : 'Connect WhatsApp'}
+                        </h3>
+                        <p className="text-[11px] text-[#64748B] mt-0.5">Enable instant booking & customer chat</p>
+                      </div>
+                    </div>
+                    {whatsappConnected ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    ) : (
+                      <ArrowRight className="w-4 h-4 text-slate-400" />
+                    )}
+                  </SpotlightCard>
+
+                  <button
+                    onClick={() => handleNext()}
+                    className="w-full p-3 rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] hover:bg-[#F1F5F9] flex items-center justify-center gap-2 text-[#64748B] transition-all text-xs font-semibold"
+                    suppressHydrationWarning
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>I'll do this later — continue for now</span>
                   </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Connect your presence */}
-        {step === 2 && (
-          <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="text-center space-y-3">
-              <span className="text-xs font-semibold text-[#72B9F3] uppercase tracking-widest">
-                Step 2 of 3
-              </span>
-              <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-white">
-                Where do we find you?
-              </h1>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Connect your socials so we can automatically pull your best photos, reviews, and business details. We'll never post without asking.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {/* Instagram */}
-              <button
-                onClick={() => setInstagramConnected(!instagramConnected)}
-                className={`w-full p-5 rounded-2xl border text-left flex items-center justify-between transition-all ${
-                  instagramConnected
-                    ? 'bg-pink-500/10 border-pink-500/50 text-pink-300'
-                    : 'bg-[#0D2A38]/60 border-[#1E3A4A] hover:border-pink-500/40'
-                }`}
-                suppressHydrationWarning
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 via-pink-500 to-amber-400 flex items-center justify-center text-white">
-                    <Instagram className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-white font-display">
-                      {instagramConnected ? 'Instagram Connected' : 'Connect Instagram'}
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Import photos, portfolio, and bio</p>
-                  </div>
                 </div>
-                {instagramConnected ? (
-                  <CheckCircle2 className="w-6 h-6 text-pink-400" />
-                ) : (
-                  <ArrowRight className="w-5 h-5 text-slate-500" />
-                )}
-              </button>
+              </div>
+            )}
 
-              {/* WhatsApp */}
-              <button
-                onClick={() => setWhatsappConnected(!whatsappConnected)}
-                className={`w-full p-5 rounded-2xl border text-left flex items-center justify-between transition-all ${
-                  whatsappConnected
-                    ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-300'
-                    : 'bg-[#0D2A38]/60 border-[#1E3A4A] hover:border-emerald-500/40'
-                }`}
-                suppressHydrationWarning
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center text-white">
-                    <MessageCircle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-white font-display">
-                      {whatsappConnected ? 'WhatsApp Connected' : 'Connect WhatsApp'}
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Allow direct customer booking & inquiries</p>
-                  </div>
+            {/* Step 3: Name your space */}
+            {step === 3 && (
+              <div className="w-full space-y-4 animate-in fade-in duration-300">
+                <div className="text-center space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-[#1A202C]">
+                    Let's name your space
+                  </h1>
+                  <p className="text-xs sm:text-sm text-[#64748B]">
+                    Enter your business or brand name. You can change this anytime.
+                  </p>
                 </div>
-                {whatsappConnected ? (
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                ) : (
-                  <ArrowRight className="w-5 h-5 text-slate-500" />
-                )}
-              </button>
 
-              {/* Skip / Do later */}
-              <button
-                onClick={() => handleNext()}
-                className="w-full p-4 rounded-2xl border border-dashed border-[#1E3A4A] bg-[#0A222E]/40 hover:bg-[#0A222E] flex items-center gap-3 text-slate-400 hover:text-white transition-all text-xs font-semibold"
-                suppressHydrationWarning
-              >
-                <Plus className="w-4 h-4" />
-                <span>I'll do this later — skip manual entry for now</span>
-              </button>
-            </div>
-          </div>
-        )}
+                <SpotlightCard className="p-6 space-y-4 relative overflow-hidden bg-[#FFFFFF] border-[#E2E8F0] shadow-lg">
+                  <BorderBeam size={180} duration={8} colorFrom="#0D5771" colorTo="#3498E3" />
+                  <div>
+                    <label className="text-xs font-bold text-[#0D5771] uppercase tracking-wider block mb-2 font-mono">
+                      Business / Brand Name
+                    </label>
+                    <input
+                      type="text"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      placeholder="e.g. Glory Beauty Studio"
+                      className="w-full bg-[#F7FAFC] border border-[#E2E8F0] focus:border-[#0D5771] rounded-2xl px-5 h-13 text-base font-semibold text-[#1A202C] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0D5771]/20 shadow-sm transition-all"
+                      suppressHydrationWarning
+                      autoFocus
+                    />
+                  </div>
 
-        {/* Step 3: Name your space */}
-        {step === 3 && (
-          <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="text-center space-y-3">
-              <span className="text-xs font-semibold text-[#72B9F3] uppercase tracking-widest">
-                Step 3 of 3
-              </span>
-              <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-white">
-                Let's name your space
-              </h1>
-              <p className="text-sm text-slate-400">
-                You can always change this later.
-              </p>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-2">
-                  Business Name
-                </label>
-                <input
-                  type="text"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="e.g. Glory Beauty Studio"
-                  className="w-full bg-[#0D2A38] border border-[#1E3A4A] focus:border-[#3498E3] rounded-2xl px-5 h-16 text-lg font-medium text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#3498E3]/20 shadow-xl transition-all"
-                  suppressHydrationWarning
-                  autoFocus
-                />
+                  <div className="p-3 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-start gap-2.5 text-xs text-[#64748B]">
+                    <Zap className="w-4 h-4 text-[#0D5771] flex-shrink-0 mt-0.5" />
+                    <p className="leading-relaxed">
+                      We use this name to draft your initial digital business home and setup your branding parameters.
+                    </p>
+                  </div>
+                </SpotlightCard>
               </div>
-
-              <div className="p-4 rounded-2xl bg-[#0A222E] border border-[#1E3A4A] flex items-start gap-3 text-xs text-slate-300">
-                <Lightbulb className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  We use this name to draft the first version of your site and set up your initial branding elements. Don't overthink it!
-                </p>
-              </div>
-            </div>
-          </div>
+            )}
+          </>
         )}
       </main>
 
-      {/* Fixed Bottom Action Bar */}
-      <footer className="fixed bottom-0 left-0 w-full z-40 bg-[#071A24]/95 backdrop-blur-md border-t border-[#1E3A4A] p-4 flex justify-center">
-        <div className="max-w-xl w-full flex justify-between items-center gap-4">
-          <button
-            onClick={handleBack}
-            className="px-6 py-3.5 rounded-full border border-[#1E3A4A] text-slate-300 hover:text-white hover:bg-[#0D2A38] font-bold text-xs transition-colors"
-            suppressHydrationWarning
-          >
-            Back
-          </button>
+      {/* Floating Action Bar (hide on Step 4 since AuthGate has its own Google CTA) */}
+      {step < 4 && (
+        <div className="fixed bottom-10 left-0 w-full z-40 px-6 flex justify-center pointer-events-none">
+          <div className="max-w-xl w-full bg-[#FFFFFF]/95 backdrop-blur-xl border border-[#E2E8F0] p-3 rounded-2xl flex justify-between items-center gap-4 shadow-lg shadow-[#0D5771]/10 pointer-events-auto">
+            <button
+              onClick={handleBack}
+              className="px-6 py-2.5 rounded-xl border border-[#E2E8F0] text-[#64748B] hover:text-[#1A202C] hover:bg-[#F1F5F9] font-bold text-xs transition-colors"
+              suppressHydrationWarning
+            >
+              Back
+            </button>
 
-          <button
-            onClick={handleNext}
-            className="px-8 py-3.5 rounded-full bg-gradient-to-r from-[#0D5771] via-[#3498E3] to-[#72B9F3] hover:opacity-90 text-white font-bold text-xs shadow-xl shadow-[#3498E3]/25 flex items-center gap-2 transition-all hover:scale-[1.02]"
-            suppressHydrationWarning
-          >
-            <span>{step === 3 ? 'Generate My Site' : 'Next'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+            <button
+              onClick={handleNext}
+              className="px-7 py-3 rounded-xl bg-gradient-to-r from-[#0D5771] to-[#3498E3] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#3498E3]/20 flex items-center gap-2 transition-all hover:scale-[1.02]"
+              suppressHydrationWarning
+            >
+              <span>Next Step</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </footer>
+      )}
     </div>
+  );
+}
+
+export const OnboardingWizard: React.FC = () => {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#FFFFFF]" />}>
+      <WizardContent />
+    </Suspense>
   );
 };

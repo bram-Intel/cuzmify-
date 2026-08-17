@@ -46,12 +46,13 @@ export interface WebsiteImportResult {
 }
 
 export interface AIThemeConfig {
-  style: 'luxury' | 'modern' | 'minimal' | 'vibrant' | 'dark-elegance';
+  style: 'luxury' | 'modern' | 'minimal' | 'vibrant' | 'dark-elegance' | 'apple-luxury' | 'google-material' | 'bram-light' | 'dark-obsidian';
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
   fontFamily: string;
   heroHeadline: string;
   heroSubheadline: string;
+  businessName?: string;
   featuredServices: { title: string; price: string; description: string }[];
 }

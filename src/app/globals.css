@@ -1,57 +1,301 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Kanit:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&family=Outfit:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Kanit:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&family=Outfit:wght@500;600;700;800&display=swap');
+@import 'grapesjs/dist/css/grapes.min.css';
 
 :root {
-  /* Bram Intel Cinematic Dark Mode Palette */
-  --background: #071A24;
-  --surface: #0D2A38;
+  /* Bram Intel Light Mode Palette (DEFAULT) */
+  --background: #FFFFFF;
+  --surface: #F7FAFC;
   --primary: #0D5771;
   --primary-dark: #083D50;
   --accent: #3498E3;
   --accent-light: #72B9F3;
 
-  --text: #F8FAFC;
-  --text-muted: #94A3B8;
-  --border: #1E3A4A;
-  --card-bg: #0D2A38;
-  --pill-bg: #0A222E;
-  --nav-hover: #3498E3;
-  --heading-gradient: linear-gradient(135deg, #72B9F3 0%, #3498E3 50%, #FFFFFF 100%);
+  --text: #1A202C;
+  --text-muted: #64748B;
+  --border: #E2E8F0;
+  --card-bg: #F7FAFC;
+  --pill-bg: #F1F5F9;
+  --nav-hover: #0D5771;
+  --heading-gradient: linear-gradient(135deg, #0D5771 0%, #3498E3 100%);
 }
 
 body {
   color: var(--text);
-  background: var(--background);
-  font-family: 'Inter', sans-serif;
+  background-color: var(--background);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6, .font-display {
-  font-family: 'Kanit', 'Outfit', sans-serif;
+  font-family: 'Kanit', 'Outfit', 'Space Grotesk', sans-serif;
 }
 
 .hero-heading {
-  background: var(--heading-gradient);
+  background: linear-gradient(135deg, #0D5771 0%, #3498E3 50%, #083D50 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  display: inline-block;
+  padding-bottom: 0.25em;
+  margin-bottom: -0.25em;
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbeam animation */
+@keyframes border-beam {
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+.animate-border-beam {
+  animation: border-beam 10s linear infinite;
+}
+
+/* Float Keyframes */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(0.5deg); }
+}
+
+.animate-float {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+/* Custom Eccentric, Cool & Minimalistic Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.4);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #0D5771 0%, #3498E3 100%);
+  border-radius: 9999px;
+  box-shadow: 0 0 8px rgba(52, 152, 227, 0.4);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3498E3 0%, #72B9F3 100%);
+  box-shadow: 0 0 12px rgba(52, 152, 227, 0.8);
+}
+
+/* Global Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: #FFFFFF;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: #CBD5E1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+  background: #0D5771;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   GRAPESJS HEADLESS MODE — Cuzmify Studio Overrides
+   Hides all GrapesJS default UI; only the canvas iframe remains.
+══════════════════════════════════════════════════════════════ */
+
+/* Make the editor fill its container */
+.gjs-editor {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Canvas fills the full parent — critical for our layout */
+.gjs-cv-canvas {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Selection badge — Cuzmify brand colors */
+.gjs-badge {
+  background: #1D4ED8 !important;
+  color: #fff !important;
+  font-family: ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  border-radius: 6px !important;
+  padding: 2px 8px !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Hover highlight border */
+.gjs-highlighter {
+  border: 2px solid #3B82F6 !important;
+  border-radius: 4px !important;
+}
+
+/* Selection highlight */
+.gjs-selected {
+  outline: 2px solid #0D5771 !important;
+  outline-offset: 2px !important;
+}
+
+/* Drag-and-Drop Placement Indicator Line */
+.gjs-placeholder, .gjs-sorter-placeholder {
+  border: 3px solid #0D5771 !important;
+  background-color: rgba(52, 152, 227, 0.4) !important;
+  box-shadow: 0 0 18px rgba(13, 87, 113, 0.95) !important;
+  height: 8px !important;
+  z-index: 999999 !important;
+  pointer-events: none !important;
+  margin: 10px 0 !important;
+  border-radius: 999px !important;
+}
+
+/* Resize handles */
+.gjs-resizer-h {
+  background: #3B82F6 !important;
+  border: 2px solid #fff !important;
+  border-radius: 3px !important;
+  width: 10px !important;
+  height: 10px !important;
+}
+
+/* Toolbar action icons (top of selected component) */
+.gjs-toolbar {
+  background: #070C14 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 10px !important;
+  padding: 4px !important;
+  gap: 2px !important;
+}
+
+.gjs-toolbar-item {
+  color: #94A3B8 !important;
+  border-radius: 6px !important;
+  padding: 4px 6px !important;
+}
+
+.gjs-toolbar-item:hover {
+  background: rgba(59,130,246,0.2) !important;
+  color: #fff !important;
+}
+
+/* Inline text editor */
+.gjs-rte-toolbar {
+  background: #0D1520 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 10px !important;
+  padding: 4px !important;
+}
+
+.gjs-rte-actionbar .gjs-rte-action {
+  color: #94A3B8 !important;
+}
+
+.gjs-rte-actionbar .gjs-rte-action:hover,
+.gjs-rte-actionbar .gjs-rte-active {
+  color: white !important;
+  background: rgba(59,130,246,0.2) !important;
+}
+
+/* Studio scrollbar — thin dark */
+.scrollbar-thin::-webkit-scrollbar { width: 3px; height: 3px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9999px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.4); }
+
+/* ══════════════════════════════════════════════════════════════
+   CUZMIFY BRAM INTEL LIGHT — Native GrapesJS BlockManager Overrides
+══════════════════════════════════════════════════════════════ */
+
+#cuzmify-blocks-container,
+#cuzmify-blocks-container *,
+.gjs-blocks-cs,
+.gjs-blocks-c,
+.gjs-block-category,
+.gjs-block-category .gjs-title,
+.gjs-sm-sector,
+.gjs-sm-sectors {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+#cuzmify-blocks-container {
+  width: 100%;
+}
+
+#cuzmify-blocks-container .gjs-blocks-c {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+#cuzmify-blocks-container .gjs-block-category {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+#cuzmify-blocks-container .gjs-block-category .gjs-title,
+#cuzmify-blocks-container .gjs-title {
+  display: none !important;
+}
+
+#cuzmify-blocks-container .gjs-block {
+  width: 100% !important;
+  min-height: 54px !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  background: #F7FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #1A202C !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease !important;
+  cursor: grab !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  box-sizing: border-box !important;
+}
+
+#cuzmify-blocks-container .gjs-block:hover {
+  background: #FFFFFF !important;
+  border-color: #0D5771 !important;
+  box-shadow: 0 4px 14px rgba(13, 87, 113, 0.1) !important;
+}
+
+#cuzmify-blocks-container .gjs-block-media {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 10px !important;
+  background: rgba(13, 87, 113, 0.08) !important;
+  color: #0D5771 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+#cuzmify-blocks-container .gjs-block-media svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke: #0D5771 !important;
+}
+
+#cuzmify-blocks-container .gjs-block-label {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  color: #1A202C !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  line-height: 1.3 !important;
+  text-align: left !important;
+}
+
