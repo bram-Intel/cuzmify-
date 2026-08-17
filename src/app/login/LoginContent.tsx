@@ -10,7 +10,8 @@ import { ArrowRight, Mail, Sparkles, ShieldCheck, Zap, Lock, Loader2 } from 'luc
 
 export default function LoginContent() {
   const router = useRouter();
-  const targetParam = searchParams.get('callbackUrl');
+  const searchParams = useSearchParams();
+  const targetParam = searchParams ? searchParams.get('callbackUrl') : null;
   const callbackUrl = targetParam ? `/auth/callback?callbackUrl=${encodeURIComponent(targetParam)}` : '/auth/callback';
 
   const [email, setEmail] = useState('');
