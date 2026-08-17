@@ -4,6 +4,16 @@ import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 
+// Ensure NEXTAUTH_URL and AUTH_URL are valid or omitted for trustHost
+if (typeof process !== 'undefined' && process.env) {
+  if (process.env.NEXTAUTH_URL && (process.env.NEXTAUTH_URL.includes('<') || process.env.NEXTAUTH_URL.includes('>') || !process.env.NEXTAUTH_URL.startsWith('http'))) {
+    delete process.env.NEXTAUTH_URL;
+  }
+  if (process.env.AUTH_URL && (process.env.AUTH_URL.includes('<') || process.env.AUTH_URL.includes('>') || !process.env.AUTH_URL.startsWith('http'))) {
+    delete process.env.AUTH_URL;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || 'cuzmify-bram-intel-secret-production-32-chars',

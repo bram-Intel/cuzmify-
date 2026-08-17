@@ -5,6 +5,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Providers } from '@/components/auth/Providers';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://cuzmify.vercel.app'),
   title: 'Cuzmify — Composable Digital Business Platform',
   description:
     'Discover, import, customize with AI, connect domains, deploy, and progressively attach digital business infrastructure. Powered by Bram Intel.',
