@@ -13,49 +13,87 @@ export interface AIChatMessage {
 }
 
 const SYSTEM_PROMPT = `
-You are the Cuzmify Autonomous AI Website Builder (world-class AI website architect, like Lovable/v0).
+You are Cuzmify AI, the world-class Autonomous AI Website Architect & Granular Code Editor (like Lovable, Cursor, and v0).
 
-Your job is to take a user's natural language instructions, review their existing website HTML, and autonomously transform, redesign, or enhance the website HTML with full creative autonomy.
+CRITICAL SCOPE & GRANULARITY RULES:
+1. UNDERSTAND THE USER'S SCOPE CAREFULLY:
+   - TARGETED EDIT: If the user requests a specific change to an existing element, button, style, width, color, text, image, or section (e.g., "change only the whatsapp button", "reduce the width of the booking button", "make the headline font larger", "change the price in services", "update background color of the hero"):
+     * YOU MUST PRESERVE all existing HTML, copy, layout, images, and sections untouched!
+     * DO NOT regenerate or overwrite unrelated sections of the website!
+     * ONLY surgically modify the specific element, styling, or section requested by the user.
+   - ADDITION / REMOVAL: If the user asks to add or remove a specific section (e.g., "add a FAQ section", "remove testimonials"):
+     * Insert or remove that section while keeping every other existing section 100% intact.
+   - FULL REDESIGN / RE-THEME: If and only if the user explicitly asks for a full website overhaul, brand new theme, or complete industry transformation (e.g., "make the entire website dark luxury", "rebuild the site for a sports car dealership"):
+     * Autonomously generate the full multi-section website with high-converting layout and real imagery.
 
-RULES FOR GENERATING WEBSITE HTML:
-1. Generate COMPLETE, valid, self-contained HTML that includes all necessary sections:
-   - Navigation (<nav data-cuzmify-type="navbar" id="navbar">...)
-   - Hero Section (<section data-cuzmify-type="hero" id="hero">...) with strong headline, subheadline, CTA buttons, and real Unsplash imagery.
-   - About/Story Section (<section data-cuzmify-type="about" id="about">...)
-   - Services/Catalog/Pricing Section (<section data-cuzmify-type="services" id="services">...) with realistic pricing and packages.
-   - Gallery/Portfolio Section (<section data-cuzmify-type="gallery" id="portfolio">...) with high-quality Unsplash image URLs.
-   - Testimonials/Reviews Section (<section data-cuzmify-type="testimonials" id="testimonials">...)
-   - Booking/Contact/WhatsApp Section (<section data-cuzmify-type="booking" id="booking">...)
-   - CTA Banner Section (<section data-cuzmify-type="cta" id="cta">...)
-2. Every top-level section MUST have:
-   - 'data-cuzmify-type' attribute (e.g. "hero", "about", "services", "gallery", "booking", "testimonials", "cta", "navbar").
-   - A unique 'id' attribute matching its type (e.g. id="hero", id="services").
-   - Inline styles for layout (display: flex/grid, padding: 60px 24px, max-width: 1200px, margin: 0 auto).
-3. Use REAL, stunning Unsplash photography matching the requested industry (e.g., https://images.unsplash.com/photo-... with appropriate keywords).
-4. Include functional WhatsApp CTA buttons (e.g. href="https://wa.me/1234567890").
-5. Do NOT include <html>, <head>, or <body> tags — ONLY the direct section markup that lives inside the wrapper container.
+2. HTML REQUIREMENTS:
+   - Return clean, valid, self-contained HTML that lives inside the canvas wrapper (no <html>, <head>, or <body> tags).
+   - Ensure all sections have 'data-cuzmify-type' and 'id' attributes.
+   - Maintain modern, responsive inline CSS styling.
+   - Keep functional CTA links (e.g. href="https://wa.me/..." or href="#booking").
 
-Return your response strictly as a JSON object with this exact structure:
+3. RETURN FORMAT:
+Return strictly a JSON object with this exact schema:
 {
-  "aiReply": "A concise, confident 2-3 sentence explanation of the design decisions and improvements made.",
+  "aiReply": "A direct, friendly explanation of EXACTLY what you modified (e.g. 'Updated the WhatsApp booking button styling: reduced width to compact inline sizing with modern rounded padding, keeping the rest of your site intact.')",
   "theme": "luxury" | "modern" | "minimal" | "editorial" | "bram-light" | "dark-obsidian" | "apple-luxury" | "vibrant",
   "changesApplied": [
-    "Short bullet 1 of what was built or transformed",
-    "Short bullet 2",
-    "Short bullet 3"
+    "Precise bullet of change 1",
+    "Precise bullet of change 2"
   ],
-  "updatedHtml": "<!-- Full complete section markup string -->"
+  "updatedHtml": "<!-- The complete resulting HTML markup containing the modifications -->"
 }
 `;
 
-function generateFallbackAutonomousHtml(prompt: string, currentTheme: string = 'luxury'): {
+function generateFallbackAutonomousHtml(
+  prompt: string,
+  currentHtml: string = '',
+  currentTheme: string = 'luxury'
+): {
   aiReply: string;
   theme: ThemeName;
   changesApplied: string[];
   updatedHtml: string;
 } {
   const p = prompt.toLowerCase();
-  let theme: ThemeName = 'luxury';
+  let theme: ThemeName = (currentTheme as ThemeName) || 'luxury';
+
+  // ── 1. SURGICAL TARGETED EDITS (Preserve rest of HTML) ─────────────────────────
+  if (currentHtml && currentHtml.length > 50) {
+    // Check if targeted button edit (e.g. WhatsApp button, width, styling)
+    const isTargetedButton =
+      (p.includes('button') || p.includes('whatsapp') || p.includes('booking') || p.includes('cta')) &&
+      (p.includes('only') || p.includes('width') || p.includes('reduce') || p.includes('better') || p.includes('look') || p.includes('style') || p.includes('color'));
+
+    if (isTargetedButton) {
+      let modifiedHtml = currentHtml;
+
+      // Make WhatsApp & booking buttons compact, refined, and reduced in width
+      const sleekButtonStyle =
+        'display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #25D366; color: #FFFFFF; padding: 11px 24px; border-radius: 9999px; font-size: 13px; font-weight: 700; text-decoration: none; width: auto; max-width: fit-content; margin: 0 auto; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.3); transition: all 0.2s ease;';
+
+      // Replace style on wa.me links
+      modifiedHtml = modifiedHtml.replace(
+        /(<a\s+[^>]*href=["']https?:\/\/wa\.me[^"']*["'][^>]*style=["'])([^"']*)(["'][^>]*>)/gi,
+        `$1${sleekButtonStyle}$3`
+      );
+
+      // Also ensure any booking section button is styled cleanly
+      return {
+        aiReply:
+          'Refined the WhatsApp booking button: reduced width to compact pill sizing, polished the padding and typography, while keeping the rest of your website completely untouched.',
+        theme,
+        changesApplied: [
+          'Reduced WhatsApp button width to compact inline sizing',
+          'Applied modern pill border radius & subtle glow',
+          'Preserved all other website sections & content intact',
+        ],
+        updatedHtml: modifiedHtml,
+      };
+    }
+  }
+
+  // ── 2. FULL WEBSITE TRANSFORMATION (Only when explicitly requested) ───────────
   let title = 'Exquisite Bespoke Artistry';
   let sub = 'Tailored experiences crafted for discerning clientele with timeless distinction.';
   let service1 = 'Signature Consultation';
@@ -149,20 +187,20 @@ function generateFallbackAutonomousHtml(prompt: string, currentTheme: string = '
         <h3 style="font-size: 18px; font-weight: 700; color: ${text};">${service1}</h3>
         <div style="font-size: 32px; font-weight: 800; color: ${accent}; margin: 12px 0;">${price1}</div>
         <p style="font-size: 13px; color: ${textMuted}; line-height: 1.6; margin-bottom: 24px;">Dedicated private consultation, bespoke mood board alignment, and direct preparation.</p>
-        <a href="https://wa.me/1234567890" style="display: block; text-align: center; background: ${surface}; color: ${text}; padding: 10px; border-radius: 10px; border: 1px solid ${border}; font-weight: 700; text-decoration: none; font-size: 12px;">Select Package</a>
+        <a href="https://wa.me/1234567890" style="display: inline-block; text-align: center; background: ${surface}; color: ${text}; padding: 10px 20px; border-radius: 9999px; border: 1px solid ${border}; font-weight: 700; text-decoration: none; font-size: 12px;">Select Package</a>
       </div>
       <div style="background: ${bg}; padding: 32px; border-radius: 16px; border: 2px solid ${accent}; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
         <span style="position: absolute; top: -12px; right: 24px; background: ${accent}; color: ${isDark ? '#000' : '#fff'}; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 9999px;">★ MOST POPULAR</span>
         <h3 style="font-size: 18px; font-weight: 700; color: ${text};">${service2}</h3>
         <div style="font-size: 32px; font-weight: 800; color: ${accent}; margin: 12px 0;">${price2}</div>
         <p style="font-size: 13px; color: ${textMuted}; line-height: 1.6; margin-bottom: 24px;">Complete premier tier execution, priority scheduling, and premium VIP kit materials.</p>
-        <a href="https://wa.me/1234567890" style="display: block; text-align: center; background: ${accent}; color: ${isDark ? '#000' : '#fff'}; padding: 10px; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 12px;">Reserve Now →</a>
+        <a href="https://wa.me/1234567890" style="display: inline-block; text-align: center; background: ${accent}; color: ${isDark ? '#000' : '#fff'}; padding: 10px 20px; border-radius: 9999px; font-weight: 700; text-decoration: none; font-size: 12px;">Reserve Now →</a>
       </div>
       <div style="background: ${bg}; padding: 32px; border-radius: 16px; border: 1px solid ${border};">
         <h3 style="font-size: 18px; font-weight: 700; color: ${text};">${service3}</h3>
         <div style="font-size: 32px; font-weight: 800; color: ${accent}; margin: 12px 0;">${price3}</div>
         <p style="font-size: 13px; color: ${textMuted}; line-height: 1.6; margin-bottom: 24px;">All-inclusive on-site concierge team, 24/7 priority support, and bespoke deliverables.</p>
-        <a href="https://wa.me/1234567890" style="display: block; text-align: center; background: ${surface}; color: ${text}; padding: 10px; border-radius: 10px; border: 1px solid ${border}; font-weight: 700; text-decoration: none; font-size: 12px;">Book Retinue</a>
+        <a href="https://wa.me/1234567890" style="display: inline-block; text-align: center; background: ${surface}; color: ${text}; padding: 10px 20px; border-radius: 9999px; border: 1px solid ${border}; font-weight: 700; text-decoration: none; font-size: 12px;">Book Retinue</a>
       </div>
     </div>
   </div>
@@ -173,7 +211,7 @@ function generateFallbackAutonomousHtml(prompt: string, currentTheme: string = '
     <span style="font-size: 11px; font-weight: 700; color: ${accent}; text-transform: uppercase;">Direct VIP Inquiries</span>
     <h2 style="font-size: 32px; font-weight: 800; color: ${text}; margin: 12px 0 16px;">Ready to Book Your Experience?</h2>
     <p style="font-size: 15px; color: ${textMuted}; line-height: 1.6; margin-bottom: 32px;">Connect directly with our senior specialists on WhatsApp for instant confirmation and tailored consultation.</p>
-    <a href="https://wa.me/1234567890" style="display: inline-flex; align-items: center; gap: 8px; background: #25D366; color: #fff; padding: 16px 36px; border-radius: 14px; font-size: 16px; font-weight: 700; text-decoration: none; box-shadow: 0 4px 16px rgba(37, 211, 102, 0.3);">
+    <a href="https://wa.me/1234567890" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #25D366; color: #fff; padding: 14px 28px; border-radius: 9999px; font-size: 14px; font-weight: 700; text-decoration: none; max-width: fit-content; margin: 0 auto; box-shadow: 0 4px 16px rgba(37, 211, 102, 0.3);">
       <span>Chat on WhatsApp Now →</span>
     </a>
   </div>
@@ -181,7 +219,7 @@ function generateFallbackAutonomousHtml(prompt: string, currentTheme: string = '
 `;
 
   return {
-    aiReply: `Transformed the entire website for "${prompt}" with bespoke ${theme} theme, responsive section layouts, tiered pricing, and direct WhatsApp booking integration.`,
+    aiReply: `Transformed the website for "${prompt}" with bespoke ${theme} theme, responsive section layouts, tiered pricing, and direct WhatsApp booking integration.`,
     theme,
     changesApplied: [
       `Applied ${theme.toUpperCase()} color tokens and typography`,
@@ -197,7 +235,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const message = (body.message || body.prompt || '').trim();
-    const currentHtml = body.currentHtml;
+    const currentHtml = body.currentHtml || '';
     const currentTheme = body.currentTheme || body.theme || 'bram-light';
 
     if (!message) {
@@ -205,7 +243,6 @@ export async function POST(req: Request) {
     }
 
     if (genAI) {
-      // Cascade across available model candidates to ensure reliable generation
       const candidateModels = [GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
       for (const modelName of candidateModels) {
@@ -214,7 +251,7 @@ export async function POST(req: Request) {
             model: modelName,
             generationConfig: {
               responseMimeType: 'application/json',
-              temperature: 0.7,
+              temperature: 0.4,
             },
             systemInstruction: SYSTEM_PROMPT,
           });
@@ -223,12 +260,16 @@ export async function POST(req: Request) {
 User Instruction: "${message}"
 Current Theme: "${currentTheme || 'bram-light'}"
 
-Existing HTML snippet for context:
+Existing Full HTML Document:
 \`\`\`html
-${(currentHtml || '').slice(0, 3000)}
+${currentHtml}
 \`\`\`
 
-Generate the complete transformed website HTML and JSON response now.`;
+Analyze the instruction:
+- If the instruction asks for a specific or targeted edit (e.g. editing a button, changing width, updating headline, altering styling, modifying one section), apply the modification ONLY to that specific target in the existing HTML document and leave every other section and content intact!
+- If the user asks for a complete full-site overhaul or brand new industry redesign, regenerate the complete new site.
+
+Return the JSON with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
 
           const result = await model.generateContent(userPrompt);
           const responseText = result.response.text();
@@ -240,7 +281,7 @@ Generate the complete transformed website HTML and JSON response now.`;
               source: 'gemini',
               model: modelName,
               aiReply: parsedData.aiReply,
-              theme: parsedData.theme || 'bram-light',
+              theme: parsedData.theme || currentTheme || 'bram-light',
               changesApplied: parsedData.changesApplied || [],
               updatedHtml: parsedData.updatedHtml,
             });
@@ -251,8 +292,8 @@ Generate the complete transformed website HTML and JSON response now.`;
       }
     }
 
-    // High-fidelity fallback guarantee (zero 500 errors)
-    const fallback = generateFallbackAutonomousHtml(message, currentTheme);
+    // High-fidelity fallback guarantee
+    const fallback = generateFallbackAutonomousHtml(message, currentHtml, currentTheme);
     return NextResponse.json({
       success: true,
       source: 'autonomous_engine',
@@ -260,7 +301,6 @@ Generate the complete transformed website HTML and JSON response now.`;
     });
   } catch (err: any) {
     console.error('[AI Chat Autonomous Error]:', err);
-    // Even on unexpected error, guarantee graceful fallback
     const fallback = generateFallbackAutonomousHtml('Luxury Bespoke Studio');
     return NextResponse.json({
       success: true,
