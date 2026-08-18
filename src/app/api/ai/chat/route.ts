@@ -73,7 +73,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const candidateModels = [GEMINI_MODEL, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+    // Prioritize high-availability flash models with automatic fallback
+    const candidateModels = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-flash-latest'];
     let lastError: any = null;
 
     const targetPromptContext = targetElement
@@ -110,7 +111,7 @@ Existing Full HTML Document:
 ${currentHtml}
 \`\`\`
 
-Apply the modification strictly according to the user's prompt and return the JSON response with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
+Apply the modification strictly according to the user's prompt and return the JSON response with "aiReply", "theme", "changesApplied" (array of strings), and "updatedHtml".`;
 
         const result = await model.generateContent(userPrompt);
         const responseText = result.response.text();
@@ -124,8 +125,8 @@ Apply the modification strictly according to the user's prompt and return the JS
 
         if (parsedData?.updatedHtml) {
           const rawChanges = parsedData.changesApplied;
-          const changesApplied = Array.isArray(rawChanges)
-            ? rawChanges
+          const changesApplied: string[] = Array.isArray(rawChanges)
+            ? rawChanges.map((c: any) => String(c))
             : typeof rawChanges === 'string'
             ? [rawChanges]
             : ['Applied requested visual styling & layout adjustments'];
@@ -146,10 +147,10 @@ Apply the modification strictly according to the user's prompt and return the JS
       }
     }
 
-    // If all models in the candidate list failed, return explicit error
+    // If all models failed, return explicit error
     return NextResponse.json(
       {
-        error: `Gemini API generation failed: ${lastError?.message || 'Unable to contact Google Gemini API'}`,
+        error: `Gemini API call failed: ${lastError?.message || 'Unable to contact Google Gemini API'}`,
       },
       { status: 502 }
     );

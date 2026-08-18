@@ -402,7 +402,7 @@ export function AIPanel() {
                 <p className="whitespace-pre-wrap">{m.content}</p>
 
                 {/* Assistant Applied Changes Matrix */}
-                {!isUser && m.changesApplied && m.changesApplied.length > 0 && (
+                {!isUser && Array.isArray(m.changesApplied) && m.changesApplied.length > 0 && (
                   <div className="pt-2.5 border-t border-slate-100 space-y-2">
                     <span className="text-[10px] font-mono font-bold text-[#0D5771] uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="w-3 h-3 text-[#0D5771]" />
@@ -423,7 +423,7 @@ export function AIPanel() {
                 )}
 
                 {/* Assistant Execution Telemetry */}
-                {!isUser && m.executionSteps && m.executionSteps.length > 0 && (
+                {!isUser && Array.isArray(m.executionSteps) && m.executionSteps.length > 0 && (
                   <div className="pt-2 border-t border-slate-100">
                     <button
                       onClick={() => toggleSteps(m.id)}
