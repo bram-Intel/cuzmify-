@@ -470,16 +470,16 @@ function PagesTab({ service }: { service: ReturnType<typeof useEditor>['service'
                 <Globe className={`w-3.5 h-3.5 shrink-0 ${activePage === page.id ? 'text-[#0D5771]' : 'text-[#94A3B8]'}`} />
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold truncate">{page.label}</p>
-                  <p className="text-[9px] font-mono text-[#94A3B8] truncate">{page.path}</p>
+                  <p className="text-[10px] font-mono text-[#64748B] truncate">{page.path}</p>
                 </div>
               </div>
 
               {page.isHome ? (
-                <span className="text-[8px] font-extrabold font-mono text-[#0D5771] uppercase bg-[#0D5771]/10 px-2 py-0.5 rounded-full border border-[#0D5771]/20 shrink-0">
+                <span className="text-[10px] font-extrabold font-mono text-[#0D5771] uppercase bg-[#0D5771]/10 px-2.5 py-0.5 rounded-full border border-[#0D5771]/20 shrink-0">
                   HOME
                 </span>
               ) : (
-                <span className="text-[8px] font-mono text-[#94A3B8] shrink-0">{page.status}</span>
+                <span className="text-[10px] font-mono text-[#64748B] shrink-0">{page.status}</span>
               )}
             </div>
           ))}
@@ -493,7 +493,7 @@ function PagesTab({ service }: { service: ReturnType<typeof useEditor>['service'
 
       {/* Quick Add Section Buttons */}
       <div className="pt-2 space-y-1.5">
-        <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#64748B] font-mono block px-1">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#0D5771] font-mono block px-1">
           + RESTORE / ADD SECTION
         </span>
         <div className="grid grid-cols-2 gap-1.5">

@@ -97,11 +97,21 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
 
         <div className="w-px h-5 bg-[#E2E8F0] hidden md:block" />
 
-        <div className="min-w-0 hidden lg:block">
-          <p className="text-[#1A202C] font-extrabold text-xs truncate max-w-[170px]">
-            {businessName || 'Glory Beauty Studio'}
-          </p>
-          <SaveIndicator />
+        <div className="min-w-0 hidden lg:flex items-center gap-2">
+          <Link
+            href="/dashboard"
+            className="text-[11px] font-mono text-[#64748B] hover:text-[#0D5771] transition-colors flex items-center gap-1 shrink-0 group"
+            title="Return to Dashboard"
+          >
+            <span className="group-hover:underline">Dashboard</span>
+            <span className="text-[#CBD5E1]">/</span>
+          </Link>
+          <div className="min-w-0">
+            <p className="text-[#1A202C] font-extrabold text-xs truncate max-w-[160px]">
+              {businessName || 'Glory Beauty Studio'}
+            </p>
+            <SaveIndicator />
+          </div>
         </div>
 
         {/* Global Platform Nav Switcher */}

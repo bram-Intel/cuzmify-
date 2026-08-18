@@ -182,6 +182,44 @@ export default async function DashboardPage() {
           </div>
         )}
 
+        {/* Quick Launch Starter Blueprints */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-[#1A202C] font-display flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#0D5771]" />
+              <span>Launch New Blueprint</span>
+            </h2>
+            <Link
+              href="/marketplace"
+              className="text-xs font-bold text-[#0D5771] hover:underline"
+            >
+              Browse All Blueprints →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { title: 'Luxury Beauty & Spa', cat: 'Beauty', template: 'Glory Beauty Studio', theme: 'luxury' },
+              { title: 'Monaco Supercar Club', cat: 'Automotive', template: 'Monaco Supercar Club', theme: 'dark-obsidian' },
+              { title: 'Bespoke Bridal Atelier', cat: 'Weddings', template: 'Bridal Atelier Studio', theme: 'editorial' },
+              { title: 'Modern Creative Agency', cat: 'Digital', template: 'Modern Creative Studio', theme: 'bram-light' },
+            ].map((bp) => (
+              <Link
+                key={bp.title}
+                href={`/studio?template=${encodeURIComponent(bp.template)}&category=${encodeURIComponent(bp.cat)}`}
+                className="bg-white p-4 rounded-2xl border border-[#E2E8F0] hover:border-[#0D5771] hover:shadow-md transition-all group space-y-2 block"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-[#64748B] uppercase">{bp.cat}</span>
+                  <span className="text-[10px] font-bold text-[#0D5771] group-hover:translate-x-0.5 transition-transform">Start →</span>
+                </div>
+                <h3 className="font-bold text-sm text-[#1A202C] group-hover:text-[#0D5771] transition-colors">{bp.title}</h3>
+                <p className="text-[11px] text-[#64748B]">Pre-engineered responsive layout with WhatsApp booking integration.</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+
         {/* Composable Capabilities Module Manager */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">

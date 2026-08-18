@@ -63,6 +63,7 @@ export function StudioAuthGate({ callbackUrl }: { callbackUrl: string }) {
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
+          suppressHydrationWarning
           className="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-2xl bg-white border border-[#CBD5E1] shadow-sm hover:shadow-md hover:border-[#0D5771]/40 transition-all font-bold text-sm text-[#1A202C] group cursor-pointer disabled:opacity-50"
         >
           <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
@@ -78,12 +79,12 @@ export function StudioAuthGate({ callbackUrl }: { callbackUrl: string }) {
         {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-[#E2E8F0]" />
-          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#94A3B8]">Or with Email</span>
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">Or with Email</span>
           <div className="flex-1 h-px bg-[#E2E8F0]" />
         </div>
 
         {/* Email form */}
-        <form onSubmit={handleEmailSignIn} className="space-y-3">
+        <form onSubmit={handleEmailSignIn} className="space-y-3" suppressHydrationWarning>
           <div className="space-y-1">
             <label className="text-[10px] font-mono font-bold text-[#64748B] uppercase tracking-wider block">Account Email</label>
             <div className="relative">
@@ -95,6 +96,7 @@ export function StudioAuthGate({ callbackUrl }: { callbackUrl: string }) {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
+                suppressHydrationWarning
                 className="w-full bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#0D5771] focus:bg-white rounded-xl px-3.5 py-2 text-xs text-[#1A202C] outline-none transition-all pl-9"
               />
               <Mail className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5" />
@@ -104,6 +106,7 @@ export function StudioAuthGate({ callbackUrl }: { callbackUrl: string }) {
           <button
             type="submit"
             disabled={loading || !email.trim()}
+            suppressHydrationWarning
             className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
@@ -116,6 +119,7 @@ export function StudioAuthGate({ callbackUrl }: { callbackUrl: string }) {
           <button
             onClick={handleInstantSignIn}
             disabled={loading}
+            suppressHydrationWarning
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#64748B] hover:text-[#1A202C] font-semibold text-[11px] transition-all cursor-pointer"
           >
             <Zap className="w-3.5 h-3.5 text-[#0D5771]" />
@@ -131,8 +135,8 @@ export function StudioAuthGate({ callbackUrl }: { callbackUrl: string }) {
               Start Onboarding →
             </Link>
           </p>
-          <div className="flex items-center justify-center gap-2 text-[10px] text-[#94A3B8] font-mono">
-            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+          <div className="flex items-center justify-center gap-2 text-[10px] text-[#64748B] font-mono">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             <span>Encrypted Session • Cloud Persistence Active</span>
           </div>
         </div>
