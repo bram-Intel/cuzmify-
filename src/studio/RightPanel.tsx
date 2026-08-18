@@ -484,7 +484,7 @@ function GenericPanel({ type }: { type: string }) {
       </div>
 
       <TraitGroup title="Style">
-        <StyleInput label="Background" prop="background-color" defaultValue="transparent" type="color" service={service} />
+        <StyleInput label="Background" prop="background-color" defaultValue="#FFFFFF" type="color" service={service} />
         <StyleInput label="Text Color" prop="color" defaultValue="#1A202C" type="color" service={service} />
         <StyleInput label="Font Size" prop="font-size" defaultValue="16px" service={service} />
         <StyleInput label="Padding" prop="padding" defaultValue="0px" service={service} />
@@ -560,6 +560,26 @@ function TraitInput({
   );
 }
 
+function ensureHexColor(color?: string, fallback: string = '#FFFFFF'): string {
+  if (!color || color === 'transparent' || color === 'inherit' || color === 'initial' || color === 'none') {
+    return fallback;
+  }
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) {
+    if (color.length === 4) {
+      return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+    }
+    return color;
+  }
+  const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (rgbMatch) {
+    const r = parseInt(rgbMatch[1], 10).toString(16).padStart(2, '0');
+    const g = parseInt(rgbMatch[2], 10).toString(16).padStart(2, '0');
+    const b = parseInt(rgbMatch[3], 10).toString(16).padStart(2, '0');
+    return `#${r}${g}${b}`;
+  }
+  return fallback;
+}
+
 function StyleInput({
   label, prop, defaultValue, type = 'text', options, service,
 }: {
@@ -569,10 +589,16 @@ function StyleInput({
   const [val, setVal] = React.useState(defaultValue);
   const inputId = `style-${prop.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 
+  React.useEffect(() => {
+    setVal(defaultValue);
+  }, [defaultValue]);
+
   const handleChange = (v: string) => {
     setVal(v);
     service?.updateSelectedStyle(prop, v);
   };
+
+  const safeColorVal = type === 'color' ? ensureHexColor(val, '#FFFFFF') : val;
 
   return (
     <div className="flex items-center justify-between gap-2">
@@ -583,7 +609,7 @@ function StyleInput({
             id={inputId}
             name={inputId}
             type="color"
-            value={val}
+            value={safeColorVal}
             onChange={(e) => handleChange(e.target.value)}
             className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
             suppressHydrationWarning
