@@ -318,7 +318,7 @@ export async function POST(req: Request) {
     }
 
     if (genAI) {
-      const candidateModels = [GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
 
       const targetPromptContext = targetElement
         ? `
@@ -358,7 +358,13 @@ Apply the modification strictly to the target and return the JSON response with 
 
           const result = await model.generateContent(userPrompt);
           const responseText = result.response.text();
-          const parsedData = JSON.parse(responseText);
+
+          let cleanJson = responseText.trim();
+          if (cleanJson.startsWith('```')) {
+            cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+          }
+
+          const parsedData = JSON.parse(cleanJson);
 
           if (parsedData?.updatedHtml) {
             return NextResponse.json({
@@ -371,8 +377,8 @@ Apply the modification strictly to the target and return the JSON response with 
               updatedHtml: parsedData.updatedHtml,
             });
           }
-        } catch (candidateErr) {
-          console.warn(`[AI Chat API] Model ${modelName} call failed, trying next candidate:`, candidateErr);
+        } catch (candidateErr: any) {
+          console.warn(`[AI Chat API] Model ${modelName} call failed, trying next candidate:`, candidateErr?.message || candidateErr);
         }
       }
     }

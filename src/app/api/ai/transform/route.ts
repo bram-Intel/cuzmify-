@@ -56,30 +56,39 @@ export async function POST(req: Request) {
 
     // 1. If Gemini API key is configured, call live LLM
     if (genAI) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: GEMINI_MODEL,
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.7,
-          },
-          systemInstruction: SYSTEM_PROMPT,
-        });
+      const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+      for (const modelName of candidateModels) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.7,
+            },
+            systemInstruction: SYSTEM_PROMPT,
+          });
 
-        const result = await model.generateContent(
-          `Transform the website for the following user request:\n\n"${prompt}"`
-        );
+          const result = await model.generateContent(
+            `Transform the website for the following user request:\n\n"${prompt}"`
+          );
 
-        const responseText = result.response.text();
-        const parsedPlan: AITransformationPlan = JSON.parse(responseText);
+          const responseText = result.response.text();
+          let cleanJson = responseText.trim();
+          if (cleanJson.startsWith('```')) {
+            cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+          }
 
-        return NextResponse.json({
-          success: true,
-          source: 'gemini',
-          plan: parsedPlan,
-        });
-      } catch (geminiErr) {
-        console.warn('[Gemini Transform API] Live call failed, falling back to heuristic engine:', geminiErr);
+          const parsedPlan: AITransformationPlan = JSON.parse(cleanJson);
+
+          return NextResponse.json({
+            success: true,
+            source: 'gemini',
+            model: modelName,
+            plan: parsedPlan,
+          });
+        } catch (geminiErr: any) {
+          console.warn(`[Gemini Transform API] Model ${modelName} call failed:`, geminiErr?.message || geminiErr);
+        }
       }
     }
 
