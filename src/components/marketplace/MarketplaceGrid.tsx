@@ -94,6 +94,7 @@ export const MarketplaceGrid: React.FC = () => {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
+              suppressHydrationWarning
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                 selectedCategory === cat
                   ? 'bg-[#0D5771] text-white shadow-sm'

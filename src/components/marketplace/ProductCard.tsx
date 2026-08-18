@@ -44,7 +44,7 @@ function ProductCardInner({
 
   const targetHref = isFromOnboarding
     ? `/onboarding?template=${encodeURIComponent(name)}`
-    : `/editor?template=${encodeURIComponent(name)}`;
+    : `/studio?template=${encodeURIComponent(name)}`;
 
   const handleClick = () => {
     if (onSelectTemplate) {
@@ -115,6 +115,7 @@ function ProductCardInner({
         <Link
           href={targetHref}
           onClick={handleClick}
+          suppressHydrationWarning
           className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] ${
             isActive
               ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
