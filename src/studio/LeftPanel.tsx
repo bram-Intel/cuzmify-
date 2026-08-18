@@ -16,9 +16,9 @@ import Link from 'next/link';
 import { BLOCK_HTML_MAP } from './engine/BlockRegistry';
 
 const TABS: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'add', label: 'BLOCKS', icon: <LayoutTemplate className="w-3.5 h-3.5" /> },
-  { id: 'pages', label: 'PAGES', icon: <FileText className="w-3.5 h-3.5" /> },
-  { id: 'modules', label: 'MODULES', icon: <Puzzle className="w-3.5 h-3.5" /> },
+  { id: 'add', label: 'AI & Blocks', icon: <Sparkles className="w-3.5 h-3.5" /> },
+  { id: 'pages', label: 'Layers', icon: <Layers className="w-3.5 h-3.5" /> },
+  { id: 'modules', label: 'Modules', icon: <Puzzle className="w-3.5 h-3.5" /> },
 ];
 
 const SECTION_BLOCKS = [
@@ -588,33 +588,33 @@ export function LeftPanel() {
   return (
     <aside
       style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
-      className="shrink-0 bg-[#FFFFFF] border-r border-[#E2E8F0] flex flex-col overflow-hidden shadow-sm z-30 animate-in slide-in-from-left duration-200"
+      className="shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden shadow-2xs z-30 animate-in slide-in-from-left duration-200"
       suppressHydrationWarning
     >
-      {/* Header Tabs */}
-      <div className="p-3 border-b border-[#E2E8F0] bg-[#F7FAFC] shrink-0 space-y-2.5">
+      {/* Sleek Studio Header Tabs */}
+      <div className="px-3 pt-3 pb-2 border-b border-slate-200 bg-slate-50/50 shrink-0 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#0D5771] font-mono flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5 text-[#0D5771]" /> STUDIO PANEL
+          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-[#0D5771]" /> Studio Tools
           </span>
           <button
             onClick={() => setIsLeftPanelOpen(false)}
-            className="p-1 rounded-lg hover:bg-[#E2E8F0] text-[#64748B] hover:text-[#1A202C] transition-all"
+            className="w-6 h-6 rounded-md hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
             title="Close Panel"
           >
-            <X className="w-4 h-4 text-[#0D5771]" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-3 w-full gap-1 bg-[#E2E8F0]/60 p-1 rounded-2xl border border-[#E2E8F0]">
+        <div className="grid grid-cols-3 w-full gap-1 bg-slate-200/60 p-0.5 rounded-lg">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setLeftPanelTab(tab.id)}
-              className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-extrabold tracking-wider transition-all truncate ${
+              className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-semibold transition-all truncate cursor-pointer ${
                 leftPanelTab === tab.id
-                  ? 'bg-[#FFFFFF] text-[#0D5771] shadow-sm font-bold border border-[#E2E8F0]'
-                  : 'text-[#64748B] hover:text-[#1A202C] hover:bg-[#FFFFFF]/60'
+                  ? 'bg-white text-[#0D5771] shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               {tab.icon}
@@ -625,7 +625,7 @@ export function LeftPanel() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-3.5 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
         {leftPanelTab === 'add' && <AddTab service={service} />}
         {leftPanelTab === 'pages' && <PagesTab service={service} />}
         {leftPanelTab === 'modules' && <ModulesTab />}

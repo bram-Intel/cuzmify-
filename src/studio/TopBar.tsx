@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Undo2, Redo2, Monitor, Tablet, Smartphone,
   Eye, EyeOff, Rocket, Save, CheckCircle2,
-  AlertCircle, Loader2, ShoppingBag, Globe, Layers, Sliders, ArrowLeft, Sun, Moon, PanelLeftOpen, PanelLeftClose, Sparkles
+  AlertCircle, Loader2, MoreHorizontal, RotateCcw,
+  PanelLeft, Layers, Sparkles, ExternalLink
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import type { Breakpoint } from './engine/EditorContext';
@@ -16,35 +17,47 @@ interface TopBarProps {
   isPublishing: boolean;
 }
 
-const BREAKPOINTS: { id: Breakpoint; label: string; icon: React.ReactNode }[] = [
-  { id: 'desktop', label: 'Desktop', icon: <Monitor className="w-3.5 h-3.5" /> },
-  { id: 'tablet', label: 'Tablet', icon: <Tablet className="w-3.5 h-3.5" /> },
-  { id: 'mobile', label: 'Mobile', icon: <Smartphone className="w-3.5 h-3.5" /> },
+const BREAKPOINTS: { id: Breakpoint; label: string; widthLabel: string; icon: React.ReactNode }[] = [
+  { id: 'desktop', label: 'Desktop', widthLabel: '100%', icon: <Monitor className="w-3.5 h-3.5" /> },
+  { id: 'tablet', label: 'Tablet', widthLabel: '768px', icon: <Tablet className="w-3.5 h-3.5" /> },
+  { id: 'mobile', label: 'Mobile', widthLabel: '390px', icon: <Smartphone className="w-3.5 h-3.5" /> },
 ];
 
 function SaveIndicator() {
   const { saveState } = useEditor();
 
-  if (saveState === 'saving') return (
-    <span className="flex items-center gap-1 text-[10px] font-mono text-[#64748B]">
-      <Loader2 className="w-3 h-3 animate-spin text-[#0D5771]" /> Saving…
-    </span>
-  );
-  if (saveState === 'saved') return (
-    <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-600 font-bold">
-      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Saved
-    </span>
-  );
-  if (saveState === 'unsaved') return (
-    <span className="flex items-center gap-1 text-[10px] font-mono text-amber-600 font-bold">
-      <AlertCircle className="w-3 h-3 text-amber-600" /> Unsaved
-    </span>
-  );
-  if (saveState === 'error') return (
-    <span className="flex items-center gap-1 text-[10px] font-mono text-red-600 font-bold">
-      <AlertCircle className="w-3 h-3 text-red-600" /> Save error
-    </span>
-  );
+  if (saveState === 'saving') {
+    return (
+      <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500">
+        <Loader2 className="w-3 h-3 animate-spin text-[#0D5771]" />
+        <span>Saving…</span>
+      </span>
+    );
+  }
+  if (saveState === 'saved') {
+    return (
+      <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-600 font-semibold">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        <span>Saved</span>
+      </span>
+    );
+  }
+  if (saveState === 'unsaved') {
+    return (
+      <span className="flex items-center gap-1 text-[11px] font-mono text-amber-600 font-semibold">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        <span>Unsaved</span>
+      </span>
+    );
+  }
+  if (saveState === 'error') {
+    return (
+      <span className="flex items-center gap-1 text-[11px] font-mono text-red-600 font-semibold">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        <span>Save error</span>
+      </span>
+    );
+  }
   return null;
 }
 
@@ -56,95 +69,94 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
     handleSave, saveState,
     isPreviewMode, handlePreviewToggle,
     isLeftPanelOpen, setIsLeftPanelOpen,
-    isAiChatOpen, setIsAiChatOpen,
   } = useEditor();
 
-  const [justSaved, setJustSaved] = React.useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSaveClick = async () => {
+    await handleSave();
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+  };
+
+  const handleResetCanvas = async () => {
+    setShowMoreMenu(false);
+    if (confirm('Reset canvas to pristine default template? This will erase local drafts.')) {
+      try {
+        localStorage.clear();
+        await fetch('/api/sites', { method: 'DELETE' });
+      } catch {}
+      window.location.reload();
+    }
+  };
 
   return (
-    <header className="h-14 bg-[#FFFFFF] border-b border-[#E2E8F0] flex items-center justify-between px-4 gap-4 shrink-0 z-50 shadow-[0_4px_20px_rgba(0,0,0,0.03)]" suppressHydrationWarning>
-      
-      {/* LEFT: Logo + Brand + Project Title */}
-      <div className="flex items-center gap-3.5 min-w-0">
+    <header
+      className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-3 shrink-0 z-50 select-none shadow-2xs"
+      suppressHydrationWarning
+    >
+      {/* ─── LEFT: Sidebar Toggle & Project Context ─── */}
+      <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-          className={`p-1.5 rounded-xl border transition-all ${
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
             isLeftPanelOpen
-              ? 'bg-[#F7FAFC] border-[#E2E8F0] text-[#0D5771] hover:bg-[#FFFFFF]'
-              : 'bg-[#0D5771] border-[#0D5771] text-white shadow-md'
+              ? 'bg-slate-100 text-[#0D5771] hover:bg-slate-200'
+              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
           }`}
-          title={isLeftPanelOpen ? 'Close Left Panel' : 'Open Left Panel'}
+          title={isLeftPanelOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}
         >
-          {isLeftPanelOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+          <PanelLeft className="w-4 h-4" />
         </button>
 
-        <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 group">
-          <CuzmifyLogo className="w-8 h-8 flex-shrink-0 group-hover:scale-105 transition-transform" />
-          <div className="hidden md:block">
-            <div className="flex items-center gap-1.5 leading-none">
-              <span className="text-xs font-black tracking-tight text-[#1A202C] font-display">
-                CUZM<span className="text-[#0D5771]">IFY</span>
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-[#0D5771]/10 text-[#0D5771] font-mono text-[8px] font-bold uppercase tracking-wider border border-[#0D5771]/20">
-                STUDIO v3.0
-              </span>
-            </div>
-            <span className="block text-[8px] tracking-[0.2em] text-[#0D5771] uppercase font-bold font-mono mt-0.5">
-              BY BRAM INTEL
-            </span>
-          </div>
-        </Link>
+        <div className="h-4 w-px bg-slate-200" />
 
-        <div className="w-px h-5 bg-[#E2E8F0] hidden md:block" />
-
-        <div className="min-w-0 hidden lg:flex items-center gap-2">
+        {/* Brand & Breadcrumb */}
+        <div className="flex items-center gap-1.5 min-w-0">
           <Link
             href="/dashboard"
-            className="text-[11px] font-mono text-[#64748B] hover:text-[#0D5771] transition-colors flex items-center gap-1 shrink-0 group"
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors group shrink-0"
             title="Return to Dashboard"
           >
-            <span className="group-hover:underline">Dashboard</span>
-            <span className="text-[#CBD5E1]">/</span>
+            <CuzmifyLogo className="w-4 h-4 group-hover:scale-105 transition-transform" />
+            <span className="text-xs font-black tracking-tight text-slate-900 font-display">
+              CUZM<span className="text-[#0D5771]">IFY</span>
+            </span>
           </Link>
-          <div className="min-w-0">
-            <p className="text-[#1A202C] font-extrabold text-xs truncate max-w-[160px]">
+
+          <span className="text-slate-300 text-xs">/</span>
+
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-bold text-slate-800 truncate max-w-[140px] sm:max-w-[200px]">
               {businessName || 'Glory Beauty Studio'}
-            </p>
+            </span>
             <SaveIndicator />
           </div>
         </div>
-
-        {/* Global Platform Nav Switcher */}
-        <nav className="hidden xl:flex items-center gap-1 bg-[#F7FAFC] p-1 rounded-full border border-[#E2E8F0] ml-2">
-          {[
-            { href: '/marketplace', label: 'Marketplace', icon: ShoppingBag },
-            { href: '/importer', label: 'Revamp', icon: Globe },
-            { href: '/dashboard', label: 'Dashboard', icon: Layers },
-          ].map((item) => {
-            const IconComp = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="px-3 py-1 rounded-full text-[10px] font-bold text-[#64748B] hover:text-[#0D5771] hover:bg-[#FFFFFF] flex items-center gap-1.5 transition-all shadow-none hover:shadow-sm"
-              >
-                <IconComp className="w-3 h-3 text-[#0D5771]" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
       </div>
 
-      {/* CENTER: Undo/Redo + Breakpoints */}
-      <div className="flex items-center gap-2">
-        {/* Undo / Redo */}
-        <div className="flex items-center gap-0.5 bg-[#F7FAFC] border border-[#E2E8F0] rounded-xl p-0.5">
+      {/* ─── CENTER: Precision Toolbar (Undo/Redo & Responsive Switcher) ─── */}
+      <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+        {/* Undo / Redo cluster */}
+        <div className="flex items-center">
           <button
             onClick={handleUndo}
             disabled={!canUndo}
             title="Undo (Ctrl+Z)"
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1A202C] hover:bg-[#FFFFFF] disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:shadow-sm"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
           >
             <Undo2 className="w-3.5 h-3.5" />
           </button>
@@ -152,107 +164,141 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
             onClick={handleRedo}
             disabled={!canRedo}
             title="Redo (Ctrl+Y)"
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1A202C] hover:bg-[#FFFFFF] disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:shadow-sm"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
           >
             <Redo2 className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Responsive Breakpoints */}
-        <div className="flex items-center bg-[#F7FAFC] border border-[#E2E8F0] rounded-xl p-0.5">
-          {BREAKPOINTS.map((bp) => (
-            <button
-              key={bp.id}
-              onClick={() => handleDeviceChange(bp.id)}
-              title={bp.label}
-              className={`p-1.5 rounded-lg transition-all ${
-                breakpoint === bp.id
-                  ? 'bg-[#0D5771] text-white shadow-sm font-bold'
-                  : 'text-[#64748B] hover:text-[#1A202C] hover:bg-[#FFFFFF]'
-              }`}
-            >
-              {bp.icon}
-            </button>
-          ))}
+        <div className="h-3.5 w-px bg-slate-200 mx-0.5" />
+
+        {/* Viewport Breakpoint Switcher */}
+        <div className="flex items-center gap-0.5">
+          {BREAKPOINTS.map((bp) => {
+            const isActive = breakpoint === bp.id;
+            return (
+              <button
+                key={bp.id}
+                onClick={() => handleDeviceChange(bp.id)}
+                title={`${bp.label} (${bp.widthLabel})`}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-white text-[#0D5771] shadow-2xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                {bp.icon}
+                <span className="hidden md:inline text-[11px]">{bp.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* RIGHT: Actions */}
-      <div className="flex items-center gap-2 shrink-0">
+      {/* ─── RIGHT: Actions (Save, Preview, Publish, More) ─── */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* Save button */}
         <button
-          onClick={async () => {
-            if (confirm('Reset canvas to pristine default template?')) {
-              try {
-                localStorage.clear();
-                await fetch('/api/sites', { method: 'DELETE' });
-              } catch {}
-              window.location.reload();
-            }
-          }}
-          title="Reset canvas to clean default state"
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#F7FAFC] border border-[#E2E8F0] text-[#64748B] hover:text-[#1A202C] hover:bg-[#FFFFFF] hover:border-amber-400 text-[11px] font-bold transition-all"
-        >
-          <span>Reset Template</span>
-        </button>
-
-        <button
-          onClick={async () => {
-            await handleSave();
-            setJustSaved(true);
-            setTimeout(() => setJustSaved(false), 2500);
-          }}
+          onClick={handleSaveClick}
           disabled={saveState === 'saving'}
-          className={`hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-[11px] font-bold transition-all shadow-none hover:shadow-sm cursor-pointer ${
-            justSaved || saveState === 'saved'
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-              : saveState === 'saving'
-              ? 'bg-slate-100 border-slate-200 text-slate-500'
-              : 'bg-[#F7FAFC] border-[#E2E8F0] text-[#1A202C] hover:bg-[#FFFFFF] hover:border-[#0D5771]/40'
+          className={`h-8 px-2.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+            justSaved
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold'
+              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
           }`}
-          title="Save progress to cloud database (Ctrl+S)"
+          title="Save website state to cloud (Ctrl+S)"
         >
-          {saveState === 'saving' ? (
+          {justSaved ? (
             <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0D5771]" />
-              <span>Saving…</span>
-            </>
-          ) : justSaved ? (
-            <>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-50 duration-150" />
-              <span className="text-emerald-700 font-extrabold">Saved!</span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">Saved</span>
             </>
           ) : (
             <>
-              <Save className="w-3.5 h-3.5 text-[#0D5771]" />
-              <span>Save</span>
+              <Save className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Save</span>
             </>
           )}
         </button>
 
+        {/* Preview mode toggle */}
         <button
           onClick={handlePreviewToggle}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-[11px] font-bold transition-all ${
+          className={`h-8 px-2.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
             isPreviewMode
-              ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-              : 'bg-[#F7FAFC] border-[#E2E8F0] text-[#1A202C] hover:bg-[#FFFFFF] hover:border-[#0D5771]/30'
+              ? 'bg-emerald-600 border-emerald-600 text-white font-semibold'
+              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
           }`}
+          title="Toggle preview mode"
         >
-          {isPreviewMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5 text-[#0D5771]" />}
-          <span className="hidden sm:inline">{isPreviewMode ? 'Exit Preview' : 'Preview'}</span>
+          {isPreviewMode ? (
+            <>
+              <EyeOff className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Exit</span>
+            </>
+          ) : (
+            <>
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Preview</span>
+            </>
+          )}
         </button>
 
+        {/* Primary Publish CTA */}
         <button
           onClick={onPublish}
           disabled={isPublishing}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-extrabold text-[11px] transition-all shadow-md shadow-[#0D5771]/20 hover:scale-[1.02] disabled:opacity-60"
+          className="h-8 px-3.5 rounded-lg bg-[#0D5771] hover:bg-[#083D50] active:scale-98 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm shadow-[#0D5771]/20 transition-all cursor-pointer disabled:opacity-60"
         >
           {isPublishing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : (
-            <Rocket className="w-3.5 h-3.5 text-[#72B9F3]" />
+            <Rocket className="w-3.5 h-3.5 text-emerald-300" />
           )}
-          <span>{isPublishing ? 'Launching…' : 'Launch'}</span>
+          <span>Launch</span>
         </button>
+
+        {/* More Actions Dropdown Menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+            className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+            title="More Options"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+
+          {showMoreMenu && (
+            <div className="absolute right-0 top-9 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <Link
+                href="/dashboard"
+                onClick={() => setShowMoreMenu(false)}
+                className="flex items-center gap-2.5 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              >
+                <Layers className="w-3.5 h-3.5 text-slate-400" />
+                <span>My Dashboard</span>
+              </Link>
+              <Link
+                href="/marketplace"
+                onClick={() => setShowMoreMenu(false)}
+                className="flex items-center gap-2.5 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-slate-400" />
+                <span>Browse Marketplace</span>
+              </Link>
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              <button
+                onClick={handleResetCanvas}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-left cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-red-500" />
+                <span>Reset to Default Template</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

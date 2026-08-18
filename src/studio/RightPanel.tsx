@@ -656,40 +656,40 @@ export function RightPanel() {
 
   return (
     <aside
-      style={{ width: '280px', minWidth: '280px', maxWidth: '280px' }}
-      className="shrink-0 bg-[#FFFFFF] border-l border-[#E2E8F0] flex flex-col overflow-x-hidden animate-in slide-in-from-right duration-200 shadow-sm z-30"
+      style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
+      className="shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-x-hidden animate-in slide-in-from-right duration-200 shadow-2xs z-30"
     >
-      {/* Panel header */}
-      <div className="px-4 py-3.5 border-b border-[#E2E8F0] bg-[#F7FAFC] shrink-0 flex items-center justify-between">
-        <h2 className="text-[11px] font-extrabold text-[#1A202C] uppercase tracking-widest font-mono">
+      {/* Precision Panel Header */}
+      <div className="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/50 shrink-0 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-mono">
           {!type ? 'DESIGN & THEMES' : type.replace('cuzmify-', '').replace(/-/g, ' ')}
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {type && (
-            <span className="text-[8px] font-bold text-[#0D5771] uppercase bg-[#0D5771]/10 px-2 py-0.5 rounded-full border border-[#0D5771]/20">
+            <span className="text-[9px] font-bold text-[#0D5771] uppercase bg-[#0D5771]/10 px-2 py-0.5 rounded font-mono border border-[#0D5771]/20">
               INSPECTING
             </span>
           )}
           <button
             onClick={() => service?.deselect()}
-            className="p-1 rounded-lg hover:bg-slate-200 text-[#64748B] hover:text-[#1A202C] transition-all"
+            className="w-6 h-6 rounded-md hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
             title="Close Panel (Deselect)"
           >
-            <X className="w-4 h-4 text-[#0D5771]" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin">
         {type && (
-          <div className="p-3 rounded-2xl bg-gradient-to-br from-[#0D5771]/10 via-[#0D5771]/5 to-transparent border border-[#0D5771]/20 shadow-sm space-y-2 mb-2">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-[#0D5771]/10 via-[#0D5771]/5 to-transparent border border-[#0D5771]/20 shadow-2xs space-y-2 mb-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold text-[#0D5771] flex items-center gap-1.5 uppercase">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" /> TARGET WITH AI
               </span>
-              <span className="text-[9px] font-mono bg-white px-2 py-0.5 rounded-md border border-[#E2E8F0] text-[#64748B]">
-                ‹{type}›
+              <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
+                &lt;{type}&gt;
               </span>
             </div>
             <p className="text-[11px] text-[#64748B] leading-snug">
