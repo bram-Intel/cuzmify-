@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { genAI, GEMINI_MODEL } from '@/lib/gemini';
+import { getGeminiClient, GEMINI_MODEL } from '@/lib/gemini';
 import { AIEngine, type AITransformationPlan } from '@/studio/ai/AIEngine';
 
 const SYSTEM_PROMPT = `
@@ -55,6 +55,7 @@ export async function POST(req: Request) {
     }
 
     // 1. If Gemini API key is configured, call live LLM
+    const genAI = getGeminiClient();
     if (genAI) {
       const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
       for (const modelName of candidateModels) {

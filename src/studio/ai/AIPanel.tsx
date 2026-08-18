@@ -206,11 +206,12 @@ export function AIPanel() {
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(`AI generation failed with status ${res.status}`);
+        throw new Error(data.error || `AI generation failed with status ${res.status}`);
       }
 
-      const data = await res.json();
       setBuildPhase('Syncing canvas & persisting to cloud DB…');
 
       if (data?.updatedHtml) {
@@ -246,13 +247,14 @@ export function AIPanel() {
         window.dispatchEvent(new CustomEvent('cuzmify:ai-transformed', { detail: { theme: newTheme } }));
       } catch {}
 
-      const executionSteps = [
-        activeTarget?.id
-          ? `Surgically pinpointed target <${activeTarget.tagName} id="${activeTarget.id}">`
-          : 'Analyzed multi-section layout & design hierarchy',
-        `Applied bespoke ${newTheme.toUpperCase()} styling & verified responsive breakpoints`,
-        'Rendered changes to live visual canvas & committed to Cloud DB',
-      ];
+      const executionSteps = Array.isArray(data.changesApplied) && data.changesApplied.length > 0
+        ? data.changesApplied
+        : [
+            activeTarget?.id
+              ? `Pinpointed target <${activeTarget.tagName} id="${activeTarget.id}">`
+              : 'Synthesized design layout with Gemini 3.6 Flash',
+            'Rendered live changes to visual canvas & committed to Cloud DB',
+          ];
 
       const assistantMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
@@ -279,7 +281,7 @@ export function AIPanel() {
       const errorMsg: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Failed to complete transformation. Please verify your connection or try again.',
+        content: `⚠️ ${err?.message || 'Failed to complete transformation. Please verify your connection or try again.'}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       saveMessages([...updatedWithUser, errorMsg]);

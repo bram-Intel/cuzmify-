@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { genAI, GEMINI_MODEL } from '@/lib/gemini';
+import { getGeminiClient, GEMINI_MODEL } from '@/lib/gemini';
 import { AIEngine, type InlineRewriteResult } from '@/studio/ai/AIEngine';
 
 export async function POST(req: Request) {
@@ -11,6 +11,7 @@ export async function POST(req: Request) {
     }
 
     // 1. If Gemini API key is configured, call live LLM
+    const genAI = getGeminiClient();
     if (genAI) {
       try {
         const model = genAI.getGenerativeModel({
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
         if (action === 'variations') {
           const lines = responseText
             .split('\n')
-            .map((l) => l.replace(/^[-*•\d.]+\s*/, '').trim())
+            .map((l: string) => l.replace(/^[-*•\d.]+\s*/, '').trim())
             .filter(Boolean)
             .slice(0, 3);
 
