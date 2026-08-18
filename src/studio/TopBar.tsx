@@ -4,7 +4,7 @@ import React from 'react';
 import {
   Undo2, Redo2, Monitor, Tablet, Smartphone,
   Eye, EyeOff, Rocket, Save, CheckCircle2,
-  AlertCircle, Loader2, ShoppingBag, Globe, Layers, Sliders, ArrowLeft, Sun, Moon, PanelLeftOpen, PanelLeftClose
+  AlertCircle, Loader2, ShoppingBag, Globe, Layers, Sliders, ArrowLeft, Sun, Moon, PanelLeftOpen, PanelLeftClose, Sparkles
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import type { Breakpoint } from './engine/EditorContext';
@@ -56,6 +56,7 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
     handleSave, saveState,
     isPreviewMode, handlePreviewToggle,
     isLeftPanelOpen, setIsLeftPanelOpen,
+    isAiChatOpen, setIsAiChatOpen,
   } = useEditor();
 
   const [justSaved, setJustSaved] = React.useState(false);

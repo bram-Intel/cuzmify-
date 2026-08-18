@@ -7,14 +7,15 @@ export async function GET() {
     const session = await auth();
     let userId = session?.user?.id;
 
-    if (!userId) {
-      const defaultUser = await prisma.user.findFirst({
-        where: { email: 'creator@cuzmify.local' },
+    if (!userId && session?.user?.email) {
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
       });
-      userId = defaultUser?.id;
+      userId = user?.id;
     }
 
     if (!userId) {
+      // Unauthenticated callers receive an empty list without exposing multi-tenant data
       return NextResponse.json({ sites: [] });
     }
 
@@ -35,18 +36,20 @@ export async function DELETE() {
     const session = await auth();
     let userId = session?.user?.id;
 
-    if (!userId) {
-      const defaultUser = await prisma.user.findFirst({
-        where: { email: 'creator@cuzmify.local' },
+    if (!userId && session?.user?.email) {
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
       });
-      userId = defaultUser?.id;
+      userId = user?.id;
     }
 
-    if (userId) {
-      await prisma.site.deleteMany({ where: { userId } });
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized: You must be logged in to reset sites.' }, { status: 401 });
     }
 
-    return NextResponse.json({ success: true, message: 'All user sites reset' });
+    await prisma.site.deleteMany({ where: { userId } });
+
+    return NextResponse.json({ success: true, message: 'All user sites reset successfully.' });
   } catch (err: any) {
     console.error('[API DELETE /api/sites Error]:', err);
     return NextResponse.json({ error: err?.message || 'Failed to reset sites' }, { status: 500 });

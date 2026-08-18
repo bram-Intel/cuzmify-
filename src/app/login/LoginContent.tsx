@@ -12,11 +12,28 @@ export default function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const targetParam = searchParams ? searchParams.get('callbackUrl') : null;
+  const errorParam = searchParams ? searchParams.get('error') : null;
   const callbackUrl = targetParam ? `/auth/callback?callbackUrl=${encodeURIComponent(targetParam)}` : '/auth/callback';
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const getErrorMessage = (err: string | null) => {
+    if (!err) return null;
+    if (err === 'OAuthAccountNotLinked') {
+      return 'This email was previously registered. Account linking has been enabled — please click Continue with Google again.';
+    }
+    if (err === 'AccessDenied') {
+      return 'Google access was denied. If your Google Cloud Console app is in "Testing" mode, ensure this Gmail address is added to "Test Users" under OAuth Consent Screen.';
+    }
+    if (err === 'Configuration') {
+      return 'OAuth configuration check. Please verify your Google Client ID and Secret in environment variables.';
+    }
+    return `Sign in error (${err}). Please try again or use Email sign-in.`;
+  };
+
+  const errorMessage = getErrorMessage(errorParam);
 
   const handleGoogleSignIn = () => {
     setLoading(true);
@@ -63,10 +80,22 @@ export default function LoginContent() {
           </p>
         </div>
 
+        {/* Error Alert if any */}
+        {errorMessage && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+            <span className="text-sm">⚠️</span>
+            <div className="space-y-1">
+              <p className="font-bold">Authentication Note</p>
+              <p className="text-[11px] text-amber-800 leading-relaxed">{errorMessage}</p>
+            </div>
+          </div>
+        )}
+
         {/* PRIMARY: Google Sign In (Choose Account) */}
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
+          suppressHydrationWarning
           className="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-2xl bg-white border border-[#CBD5E1] shadow-sm hover:shadow-md hover:border-[#0D5771]/40 transition-all font-bold text-sm text-[#1A202C] group cursor-pointer disabled:opacity-50"
         >
           <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
@@ -87,7 +116,7 @@ export default function LoginContent() {
         </div>
 
         {/* Email form */}
-        <form onSubmit={handleEmailSignIn} className="space-y-3">
+        <form onSubmit={handleEmailSignIn} className="space-y-3" suppressHydrationWarning>
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-[#1A202C] block">Email Address</label>
             <div className="relative">
@@ -99,6 +128,7 @@ export default function LoginContent() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="alex@business.com"
                 required
+                suppressHydrationWarning
                 className="w-full bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#0D5771] focus:bg-white rounded-xl px-3.5 py-2.5 text-xs text-[#1A202C] outline-none transition-all pl-9"
               />
               <Mail className="w-4 h-4 text-[#94A3B8] absolute left-3 top-3" />
@@ -114,6 +144,7 @@ export default function LoginContent() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Alex Walker"
+              suppressHydrationWarning
               className="w-full bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#0D5771] focus:bg-white rounded-xl px-3.5 py-2.5 text-xs text-[#1A202C] outline-none transition-all"
             />
           </div>
@@ -121,6 +152,7 @@ export default function LoginContent() {
           <button
             type="submit"
             disabled={loading || !email.trim()}
+            suppressHydrationWarning
             className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer mt-1"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
@@ -133,6 +165,7 @@ export default function LoginContent() {
           <button
             onClick={handleInstantSignIn}
             disabled={loading}
+            suppressHydrationWarning
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#64748B] hover:text-[#1A202C] font-semibold text-[11px] transition-all cursor-pointer"
           >
             <Zap className="w-3.5 h-3.5 text-[#0D5771]" />

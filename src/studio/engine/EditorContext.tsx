@@ -7,11 +7,20 @@ import type { ThemeName } from '@/core/project-schema';
 
 export type Breakpoint = 'desktop' | 'tablet' | 'mobile';
 export type SaveState = 'saved' | 'saving' | 'unsaved' | 'error';
-export type PanelTab = 'add' | 'pages' | 'modules' | 'assets';
+export type PanelTab = 'add' | 'pages' | 'modules' | 'assets' | 'ai';
 
 export interface SelectedComponent {
   type: string | null;
   traits: Record<string, string>;
+}
+
+export interface TargetElementContext {
+  id?: string;
+  tagName: string;
+  type?: string;
+  text?: string;
+  classes?: string;
+  htmlSnippet?: string;
 }
 
 interface EditorContextValue {
@@ -31,6 +40,12 @@ interface EditorContextValue {
 
   selectedComponent: SelectedComponent;
   setSelectedComponent: (c: SelectedComponent) => void;
+
+  targetElement: TargetElementContext | null;
+  setTargetElement: (el: TargetElementContext | null) => void;
+
+  isAiChatOpen: boolean;
+  setIsAiChatOpen: (v: boolean) => void;
 
   leftPanelTab: PanelTab;
   setLeftPanelTab: (t: PanelTab) => void;
@@ -58,6 +73,7 @@ interface EditorContextValue {
   setSaveToast: (msg: string | null) => void;
 
   // Actions
+  attachSelectedToChat: () => void;
   handleUndo: () => void;
   handleRedo: () => void;
   handleSave: (isAuto?: boolean) => Promise<void>;
@@ -155,12 +171,29 @@ export function EditorProvider({
     }
   }, [service, isPreviewMode]);
 
+  const [targetElement, setTargetElement] = useState<TargetElementContext | null>(null);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+
+  const attachSelectedToChat = useCallback(() => {
+    if (!service) return;
+    const details = service.getSelectedElementDetails();
+    if (details) {
+      setTargetElement(details);
+      setLeftPanelTab('add');
+      setIsLeftPanelOpen(true);
+      setSaveToast(`🎯 Attached <${details.tagName}> #${details.id} to AI Chat`);
+      setTimeout(() => setSaveToast(null), 2500);
+    }
+  }, [service]);
+
   const value: EditorContextValue = {
     service, setService,
     breakpoint, setBreakpoint,
     saveState, setSaveState,
     theme, setTheme,
     selectedComponent, setSelectedComponent,
+    targetElement, setTargetElement,
+    isAiChatOpen, setIsAiChatOpen,
     leftPanelTab, setLeftPanelTab,
     isLeftPanelOpen, setIsLeftPanelOpen,
     isPreviewMode, setIsPreviewMode,
@@ -170,6 +203,7 @@ export function EditorProvider({
     activeModules, setActiveModules,
     projectId,
     saveToast, setSaveToast,
+    attachSelectedToChat,
     handleUndo, handleRedo, handleSave,
     handleThemeChange, handleDeviceChange, handlePreviewToggle,
   };

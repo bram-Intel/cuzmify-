@@ -1,8 +1,6 @@
 import { auth } from '@/auth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-
-const prisma = new PrismaClient();
 
 // GET /api/user/profile — fetch user's active template & business profile
 export async function GET() {

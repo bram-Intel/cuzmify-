@@ -64,7 +64,7 @@ function WizardContent() {
       const nameParam = encodeURIComponent(businessName.trim() || 'My Business');
       const catParam = encodeURIComponent(selectedCategory);
       const tplParam = encodeURIComponent(selectedTemplate);
-      router.push(`/editor?importName=${nameParam}&category=${catParam}&template=${tplParam}`);
+      router.push(`/studio?importName=${nameParam}&category=${catParam}&template=${tplParam}`);
     }
   };
 

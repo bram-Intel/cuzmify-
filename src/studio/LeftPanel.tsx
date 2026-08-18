@@ -611,7 +611,7 @@ export function LeftPanel() {
             <button
               key={tab.id}
               onClick={() => setLeftPanelTab(tab.id)}
-              className={`w-full flex items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-extrabold tracking-wider transition-all truncate ${
+              className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-extrabold tracking-wider transition-all truncate ${
                 leftPanelTab === tab.id
                   ? 'bg-[#FFFFFF] text-[#0D5771] shadow-sm font-bold border border-[#E2E8F0]'
                   : 'text-[#64748B] hover:text-[#1A202C] hover:bg-[#FFFFFF]/60'

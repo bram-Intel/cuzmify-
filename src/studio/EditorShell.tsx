@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { EyeOff, X } from 'lucide-react';
+import { EyeOff } from 'lucide-react';
 import { TopBar } from './TopBar';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
@@ -24,7 +24,17 @@ const Canvas = dynamic(() => import('./Canvas').then((m) => ({ default: m.Canvas
 });
 
 function EditorShellInner() {
-  const { isPreviewMode, service, businessName, projectId, selectedComponent, isLeftPanelOpen, handlePreviewToggle, handleSave, saveToast } = useEditor();
+  const {
+    isPreviewMode,
+    service,
+    businessName,
+    projectId,
+    selectedComponent,
+    isLeftPanelOpen,
+    handlePreviewToggle,
+    handleSave,
+    saveToast,
+  } = useEditor();
   const [showPublish, setShowPublish] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
@@ -45,18 +55,31 @@ function EditorShellInner() {
 
   const handlePublish = async (): Promise<string> => {
     setIsPublishing(true);
-    const slug = (businessName || 'glorybeauty').toLowerCase().replace(/\s+/g, '');
-    const url = `https://${slug}.cuzmify.com`;
+    const publicUrl = `/site/${projectId}`;
 
-    // Save final state before publish
+    // Save final state with live status to database and localStorage
     if (service) {
       service.saveToLocalStorage(projectId);
+      try {
+        await fetch('/api/sites/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            siteId: projectId,
+            name: businessName,
+            htmlContent: service.getHtml(),
+            grapesData: service.getProjectData(),
+            status: 'live',
+            liveUrl: publicUrl,
+          }),
+        });
+      } catch (err) {
+        console.warn('[Publish] Cloud publish error:', err);
+      }
     }
 
-    // Simulate deployment delay
-    await new Promise((r) => setTimeout(r, 3000));
     setIsPublishing(false);
-    return url;
+    return publicUrl;
   };
 
   return (

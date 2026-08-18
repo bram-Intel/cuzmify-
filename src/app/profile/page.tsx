@@ -75,7 +75,7 @@ export default async function ProfilePage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { href: '/dashboard', icon: Layers, label: 'My Dashboard', desc: 'Manage your sites' },
-            { href: '/editor', icon: Sliders, label: 'Visual Studio', desc: 'Edit & customize' },
+            { href: '/studio', icon: Sliders, label: 'Visual Studio', desc: 'Edit & customize' },
             { href: '/marketplace', icon: Globe, label: 'Marketplace', desc: 'Browse templates' },
           ].map(({ href, icon: Icon, label, desc }) => (
             <Link

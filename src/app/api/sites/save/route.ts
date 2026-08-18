@@ -6,13 +6,12 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
     const body = await req.json();
-    const { siteId, name, template, category, htmlContent, grapesData, theme, domain } = body;
+    const { siteId, name, template, category, htmlContent, grapesData, theme, domain, status, liveUrl } = body;
 
-    // 1. Determine user ID (logged-in user or default local user)
+    // 1. Determine user ID (logged-in user or default local user for seamless dev)
     let userId = session?.user?.id;
 
     if (!userId) {
-      // Find or create a default primary user for local development if not logged in
       const defaultUser = await prisma.user.upsert({
         where: { email: 'creator@cuzmify.local' },
         update: {},
@@ -25,35 +24,58 @@ export async function POST(req: Request) {
       userId = defaultUser.id;
     }
 
-    // 2. Upsert Site in database
+    // 2. Strict IDOR / BOLA Validation & Persistence
     const targetId = siteId && siteId !== 'proj_default' ? siteId : undefined;
 
     let savedSite;
     if (targetId) {
-      savedSite = await prisma.site.upsert({
+      // Check if site already exists in database
+      const existing = await prisma.site.findUnique({
         where: { id: targetId },
-        update: {
-          name: name || 'Glory Beauty Studio',
-          template: template || 'Modern Business Template',
-          category: category || 'Beauty & Wellness',
-          htmlContent: htmlContent || undefined,
-          grapesData: grapesData ? JSON.stringify(grapesData) : undefined,
-          theme: theme || 'bram-light',
-          domain: domain || undefined,
-          updatedAt: new Date(),
-        },
-        create: {
-          id: targetId,
-          userId,
-          name: name || 'Glory Beauty Studio',
-          template: template || 'Modern Business Template',
-          category: category || 'Beauty & Wellness',
-          htmlContent: htmlContent || undefined,
-          grapesData: grapesData ? JSON.stringify(grapesData) : undefined,
-          theme: theme || 'bram-light',
-          domain: domain || undefined,
-        },
       });
+
+      if (existing) {
+        // Enforce row-level ownership: verify user owns this site
+        if (existing.userId !== userId) {
+          return NextResponse.json(
+            { error: 'Forbidden: You do not have permission to modify this website.' },
+            { status: 403 }
+          );
+        }
+
+        savedSite = await prisma.site.update({
+          where: { id: targetId },
+          data: {
+            name: name || existing.name,
+            template: template || existing.template,
+            category: category || existing.category,
+            htmlContent: htmlContent !== undefined ? htmlContent : existing.htmlContent,
+            grapesData: grapesData !== undefined ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : existing.grapesData,
+            theme: theme || existing.theme,
+            domain: domain !== undefined ? domain : existing.domain,
+            status: status || existing.status,
+            liveUrl: liveUrl !== undefined ? liveUrl : existing.liveUrl,
+            updatedAt: new Date(),
+          },
+        });
+      } else {
+        // Create new site with explicit ownership
+        savedSite = await prisma.site.create({
+          data: {
+            id: targetId,
+            userId,
+            name: name || 'Glory Beauty Studio',
+            template: template || 'Modern Business Template',
+            category: category || 'Beauty & Wellness',
+            htmlContent: htmlContent || undefined,
+            grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
+            theme: theme || 'bram-light',
+            domain: domain || undefined,
+            status: status || 'draft',
+            liveUrl: liveUrl || undefined,
+          },
+        });
+      }
     } else {
       // Find latest site for this user or create a new one
       const existing = await prisma.site.findFirst({
@@ -66,9 +88,11 @@ export async function POST(req: Request) {
           where: { id: existing.id },
           data: {
             name: name || existing.name,
-            htmlContent: htmlContent || existing.htmlContent,
-            grapesData: grapesData ? JSON.stringify(grapesData) : existing.grapesData,
+            htmlContent: htmlContent !== undefined ? htmlContent : existing.htmlContent,
+            grapesData: grapesData !== undefined ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : existing.grapesData,
             theme: theme || existing.theme,
+            status: status || existing.status,
+            liveUrl: liveUrl !== undefined ? liveUrl : existing.liveUrl,
             updatedAt: new Date(),
           },
         });
@@ -80,8 +104,10 @@ export async function POST(req: Request) {
             template: template || 'Modern Business Template',
             category: category || 'Beauty & Wellness',
             htmlContent: htmlContent || undefined,
-            grapesData: grapesData ? JSON.stringify(grapesData) : undefined,
+            grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
             theme: theme || 'bram-light',
+            status: status || 'draft',
+            liveUrl: liveUrl || undefined,
           },
         });
       }

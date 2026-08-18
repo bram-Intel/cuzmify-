@@ -15,27 +15,26 @@ export interface AIChatMessage {
 const SYSTEM_PROMPT = `
 You are Cuzmify AI, the world-class Autonomous AI Website Architect & Granular Code Editor (like Lovable, Cursor, and v0).
 
-CRITICAL SCOPE & GRANULARITY RULES:
-1. UNDERSTAND THE USER'S SCOPE CAREFULLY:
-   - TARGETED EDIT: If the user requests a specific change to an existing element, button, style, width, color, text, image, or section (e.g., "change only the whatsapp button", "reduce the width of the booking button", "make the headline font larger", "change the price in services", "update background color of the hero"):
-     * YOU MUST PRESERVE all existing HTML, copy, layout, images, and sections untouched!
-     * DO NOT regenerate or overwrite unrelated sections of the website!
-     * ONLY surgically modify the specific element, styling, or section requested by the user.
-   - ADDITION / REMOVAL: If the user asks to add or remove a specific section (e.g., "add a FAQ section", "remove testimonials"):
-     * Insert or remove that section while keeping every other existing section 100% intact.
-   - FULL REDESIGN / RE-THEME: If and only if the user explicitly asks for a full website overhaul, brand new theme, or complete industry transformation (e.g., "make the entire website dark luxury", "rebuild the site for a sports car dealership"):
-     * Autonomously generate the full multi-section website with high-converting layout and real imagery.
+CRITICAL SCOPE & PINPOINT GRANULARITY RULES:
+1. TARGETED ELEMENT SELECTION:
+   - When a specific target element (ID, tag, or snippet) is provided:
+     * YOU MUST MODIFY ONLY THAT SINGLE SPECIFIC ELEMENT!
+     * DO NOT modify any other button, element, text, or section in the HTML document!
+     * Keep 100% of all other markup, styling, copy, and layout completely untouched.
+   - If the user asks for a general targeted edit (e.g. "change only the whatsapp booking button", "make hero headline larger"):
+     * Modify only that specific component/element. Do NOT touch other sections or buttons.
+   - If the user asks for a full-site redesign (e.g. "redesign the whole site into an exotic car rental"):
+     * Autonomously generate the complete multi-section website with high-converting layout.
 
 2. HTML REQUIREMENTS:
    - Return clean, valid, self-contained HTML that lives inside the canvas wrapper (no <html>, <head>, or <body> tags).
    - Ensure all sections have 'data-cuzmify-type' and 'id' attributes.
    - Maintain modern, responsive inline CSS styling.
-   - Keep functional CTA links (e.g. href="https://wa.me/..." or href="#booking").
 
 3. RETURN FORMAT:
 Return strictly a JSON object with this exact schema:
 {
-  "aiReply": "A direct, friendly explanation of EXACTLY what you modified (e.g. 'Updated the WhatsApp booking button styling: reduced width to compact inline sizing with modern rounded padding, keeping the rest of your site intact.')",
+  "aiReply": "A direct, friendly explanation of EXACTLY what you modified (e.g. 'Updated only the targeted WhatsApp booking button: reduced width to compact inline sizing with modern rounded padding, keeping all other buttons and sections completely untouched.')",
   "theme": "luxury" | "modern" | "minimal" | "editorial" | "bram-light" | "dark-obsidian" | "apple-luxury" | "vibrant",
   "changesApplied": [
     "Precise bullet of change 1",
@@ -48,7 +47,8 @@ Return strictly a JSON object with this exact schema:
 function generateFallbackAutonomousHtml(
   prompt: string,
   currentHtml: string = '',
-  currentTheme: string = 'luxury'
+  currentTheme: string = 'luxury',
+  targetElement?: { id?: string; tagName?: string; text?: string; htmlSnippet?: string }
 ): {
   aiReply: string;
   theme: ThemeName;
@@ -58,9 +58,42 @@ function generateFallbackAutonomousHtml(
   const p = prompt.toLowerCase();
   let theme: ThemeName = (currentTheme as ThemeName) || 'luxury';
 
-  // ── 1. SURGICAL TARGETED EDITS (Preserve rest of HTML) ─────────────────────────
+  // ── 1. SURGICAL PINPOINT TARGET ELEMENT (ID / Tag Specific) ─────────────────
+  if (currentHtml && targetElement) {
+    let modifiedHtml = currentHtml;
+    const targetId = targetElement.id;
+
+    if (targetId && modifiedHtml.includes(targetId)) {
+      const sleekStyle =
+        'display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #25D366; color: #FFFFFF; padding: 11px 24px; border-radius: 9999px; font-size: 13px; font-weight: 700; text-decoration: none; width: auto; max-width: fit-content; margin: 8px auto 0; align-self: center; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.3); transition: all 0.2s ease;';
+
+      const tag = targetElement.tagName || '[a-z0-9]+';
+      const idRegex = new RegExp(`(<${tag}\\b[^>]*id=["']${targetId}["'][^>]*)(>)`, 'i');
+
+      if (idRegex.test(modifiedHtml)) {
+        modifiedHtml = modifiedHtml.replace(idRegex, (match, prefix, close) => {
+          if (/style=["'][^"']*["']/i.test(prefix)) {
+            return prefix.replace(/style=["'][^"']*["']/i, `style="${sleekStyle}"`) + close;
+          }
+          return `${prefix} style="${sleekStyle}"${close}`;
+        });
+
+        return {
+          aiReply: `Targeted and updated only <${targetElement.tagName} id="${targetId}">: reduced width to compact sizing and refined aesthetics, keeping every other element and button untouched.`,
+          theme,
+          changesApplied: [
+            `Updated only targeted element #${targetId}`,
+            `Reduced width to compact sizing & centered layout`,
+            `Preserved all other elements and buttons across the site`,
+          ],
+          updatedHtml: modifiedHtml,
+        };
+      }
+    }
+  }
+
+  // ── 2. SURGICAL TARGETED EDITS (General Button / Section) ──────────────────────
   if (currentHtml && currentHtml.length > 50) {
-    // Check if targeted button edit (e.g. WhatsApp button, width, styling)
     const isTargetedButton =
       (p.includes('button') || p.includes('whatsapp') || p.includes('booking') || p.includes('cta')) &&
       (p.includes('only') || p.includes('width') || p.includes('reduce') || p.includes('better') || p.includes('look') || p.includes('style') || p.includes('color'));
@@ -68,20 +101,53 @@ function generateFallbackAutonomousHtml(
     if (isTargetedButton) {
       let modifiedHtml = currentHtml;
 
-      // Make WhatsApp & booking buttons compact, refined, and reduced in width
       const sleekButtonStyle =
-        'display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #25D366; color: #FFFFFF; padding: 11px 24px; border-radius: 9999px; font-size: 13px; font-weight: 700; text-decoration: none; width: auto; max-width: fit-content; margin: 0 auto; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.3); transition: all 0.2s ease;';
+        'display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #25D366; color: #FFFFFF; padding: 12px 28px; border-radius: 9999px; font-size: 13px; font-weight: 700; text-decoration: none; width: auto; max-width: fit-content; margin: 8px auto 0; align-self: center; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.3); transition: all 0.2s ease;';
 
-      // Replace style on wa.me links
-      modifiedHtml = modifiedHtml.replace(
-        /(<a\s+[^>]*href=["']https?:\/\/wa\.me[^"']*["'][^>]*style=["'])([^"']*)(["'][^>]*>)/gi,
-        `$1${sleekButtonStyle}$3`
-      );
+      // If specific to booking section button
+      if (p.includes('booking') || p.includes('send')) {
+        const bookingSectionRegex = /(<section[^>]*id=["']booking["'][^>]*>[\s\S]*?)(<\/section>)/i;
+        if (bookingSectionRegex.test(modifiedHtml)) {
+          modifiedHtml = modifiedHtml.replace(bookingSectionRegex, (fullMatch, content, closeTag) => {
+            const updatedContent = content.replace(/<a\b([^>]*)>/gi, (match: string, attrs: string) => {
+              if (attrs.includes('wa.me') || attrs.includes('whatsapp') || match.includes('WhatsApp')) {
+                if (/style=["'][^"']*["']/i.test(attrs)) {
+                  return `<a${attrs.replace(/style=["'][^"']*["']/i, `style="${sleekButtonStyle}"`)}>`;
+                }
+                return `<a style="${sleekButtonStyle}"${attrs}>`;
+              }
+              return match;
+            });
+            return `${updatedContent}${closeTag}`;
+          });
 
-      // Also ensure any booking section button is styled cleanly
+          return {
+            aiReply:
+              'Refined only the booking section WhatsApp button: reduced width to compact pill sizing, centered the layout, while leaving all other buttons and sections completely untouched.',
+            theme,
+            changesApplied: [
+              'Reduced booking WhatsApp button width to compact inline sizing',
+              'Preserved navbar, hero buttons, and other elements untouched',
+            ],
+            updatedHtml: modifiedHtml,
+          };
+        }
+      }
+
+      // General WhatsApp button replacement
+      modifiedHtml = modifiedHtml.replace(/<a\b([^>]*)>/gi, (match, attrs) => {
+        if (attrs.includes('wa.me') || attrs.includes('whatsapp') || match.includes('WhatsApp')) {
+          if (/style=["'][^"']*["']/i.test(attrs)) {
+            return `<a${attrs.replace(/style=["'][^"']*["']/i, `style="${sleekButtonStyle}"`)}>`;
+          }
+          return `<a style="${sleekButtonStyle}"${attrs}>`;
+        }
+        return match;
+      });
+
       return {
         aiReply:
-          'Refined the WhatsApp booking button: reduced width to compact pill sizing, polished the padding and typography, while keeping the rest of your website completely untouched.',
+          'Refined the WhatsApp booking button: reduced width to compact pill sizing, centered the layout, and polished padding & typography while keeping the rest of your website completely untouched.',
         theme,
         changesApplied: [
           'Reduced WhatsApp button width to compact inline sizing',
@@ -93,7 +159,7 @@ function generateFallbackAutonomousHtml(
     }
   }
 
-  // ── 2. FULL WEBSITE TRANSFORMATION (Only when explicitly requested) ───────────
+  // ── 3. FULL WEBSITE TRANSFORMATION (Only when explicitly requested) ───────────
   let title = 'Exquisite Bespoke Artistry';
   let sub = 'Tailored experiences crafted for discerning clientele with timeless distinction.';
   let service1 = 'Signature Consultation';
@@ -237,13 +303,35 @@ export async function POST(req: Request) {
     const message = (body.message || body.prompt || '').trim();
     const currentHtml = body.currentHtml || '';
     const currentTheme = body.currentTheme || body.theme || 'bram-light';
+    const targetElement = body.targetElement; // { id, tagName, text, classes, htmlSnippet }
 
     if (!message) {
       return NextResponse.json({ error: 'Message or prompt is required' }, { status: 400 });
     }
 
+    if (message.length > 3000) {
+      return NextResponse.json({ error: 'Prompt exceeds maximum character limit (3,000 characters).' }, { status: 400 });
+    }
+
+    if (currentHtml.length > 500000) {
+      return NextResponse.json({ error: 'HTML payload exceeds maximum size limit (500KB).' }, { status: 400 });
+    }
+
     if (genAI) {
       const candidateModels = [GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
+      const targetPromptContext = targetElement
+        ? `
+CRITICAL TARGET ELEMENT PINPOINT:
+The user clicked and specifically targeted ONLY this element:
+- Tag: <${targetElement.tagName}>
+- ID: "${targetElement.id || 'N/A'}"
+- Content / Text: "${targetElement.text || ''}"
+- Snippet: \`${targetElement.htmlSnippet || ''}\`
+
+You MUST modify ONLY this specific element matching the ID/snippet in the HTML.
+DO NOT modify any other element, button, text, or section anywhere on the page!`
+        : '';
 
       for (const modelName of candidateModels) {
         try {
@@ -251,7 +339,7 @@ export async function POST(req: Request) {
             model: modelName,
             generationConfig: {
               responseMimeType: 'application/json',
-              temperature: 0.4,
+              temperature: 0.3,
             },
             systemInstruction: SYSTEM_PROMPT,
           });
@@ -259,17 +347,14 @@ export async function POST(req: Request) {
           const userPrompt = `
 User Instruction: "${message}"
 Current Theme: "${currentTheme || 'bram-light'}"
+${targetPromptContext}
 
 Existing Full HTML Document:
 \`\`\`html
 ${currentHtml}
 \`\`\`
 
-Analyze the instruction:
-- If the instruction asks for a specific or targeted edit (e.g. editing a button, changing width, updating headline, altering styling, modifying one section), apply the modification ONLY to that specific target in the existing HTML document and leave every other section and content intact!
-- If the user asks for a complete full-site overhaul or brand new industry redesign, regenerate the complete new site.
-
-Return the JSON with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
+Apply the modification strictly to the target and return the JSON response with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
 
           const result = await model.generateContent(userPrompt);
           const responseText = result.response.text();
@@ -293,7 +378,7 @@ Return the JSON with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
     }
 
     // High-fidelity fallback guarantee
-    const fallback = generateFallbackAutonomousHtml(message, currentHtml, currentTheme);
+    const fallback = generateFallbackAutonomousHtml(message, currentHtml, currentTheme, targetElement);
     return NextResponse.json({
       success: true,
       source: 'autonomous_engine',

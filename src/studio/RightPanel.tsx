@@ -640,7 +640,7 @@ function AlignmentButtons({ service }: { service: ReturnType<typeof useEditor>['
 // ── Main RightPanel ─────────────────────────────────────────────────────────
 
 export function RightPanel() {
-  const { selectedComponent, service } = useEditor();
+  const { selectedComponent, service, attachSelectedToChat } = useEditor();
   const type = selectedComponent.type?.toLowerCase() ?? null;
 
   const renderPanel = () => {
@@ -682,6 +682,29 @@ export function RightPanel() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+        {type && (
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-[#0D5771]/10 via-[#0D5771]/5 to-transparent border border-[#0D5771]/20 shadow-sm space-y-2 mb-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-[#0D5771] flex items-center gap-1.5 uppercase">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" /> TARGET WITH AI
+              </span>
+              <span className="text-[9px] font-mono bg-white px-2 py-0.5 rounded-md border border-[#E2E8F0] text-[#64748B]">
+                ‹{type}›
+              </span>
+            </div>
+            <p className="text-[11px] text-[#64748B] leading-snug">
+              Pinpoint this element in the AI Copilot to modify styling, width, or text with zero impact on other sections.
+            </p>
+            <button
+              onClick={attachSelectedToChat}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-[11px] font-bold shadow-md shadow-[#0D5771]/20 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-amber-300" />
+              <span>Add Element to AI Chat</span>
+            </button>
+          </div>
+        )}
+
         {renderPanel()}
       </div>
     </aside>
