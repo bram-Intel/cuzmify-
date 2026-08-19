@@ -219,7 +219,12 @@ export function AIPanel() {
         handleThemeChange(data.theme);
       }
 
-      if (data?.updatedHtml) {
+      if (activeTarget && data?.updatedElementHtml) {
+        const replaced = service.replaceSelectedComponent(data.updatedElementHtml);
+        if (!replaced && data?.updatedHtml) {
+          service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
+        }
+      } else if (data?.updatedHtml) {
         service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
 
         const pLow = cleanPrompt.toLowerCase();

@@ -478,18 +478,28 @@ function GenericPanel({ type }: { type: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 px-1">
-        <span className="px-2 py-0.5 rounded-md bg-[#F7FAFC] text-[#0D5771] text-[10px] font-mono border border-[#E2E8F0] font-bold">{type}</span>
-        <span className="text-[11px] text-[#64748B]">Selected</span>
-      </div>
+      <SectionHeader icon={<Square className="w-4 h-4" />} title={`<${type}> Element`} badge="Element" />
 
-      <TraitGroup title="Style">
-        <StyleInput label="Background" prop="background-color" defaultValue="#FFFFFF" type="color" service={service} />
-        <StyleInput label="Text Color" prop="color" defaultValue="#1A202C" type="color" service={service} />
-        <StyleInput label="Font Size" prop="font-size" defaultValue="16px" service={service} />
+      <TraitGroup title="Layout & Dimensions">
+        <StyleInput
+          label="Display"
+          prop="display"
+          defaultValue="block"
+          type="select"
+          options={['block', 'flex', 'grid', 'inline-block', 'inline-flex', 'inline']}
+          service={service}
+        />
+        <StyleInput label="Width" prop="width" defaultValue="auto" service={service} />
+        <StyleInput label="Max Width" prop="max-width" defaultValue="100%" service={service} />
         <StyleInput label="Padding" prop="padding" defaultValue="0px" service={service} />
         <StyleInput label="Margin" prop="margin" defaultValue="0px" service={service} />
+      </TraitGroup>
+
+      <TraitGroup title="Appearance & Colors">
+        <StyleInput label="Background" prop="background-color" defaultValue="#FFFFFF" type="color" service={service} />
+        <StyleInput label="Text Color" prop="color" defaultValue="#1A202C" type="color" service={service} />
         <StyleInput label="Border Radius" prop="border-radius" defaultValue="0px" service={service} />
+        <StyleInput label="Font Size" prop="font-size" defaultValue="16px" service={service} />
       </TraitGroup>
     </div>
   );

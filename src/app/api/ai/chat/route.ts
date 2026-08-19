@@ -34,8 +34,9 @@ function smartReplaceElement(
 ): string {
   if (!newElementHtml || !fullHtml) return fullHtml;
   const targetId = targetElement?.id;
-  const tag = targetElement?.tagName?.toLowerCase() || '[a-z0-9]+';
+  const tag = (targetElement?.tagName || '[a-z0-9]+').toLowerCase();
   const text = targetElement?.text?.trim();
+  const href = targetElement?.href?.trim();
   const htmlSnippet = targetElement?.htmlSnippet?.trim();
 
   // Strategy 1: Match by ID
@@ -50,27 +51,30 @@ function smartReplaceElement(
     }
   }
 
-  // Strategy 2: Match by exact htmlSnippet
-  if (htmlSnippet && fullHtml.includes(htmlSnippet)) {
-    return fullHtml.replace(htmlSnippet, newElementHtml);
-  }
-
-  // Strategy 3: Match by Tag + Text Content
-  if (text && text.length > 2) {
-    const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const textRegex = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?${escapedText}[\\s\\S]*?<\\/${tag}>`, 'i');
-    if (textRegex.test(fullHtml)) {
-      return fullHtml.replace(textRegex, newElementHtml);
-    }
-  }
-
-  // Strategy 4: Match by Href (for links & buttons)
-  if (targetElement?.href && targetElement.href.length > 3) {
-    const escapedHref = targetElement.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Strategy 2: Match by Href (crucial for WhatsApp, external links & CTAs)
+  if (href && href.length > 3) {
+    const escapedHref = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const hrefRegex = new RegExp(`<${tag}\\b[^>]*href=["']${escapedHref}["'][\\s\\S]*?<\\/${tag}>`, 'i');
     if (hrefRegex.test(fullHtml)) {
       return fullHtml.replace(hrefRegex, newElementHtml);
     }
+  }
+
+  // Strategy 3: Match by Tag + Loose Words Text Content
+  if (text && text.length > 1) {
+    const words = text.split(/\s+/).filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    if (words.length > 0) {
+      const loosePattern = words.join('[\\s\\S]*?');
+      const textRegex = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?${loosePattern}[\\s\\S]*?<\\/${tag}>`, 'i');
+      if (textRegex.test(fullHtml)) {
+        return fullHtml.replace(textRegex, newElementHtml);
+      }
+    }
+  }
+
+  // Strategy 4: Match by exact htmlSnippet
+  if (htmlSnippet && fullHtml.includes(htmlSnippet)) {
+    return fullHtml.replace(htmlSnippet, newElementHtml);
   }
 
   return fullHtml;
@@ -217,6 +221,7 @@ Return JSON with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
           theme: parsedData.theme || currentTheme || 'bram-light',
           changesApplied,
           updatedHtml: finalHtml,
+          updatedElementHtml: parsedData?.updatedElementHtml || null,
         });
       } catch (candidateErr: any) {
         lastError = candidateErr;

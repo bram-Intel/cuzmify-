@@ -232,6 +232,26 @@ export class GrapesAdapter implements EditorAdapter {
     this.editor.select([]);
   }
 
+  replaceSelectedComponent(newHtml: string): boolean {
+    try {
+      const selected = this.editor.getSelected() as any;
+      if (selected) {
+        const parent = selected.parent?.();
+        if (parent) {
+          const index = selected.index?.() ?? 0;
+          parent.append(newHtml, { at: index });
+          selected.remove();
+          this.editor.refresh();
+          this.editor.trigger('cuzmify:change');
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('[GrapesAdapter] replaceSelectedComponent error:', err);
+    }
+    return false;
+  }
+
   // ── Canvas CSS injection ──────────────────────────────────────────────────
   injectCanvasCSS(css: string): void {
     try {

@@ -49,9 +49,16 @@ export class EditorService {
     });
 
     this.adapter.on('component:selected', (comp: unknown) => {
-      const model = comp as { get: (k: string) => string } | null;
-      const type = model?.get('type') ?? model?.get('tagName') ?? null;
-      this.selectionListeners.forEach((fn) => fn(type as string | null));
+      const model = comp as any;
+      if (!model) {
+        this.selectionListeners.forEach((fn) => fn(null));
+        return;
+      }
+      const rawType = model.get?.('type');
+      const tagName = (model.get?.('tagName') || model.attributes?.tagName || 'div').toLowerCase();
+      // Ensure custom cuzmify blocks preserve their block name, else resolve to tagName (div, section, a, p, button, img)
+      const resolvedType = rawType && rawType !== 'default' && rawType !== 'wrapper' ? rawType : tagName;
+      this.selectionListeners.forEach((fn) => fn(resolvedType));
     });
 
     this.adapter.on('component:deselected', () => {
@@ -369,15 +376,17 @@ export class EditorService {
     tagName: string;
     type?: string;
     text?: string;
+    href?: string;
     classes?: string;
     htmlSnippet?: string;
   } | null {
     const comp = this.adapter.getSelectedComponent() as any;
     if (!comp) return null;
 
-    const tagName = comp.get?.('tagName') || comp.get?.('type') || 'element';
+    const tagName = (comp.get?.('tagName') || comp.get?.('type') || 'div').toLowerCase();
     const attrs = typeof comp.getAttributes === 'function' ? comp.getAttributes() : {};
     let id = attrs.id || comp.getId?.() || '';
+    const href = attrs.href || comp.get?.('attributes')?.href || '';
     const classes = comp.getClasses?.()?.join(' ') || attrs.class || '';
     const text = comp.getEl?.()?.textContent?.trim() || '';
 
@@ -399,10 +408,20 @@ export class EditorService {
       id,
       tagName,
       type: comp.get?.('type') || tagName,
-      text: text.slice(0, 80),
+      text: text.slice(0, 100),
+      href,
       classes,
-      htmlSnippet: htmlSnippet.slice(0, 800),
+      htmlSnippet: htmlSnippet.slice(0, 1000),
     };
+  }
+
+  replaceSelectedComponent(newHtml: string): boolean {
+    const success = this.adapter.replaceSelectedComponent(newHtml);
+    if (success) {
+      this.recordSnapshot('Replaced element via AI', 'ai_transform');
+      this.notifyChange();
+    }
+    return success;
   }
 
   // ── Section Re-ordering APIs ──────────────────────────────────────────────
