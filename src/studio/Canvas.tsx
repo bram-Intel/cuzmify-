@@ -234,7 +234,7 @@ export function Canvas() {
       },
     });
 
-    // Inject base reset stylesheet into iframe canvas
+    // Inject base reset stylesheet and attach keyboard shortcuts into iframe canvas
     editor.on('load', () => {
       const doc = editor.Canvas.getDocument();
       if (doc) {
@@ -250,6 +250,21 @@ export function Canvas() {
           `;
           doc.head.appendChild(style);
         }
+
+        const handleCanvasKey = (e: KeyboardEvent) => {
+          const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+          const isUndo = (isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey;
+          const isRedo = (isMac ? (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'z') || (e.metaKey && e.key.toLowerCase() === 'y') : (e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z'));
+
+          if (isUndo) {
+            e.preventDefault();
+            service.undo();
+          } else if (isRedo) {
+            e.preventDefault();
+            service.redo();
+          }
+        };
+        doc.addEventListener('keydown', handleCanvasKey);
       }
     });
 
@@ -265,7 +280,7 @@ export function Canvas() {
         if (localRes.loaded) {
           if (localRes.theme) handleThemeChange(localRes.theme as any);
         } else {
-          service.loadHtml(INITIAL_HTML);
+          service.loadHtml(INITIAL_HTML, 'Initial Template', 'initial');
         }
         service.sanitizeCanvas();
       }

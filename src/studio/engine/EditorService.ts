@@ -3,37 +3,49 @@ import { GrapesAdapter } from './GrapesAdapter';
 import { ThemeEngine } from '../theme/ThemeEngine';
 import { ComponentRegistry } from './ComponentRegistry';
 import { BlockRegistry } from './BlockRegistry';
+import { HistoryManager, type HistorySnapshot } from './HistoryManager';
 import type { ThemeName } from '@/core/project-schema';
 import type { CuzmifyComponentTraits } from '@/core/types';
 
 export class EditorService {
   private adapter: GrapesAdapter;
   private themeEngine: ThemeEngine;
+  private historyManager: HistoryManager;
   private changeListeners: Array<() => void> = [];
   private selectionListeners: Array<(type: string | null) => void> = [];
-  private isMoving = false; // Guard against concurrent operations
+  private historyListeners: Array<(state: { canUndo: boolean; canRedo: boolean; description?: string }) => void> = [];
+  private isMoving = false;
+  private snapshotDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private currentTheme: ThemeName = 'bram-light';
 
   constructor(grapesEditor: Editor) {
     this.adapter = new GrapesAdapter(grapesEditor);
     this.themeEngine = new ThemeEngine(this.adapter);
+    this.historyManager = new HistoryManager(50);
 
     ComponentRegistry.register(grapesEditor);
     BlockRegistry.register(grapesEditor);
 
+    // Forward history changes to reactive subscribers
+    this.historyManager.onChange((state) => {
+      this.historyListeners.forEach((fn) => fn(state));
+    });
+
+    // Listen to canvas mutations and record debounced snapshot
     this.adapter.on('change:changesCount', () => {
-      this.notifyChange();
+      this.handleDebouncedChange('Canvas edit', 'manual_edit');
     });
 
     this.adapter.on('cuzmify:change', () => {
-      this.notifyChange();
+      this.handleDebouncedChange('Canvas content update', 'manual_edit');
     });
 
     this.adapter.on('component:add', () => {
-      this.notifyChange();
+      this.handleDebouncedChange('Added component', 'block_insert');
     });
 
     this.adapter.on('component:remove', () => {
-      this.notifyChange();
+      this.handleDebouncedChange('Removed component', 'manual_edit');
     });
 
     this.adapter.on('component:selected', (comp: unknown) => {
@@ -47,6 +59,106 @@ export class EditorService {
     });
   }
 
+  // ── Snapshot Capture Engine ───────────────────────────────────────────────
+  public recordSnapshot(description: string, source: HistorySnapshot['source'], themeOverride?: ThemeName): void {
+    if (this.historyManager.isPerformingRestore) return;
+
+    try {
+      const html = this.adapter.getHtml();
+      const css = this.adapter.getCss();
+      const theme = themeOverride || this.currentTheme;
+      const grapesData = this.adapter.getProjectData();
+
+      this.historyManager.push({
+        id: `snap-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: Date.now(),
+        description,
+        source,
+        html,
+        css,
+        theme,
+        grapesData,
+      });
+    } catch (err) {
+      console.warn('[EditorService] Could not capture snapshot:', err);
+    }
+  }
+
+  private handleDebouncedChange(description: string, source: HistorySnapshot['source']): void {
+    this.notifyChange();
+    if (this.historyManager.isPerformingRestore) return;
+
+    if (this.snapshotDebounceTimer) clearTimeout(this.snapshotDebounceTimer);
+    this.snapshotDebounceTimer = setTimeout(() => {
+      this.recordSnapshot(description, source);
+    }, 500);
+  }
+
+  // ── Universal Undo / Redo ─────────────────────────────────────────────────
+  public undo(): boolean {
+    const previous = this.historyManager.undo();
+    if (!previous) {
+      // Fallback to internal GrapesJS undo
+      this.adapter.undo();
+      this.notifyChange();
+      return this.historyManager.canUndo();
+    }
+
+    try {
+      this.adapter.setHtmlContent(previous.html);
+      if (previous.theme) {
+        this.currentTheme = previous.theme;
+        this.themeEngine.applyTheme(previous.theme);
+      }
+      this.adapter.sanitizeCanvas();
+      this.notifyChange();
+      return true;
+    } catch (err) {
+      console.error('[EditorService] Undo restore error:', err);
+      return false;
+    }
+  }
+
+  public redo(): boolean {
+    const next = this.historyManager.redo();
+    if (!next) {
+      // Fallback to internal GrapesJS redo
+      this.adapter.redo();
+      this.notifyChange();
+      return this.historyManager.canRedo();
+    }
+
+    try {
+      this.adapter.setHtmlContent(next.html);
+      if (next.theme) {
+        this.currentTheme = next.theme;
+        this.themeEngine.applyTheme(next.theme);
+      }
+      this.adapter.sanitizeCanvas();
+      this.notifyChange();
+      return true;
+    } catch (err) {
+      console.error('[EditorService] Redo restore error:', err);
+      return false;
+    }
+  }
+
+  public canUndo(): boolean {
+    return this.historyManager.canUndo() || this.adapter.canUndo();
+  }
+
+  public canRedo(): boolean {
+    return this.historyManager.canRedo() || this.adapter.canRedo();
+  }
+
+  public onHistoryChange(listener: (state: { canUndo: boolean; canRedo: boolean; description?: string }) => void): () => void {
+    this.historyListeners.push(listener);
+    listener({ canUndo: this.canUndo(), canRedo: this.canRedo() });
+    return () => {
+      this.historyListeners = this.historyListeners.filter((l) => l !== listener);
+    };
+  }
+
   // ── Persistence ───────────────────────────────────────────────────────────
   saveToLocalStorage(projectId: string, theme?: string, userId?: string): void {
     try {
@@ -55,7 +167,7 @@ export class EditorService {
         grapesData: this.adapter.getProjectData(),
         html: this.adapter.getHtml(),
         css: this.adapter.getCss(),
-        theme: theme || 'bram-light',
+        theme: theme || this.currentTheme,
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -82,7 +194,7 @@ export class EditorService {
           category: meta?.category,
           htmlContent: html,
           grapesData,
-          theme: meta?.theme || 'bram-light',
+          theme: meta?.theme || this.currentTheme,
         }),
       });
       return res.ok;
@@ -100,13 +212,18 @@ export class EditorService {
       const site = data?.sites?.find((s: any) => s.id === projectId) || data?.sites?.[0];
       if (!site) return { loaded: false };
 
-      // 1. Try grapesData first (preserves 100% of components, layouts, and custom CSS)
+      if (site.theme) {
+        this.currentTheme = site.theme as ThemeName;
+      }
+
+      // 1. Try grapesData first
       if (site.grapesData) {
         try {
           const parsed = typeof site.grapesData === 'string' ? JSON.parse(site.grapesData) : site.grapesData;
           if (parsed && (parsed.pages || parsed.styles || parsed.components)) {
             this.adapter.loadProjectData(parsed);
             this.adapter.sanitizeCanvas();
+            this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
             return { loaded: true, theme: site.theme, name: site.name };
           }
         } catch {
@@ -114,10 +231,11 @@ export class EditorService {
         }
       }
 
-      // 2. Try htmlContent (with embedded <style> tags)
+      // 2. Try htmlContent
       if (site.htmlContent && site.htmlContent.length > 50) {
         this.adapter.setHtmlContent(site.htmlContent);
         this.adapter.sanitizeCanvas();
+        this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
         return { loaded: true, theme: site.theme, name: site.name };
       }
 
@@ -134,15 +252,21 @@ export class EditorService {
       if (!raw) return { loaded: false };
       const parsed = JSON.parse(raw);
 
+      if (parsed.theme) {
+        this.currentTheme = parsed.theme as ThemeName;
+      }
+
       if (parsed.grapesData) {
         this.adapter.loadProjectData(parsed.grapesData);
         this.adapter.sanitizeCanvas();
+        this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
         return { loaded: true, theme: parsed.theme };
       }
 
       if (parsed.html && typeof parsed.html === 'string' && parsed.html.length > 50) {
         this.adapter.setHtmlContent(parsed.html);
         this.adapter.sanitizeCanvas();
+        this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
         return { loaded: true, theme: parsed.theme };
       }
 
@@ -159,21 +283,24 @@ export class EditorService {
   loadProjectData(data: Record<string, unknown>): void {
     this.adapter.loadProjectData(data);
     this.adapter.sanitizeCanvas();
+    this.recordSnapshot('Loaded Project Data', 'manual_edit');
   }
 
-  loadHtml(html: string): void {
+  loadHtml(html: string, description = 'Applied HTML update', source: HistorySnapshot['source'] = 'ai_transform', themeOverride?: ThemeName): void {
     this.adapter.setHtmlContent(html);
     this.adapter.sanitizeCanvas();
+    this.recordSnapshot(description, source, themeOverride);
     this.notifyChange();
   }
 
   resetToDefaultTemplate(projectId: string, initialHtml: string): void {
     try {
       localStorage.removeItem(`cuzmify_project_${projectId}`);
-      localStorage.clear();
     } catch {}
     this.adapter.setHtmlContent(initialHtml);
     this.adapter.sanitizeCanvas();
+    this.historyManager.clear();
+    this.recordSnapshot('Reset to Default Template', 'initial');
     this.notifyChange();
   }
 
@@ -181,13 +308,7 @@ export class EditorService {
     this.adapter.sanitizeCanvas();
   }
 
-  // ── History ───────────────────────────────────────────────────────────────
-  undo(): void { this.adapter.undo(); }
-  redo(): void { this.adapter.redo(); }
-  canUndo(): boolean { return this.adapter.canUndo(); }
-  canRedo(): boolean { return this.adapter.canRedo(); }
-
-  // ── Device ────────────────────────────────────────────────────────────────
+  // ── Viewport ──────────────────────────────────────────────────────────────
   setDevice(device: 'desktop' | 'tablet' | 'mobile'): void {
     this.adapter.setDevice(device);
   }
@@ -198,7 +319,10 @@ export class EditorService {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   applyTheme(name: ThemeName): void {
+    this.currentTheme = name;
     this.themeEngine.applyTheme(name);
+    this.recordSnapshot(`Changed theme to ${name}`, 'theme_change', name);
+    this.notifyChange();
   }
 
   getAvailableThemes(): ThemeName[] {
@@ -222,18 +346,22 @@ export class EditorService {
 
   updateTrait(name: string, value: string): void {
     this.adapter.updateSelectedTrait(name, value);
+    this.handleDebouncedChange(`Updated ${name}`, 'manual_edit');
   }
 
   updateSelectedTrait(name: string, value: string): void {
     this.adapter.updateSelectedTrait(name, value);
+    this.handleDebouncedChange(`Updated ${name}`, 'manual_edit');
   }
 
   updateStyle(prop: string, value: string): void {
     this.adapter.updateSelectedStyle(prop, value);
+    this.handleDebouncedChange(`Updated style ${prop}`, 'manual_edit');
   }
 
   updateSelectedStyle(prop: string, value: string): void {
     this.adapter.updateSelectedStyle(prop, value);
+    this.handleDebouncedChange(`Updated style ${prop}`, 'manual_edit');
   }
 
   getSelectedElementDetails(): {
@@ -252,6 +380,7 @@ export class EditorService {
     let id = attrs.id || comp.getId?.() || '';
     const classes = comp.getClasses?.()?.join(' ') || attrs.class || '';
     const text = comp.getEl?.()?.textContent?.trim() || '';
+
     // Ensure the component has a unique ID attribute so it can be targeted pinpointed
     if (!id || !attrs.id) {
       const generatedId = `cuzmify-target-${Math.random().toString(36).substring(2, 7)}`;
@@ -276,29 +405,32 @@ export class EditorService {
     };
   }
 
-  // ── Section Re-ordering APIs (FIXED) ──────────────────────────────────────
-
+  // ── Section Re-ordering APIs ──────────────────────────────────────────────
   getSectionsList(): { id: string; type: string; name: string; index: number }[] {
     return this.adapter.getSectionsList();
   }
 
   moveSectionUp(index: number): void {
     this.adapter.moveSectionUp(index);
+    this.recordSnapshot('Moved section up', 'section_reorder');
     this.notifyChange();
   }
 
   moveSectionDown(index: number): void {
     this.adapter.moveSectionDown(index);
+    this.recordSnapshot('Moved section down', 'section_reorder');
     this.notifyChange();
   }
 
   moveSectionTo(fromIndex: number, toIndex: number): void {
     this.adapter.moveSectionTo(fromIndex, toIndex);
+    this.recordSnapshot('Reordered section', 'section_reorder');
     this.notifyChange();
   }
 
   removeSection(index: number): void {
     this.adapter.removeSection(index);
+    this.recordSnapshot('Removed section', 'section_reorder');
     this.notifyChange();
   }
 
@@ -312,6 +444,8 @@ export class EditorService {
 
   addBlock(blockId: string): void {
     this.adapter.addBlock(blockId);
+    this.recordSnapshot(`Added ${blockId}`, 'block_insert');
+    this.notifyChange();
   }
 
   // ── AI Full-Site Transformation & Inline Copilot APIs ───────────────────
@@ -319,12 +453,10 @@ export class EditorService {
     plan: import('../ai/AIEngine').AITransformationPlan,
     callbacks?: { onSetTheme?: (t: import('@/core/project-schema').ThemeName) => void }
   ): void {
-    // 1. Switch Theme if specified
     if (plan.theme && callbacks?.onSetTheme) {
       callbacks.onSetTheme(plan.theme);
     }
 
-    // 2. Update Hero section copy
     if (plan.heroHeadline) {
       this.adapter.updateSectionField('hero', 'headline', plan.heroHeadline);
     }
@@ -336,7 +468,6 @@ export class EditorService {
     }
     this.adapter.highlightSectionGlow('hero');
 
-    // 3. Update About section copy
     if (plan.aboutTitle) {
       this.adapter.updateSectionField('about', 'headline', plan.aboutTitle);
     }
@@ -345,13 +476,11 @@ export class EditorService {
     }
     this.adapter.highlightSectionGlow('about');
 
-    // 4. Update Services section copy
     if (plan.servicesTitle) {
       this.adapter.updateSectionField('services', 'headline', plan.servicesTitle);
     }
     this.adapter.highlightSectionGlow('services');
 
-    // 5. Update Booking section copy
     if (plan.bookingTitle) {
       this.adapter.updateSectionField('booking', 'headline', plan.bookingTitle);
     }
@@ -360,12 +489,13 @@ export class EditorService {
     }
     this.adapter.highlightSectionGlow('booking');
 
+    this.recordSnapshot('AI Website Transformation', 'ai_transform', plan.theme as ThemeName);
     this.notifyChange();
   }
 
   updateSelectedText(newText: string): void {
     this.adapter.updateSelectedComponentText(newText);
-    this.notifyChange();
+    this.handleDebouncedChange('Updated text', 'manual_edit');
   }
 
   getSelectedText(): string {
@@ -410,8 +540,11 @@ export class EditorService {
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
   destroy(): void {
+    if (this.snapshotDebounceTimer) clearTimeout(this.snapshotDebounceTimer);
     this.adapter.destroy();
     this.changeListeners = [];
     this.selectionListeners = [];
+    this.historyListeners = [];
+    this.historyManager.clear();
   }
 }

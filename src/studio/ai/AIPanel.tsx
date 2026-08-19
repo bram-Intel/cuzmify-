@@ -214,8 +214,13 @@ export function AIPanel() {
 
       setBuildPhase('Syncing canvas & persisting to cloud DB…');
 
+      const newTheme = data?.theme || theme;
+      if (data?.theme) {
+        handleThemeChange(data.theme);
+      }
+
       if (data?.updatedHtml) {
-        service.loadHtml(data.updatedHtml);
+        service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
 
         const pLow = cleanPrompt.toLowerCase();
         let targetSec = 'hero';
@@ -228,11 +233,6 @@ export function AIPanel() {
         setTimeout(() => {
           service.highlightSection(targetSec);
         }, 150);
-      }
-
-      const newTheme = data?.theme || theme;
-      if (data?.theme) {
-        handleThemeChange(data.theme);
       }
 
       service.saveToLocalStorage(projectId, newTheme, userId);
@@ -301,7 +301,7 @@ export function AIPanel() {
   const handleRollback = (snapshotHtml?: string) => {
     if (!service || !snapshotHtml) return;
     try {
-      service.loadHtml(snapshotHtml);
+      service.loadHtml(snapshotHtml, 'Restored Snapshot State', 'manual_edit', theme);
       service.saveToLocalStorage(projectId, theme, userId);
       service.saveToDatabase(projectId, { businessName, theme });
 

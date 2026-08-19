@@ -113,16 +113,22 @@ export function EditorProvider({
   const currentUserId = session?.user?.id || session?.user?.email || 'guest';
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Synchronize reactive history state (Undo / Redo buttons)
+  React.useEffect(() => {
+    if (!service) return;
+    const unsub = service.onHistoryChange((state) => {
+      setCanUndo(state.canUndo);
+      setCanRedo(state.canRedo);
+    });
+    return () => unsub();
+  }, [service]);
+
   const handleUndo = useCallback(() => {
     service?.undo();
-    setCanUndo(service?.canUndo() ?? false);
-    setCanRedo(service?.canRedo() ?? false);
   }, [service]);
 
   const handleRedo = useCallback(() => {
     service?.redo();
-    setCanUndo(service?.canUndo() ?? false);
-    setCanRedo(service?.canRedo() ?? false);
   }, [service]);
 
   const handleSave = useCallback(async (isAuto = false) => {

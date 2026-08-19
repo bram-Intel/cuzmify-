@@ -33,12 +33,14 @@ function EditorShellInner() {
     isLeftPanelOpen,
     handlePreviewToggle,
     handleSave,
+    handleUndo,
+    handleRedo,
     saveToast,
   } = useEditor();
   const [showPublish, setShowPublish] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Esc key listener to exit preview mode + Ctrl/Cmd + S save shortcut
+  // Keyboard shortcuts: Esc (preview), Ctrl/Cmd+S (save), Ctrl/Cmd+Z (undo), Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z (redo)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isPreviewMode) {
@@ -48,10 +50,27 @@ function EditorShellInner() {
         e.preventDefault();
         handleSave();
       }
+
+      const target = e.target as HTMLElement | null;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+      if (!isInput) {
+        const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+        const isUndo = (isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey;
+        const isRedo = (isMac ? (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'z') || (e.metaKey && e.key.toLowerCase() === 'y') : (e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z'));
+
+        if (isUndo) {
+          e.preventDefault();
+          handleUndo();
+        } else if (isRedo) {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPreviewMode, handlePreviewToggle, handleSave]);
+  }, [isPreviewMode, handlePreviewToggle, handleSave, handleUndo, handleRedo]);
 
   const handlePublish = async (): Promise<string> => {
     setIsPublishing(true);
