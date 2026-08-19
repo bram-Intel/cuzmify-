@@ -57,7 +57,12 @@ export async function POST(req: Request) {
     // 1. If Gemini API key is configured, call live LLM
     const genAI = getGeminiClient();
     if (genAI) {
-      const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+      const candidateModels = [
+        'gemini-flash-lite-latest',
+        'gemini-3.5-flash-lite',
+        'gemini-3.1-flash-lite',
+        'gemini-3.5-flash',
+      ];
       for (const modelName of candidateModels) {
         try {
           const model = genAI.getGenerativeModel({

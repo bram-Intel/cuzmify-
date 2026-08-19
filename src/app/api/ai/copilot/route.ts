@@ -13,63 +13,68 @@ export async function POST(req: Request) {
     // 1. If Gemini API key is configured, call live LLM
     const genAI = getGeminiClient();
     if (genAI) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: GEMINI_MODEL,
-          generationConfig: {
-            temperature: 0.7,
-          },
-          systemInstruction: `You are an elite UX/UI copywriter for luxury digital businesses. Keep your answers concise and directly usable on a website without quotation marks or conversational preamble.`,
-        });
+      const candidateModels = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash'];
+      for (const modelName of candidateModels) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              temperature: 0.7,
+            },
+            systemInstruction: `You are an elite UX/UI copywriter for luxury digital businesses. Keep your answers concise and directly usable on a website without quotation marks or conversational preamble.`,
+          });
 
-        let userPrompt = '';
-        if (action === 'polish') {
-          userPrompt = `Rewrite and polish the following text to sound world-class, elegant, and grammatically flawless:\n\n"${text}"`;
-        } else if (action === 'punchy') {
-          userPrompt = `Make the following text punchy, concise, and high-impact in 6 words or less:\n\n"${text}"`;
-        } else if (action === 'tone_luxury') {
-          userPrompt = `Rewrite the following text with an ultra-luxury, bespoke, haute-couture tone:\n\n"${text}"`;
-        } else if (action === 'whatsapp_hook') {
-          userPrompt = `Add a 24/7 instant WhatsApp reservation and consultation conversion hook to this text:\n\n"${text}"`;
-        } else if (action === 'variations') {
-          userPrompt = `Generate 3 distinct, high-converting website copy variations for:\n\n"${text}"\n\nFormat your response as 3 bullet points separated by newlines.`;
-        } else if (action === 'custom') {
-          userPrompt = `Apply this instruction to the text: "${customInstruction}".\nText: "${text}"`;
-        }
+          let userPrompt = '';
+          if (action === 'polish') {
+            userPrompt = `Rewrite and polish the following text to sound world-class, elegant, and grammatically flawless:\n\n"${text}"`;
+          } else if (action === 'punchy') {
+            userPrompt = `Make the following text punchy, concise, and high-impact in 6 words or less:\n\n"${text}"`;
+          } else if (action === 'tone_luxury') {
+            userPrompt = `Rewrite the following text with an ultra-luxury, bespoke, haute-couture tone:\n\n"${text}"`;
+          } else if (action === 'whatsapp_hook') {
+            userPrompt = `Add a 24/7 instant WhatsApp reservation and consultation conversion hook to this text:\n\n"${text}"`;
+          } else if (action === 'variations') {
+            userPrompt = `Generate 3 distinct, high-converting website copy variations for:\n\n"${text}"\n\nFormat your response as 3 bullet points separated by newlines.`;
+          } else if (action === 'custom') {
+            userPrompt = `Apply this instruction to the text: "${customInstruction}".\nText: "${text}"`;
+          }
 
-        const result = await model.generateContent(userPrompt);
-        const responseText = result.response.text().trim();
+          const result = await model.generateContent(userPrompt);
+          const responseText = result.response.text().trim();
 
-        if (action === 'variations') {
-          const lines = responseText
-            .split('\n')
-            .map((l: string) => l.replace(/^[-*•\d.]+\s*/, '').trim())
-            .filter(Boolean)
-            .slice(0, 3);
+          if (action === 'variations') {
+            const lines = responseText
+              .split('\n')
+              .map((l: string) => l.replace(/^[-*•\d.]+\s*/, '').trim())
+              .filter(Boolean)
+              .slice(0, 3);
+
+            return NextResponse.json({
+              success: true,
+              source: 'gemini',
+              model: modelName,
+              result: {
+                original: text,
+                action: '3 Variations Generated (Gemini AI)',
+                transformed: text,
+                variations: lines,
+              },
+            });
+          }
 
           return NextResponse.json({
             success: true,
             source: 'gemini',
+            model: modelName,
             result: {
               original: text,
-              action: '3 Variations Generated (Gemini AI)',
-              transformed: text,
-              variations: lines,
+              action: `Rewritten with Gemini AI (${action})`,
+              transformed: responseText,
             },
           });
+        } catch (geminiErr) {
+          console.warn(`[Gemini Copilot API] Model ${modelName} call failed, trying next candidate:`, geminiErr);
         }
-
-        return NextResponse.json({
-          success: true,
-          source: 'gemini',
-          result: {
-            original: text,
-            action: `Transformed (Gemini AI)`,
-            transformed: responseText,
-          },
-        });
-      } catch (geminiErr) {
-        console.warn('[Gemini Copilot API] Live call failed, falling back to heuristic engine:', geminiErr);
       }
     }
 

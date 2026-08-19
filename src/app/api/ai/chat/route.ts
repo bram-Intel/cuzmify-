@@ -12,38 +12,19 @@ export interface AIChatMessage {
   snapshotHtml?: string;
 }
 
-const SYSTEM_PROMPT = `
-You are Cuzmify AI, the world-class Autonomous AI Website Architect & Granular Code Editor (like Lovable, Cursor, and v0).
-
-CRITICAL SCOPE & PINPOINT GRANULARITY RULES:
-1. TARGETED ELEMENT SELECTION:
-   - When a specific target element (ID, tag, or snippet) is provided:
-     * YOU MUST MODIFY ONLY THAT SINGLE SPECIFIC ELEMENT!
-     * DO NOT modify any other button, element, text, or section in the HTML document!
-     * If the user says something like "i have to hover over that button before it was visible" or "make it visible", ensure the targeted element is ALWAYS permanently visible with opacity: 1, visible text, contrasting background, and no hidden default states!
-     * Keep 100% of all other markup, styling, copy, and layout completely untouched.
-   - If the user asks for a general targeted edit (e.g. "change only the whatsapp booking button", "make hero headline larger"):
-     * Modify only that specific component/element. Do NOT touch other sections or buttons.
-   - If the user asks for a full-site redesign (e.g. "redesign the whole site into an exotic car rental"):
-     * Autonomously generate the complete multi-section website with high-converting layout.
-
-2. HTML REQUIREMENTS:
-   - Return clean, valid, self-contained HTML that lives inside the canvas wrapper (no <html>, <head>, or <body> tags).
-   - Ensure all sections have 'data-cuzmify-type' and 'id' attributes.
-   - Maintain modern, responsive inline CSS styling.
-
-3. RETURN FORMAT:
-Return strictly a valid JSON object with this exact schema:
-{
-  "aiReply": "A clear, natural explanation of EXACTLY what you modified based on the user's specific instruction.",
-  "theme": "luxury" | "modern" | "minimal" | "editorial" | "bram-light" | "dark-obsidian" | "apple-luxury" | "vibrant",
-  "changesApplied": [
-    "Precise bullet of change 1",
-    "Precise bullet of change 2"
-  ],
-  "updatedHtml": "<!-- The complete resulting HTML markup containing the modifications -->"
+function replaceElementInHtml(fullHtml: string, targetId: string, tagName?: string, newElementHtml?: string): string {
+  if (!newElementHtml) return fullHtml;
+  const tag = tagName || '[a-z0-9]+';
+  const pairedRegex = new RegExp(`<${tag}\\b[^>]*id=["']${targetId}["'][\\s\\S]*?<\\/${tag}>`, 'i');
+  if (pairedRegex.test(fullHtml)) {
+    return fullHtml.replace(pairedRegex, newElementHtml);
+  }
+  const selfClosingRegex = new RegExp(`<${tag}\\b[^>]*id=["']${targetId}["'][^>]*\\/?>`, 'i');
+  if (selfClosingRegex.test(fullHtml)) {
+    return fullHtml.replace(selfClosingRegex, newElementHtml);
+  }
+  return fullHtml;
 }
-`;
 
 export async function POST(req: Request) {
   try {
@@ -73,22 +54,17 @@ export async function POST(req: Request) {
       );
     }
 
-    // Prioritize high-availability flash models with automatic fallback
-    const candidateModels = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-flash-latest'];
+    // High-speed, sub-second flash candidate models
+    const candidateModels = [
+      'gemini-flash-lite-latest',
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-3-flash-preview',
+    ];
+
+    const isTargeted = Boolean(targetElement && targetElement.id);
     let lastError: any = null;
-
-    const targetPromptContext = targetElement
-      ? `
-CRITICAL TARGET ELEMENT PINPOINT:
-The user clicked and specifically targeted ONLY this element:
-- Tag: <${targetElement.tagName}>
-- ID: "${targetElement.id || 'N/A'}"
-- Content / Text: "${targetElement.text || ''}"
-- Snippet: \`${targetElement.htmlSnippet || ''}\`
-
-You MUST modify ONLY this specific element matching the ID/snippet in the HTML.
-DO NOT modify any other element, button, text, or section anywhere on the page!`
-      : '';
 
     for (const modelName of candidateModels) {
       try {
@@ -98,24 +74,56 @@ DO NOT modify any other element, button, text, or section anywhere on the page!`
             responseMimeType: 'application/json',
             temperature: 0.2,
           },
-          systemInstruction: SYSTEM_PROMPT,
+          systemInstruction: isTargeted
+            ? `You are Cuzmify AI, the world-class Granular Element Editor. The user selected a specific element on the webpage.
+Modify ONLY that targeted element based on the user's prompt.
+If the user reports that the element is hidden or only visible on hover, make it permanently visible with 100% opacity, contrasting colors, and clear text.
+Return strictly a JSON object with:
+{
+  "aiReply": "Brief 1-sentence explanation of what was modified on the element",
+  "changesApplied": ["List of changes made to the element"],
+  "updatedElementHtml": "The full modified HTML snippet of ONLY this single element"
+}`
+            : `You are Cuzmify AI, the world-class Autonomous AI Website Architect.
+Transform or generate the website layout according to the user's instruction.
+Return clean, self-contained HTML that lives inside the canvas wrapper.
+Return strictly a JSON object with:
+{
+  "aiReply": "Brief explanation of the layout changes",
+  "theme": "luxury" | "modern" | "minimal" | "editorial" | "bram-light" | "dark-obsidian" | "apple-luxury" | "vibrant",
+  "changesApplied": ["List of applied changes"],
+  "updatedHtml": "The complete resulting HTML markup"
+}`,
         });
 
-        const userPrompt = `
-User Instruction: "${message}"
-Current Theme: "${currentTheme || 'bram-light'}"
-${targetPromptContext}
+        const userPrompt = isTargeted
+          ? `User Instruction: "${message}"
+Target Element ID: "${targetElement.id}"
+Target Element Tag: <${targetElement.tagName}>
+Target Element HTML Snippet:
+\`\`\`html
+${targetElement.htmlSnippet || `<${targetElement.tagName} id="${targetElement.id}">${targetElement.text || ''}</${targetElement.tagName}>`}
+\`\`\`
 
+Return JSON with "aiReply", "changesApplied" (array of strings), and "updatedElementHtml".`
+          : `User Instruction: "${message}"
+Current Theme: "${currentTheme}"
 Existing Full HTML Document:
 \`\`\`html
 ${currentHtml}
 \`\`\`
 
-Apply the modification strictly according to the user's prompt and return the JSON response with "aiReply", "theme", "changesApplied" (array of strings), and "updatedHtml".`;
+Return JSON with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
 
-        const result = await model.generateContent(userPrompt);
+        // Add 10-second timeout per candidate model for instant failover
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 10s`)), 10000)
+        );
+
+        const generatePromise = model.generateContent(userPrompt);
+        const result: any = await Promise.race([generatePromise, timeoutPromise]);
+
         const responseText = result.response.text();
-
         let cleanJson = responseText.trim();
         if (cleanJson.startsWith('```')) {
           cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
@@ -123,36 +131,41 @@ Apply the modification strictly according to the user's prompt and return the JS
 
         const parsedData = JSON.parse(cleanJson);
 
-        if (parsedData?.updatedHtml) {
-          const rawChanges = parsedData.changesApplied;
-          const changesApplied: string[] = Array.isArray(rawChanges)
-            ? rawChanges.map((c: any) => String(c))
-            : typeof rawChanges === 'string'
-            ? [rawChanges]
-            : ['Applied requested visual styling & layout adjustments'];
-
-          return NextResponse.json({
-            success: true,
-            source: 'gemini',
-            model: modelName,
-            aiReply: parsedData.aiReply || 'Applied requested changes.',
-            theme: parsedData.theme || currentTheme || 'bram-light',
-            changesApplied,
-            updatedHtml: parsedData.updatedHtml,
-          });
+        let finalHtml = currentHtml;
+        if (isTargeted && parsedData?.updatedElementHtml) {
+          finalHtml = replaceElementInHtml(currentHtml, targetElement.id, targetElement.tagName, parsedData.updatedElementHtml);
+        } else if (parsedData?.updatedHtml) {
+          finalHtml = parsedData.updatedHtml;
         }
+
+        const rawChanges = parsedData.changesApplied;
+        const changesApplied: string[] = Array.isArray(rawChanges)
+          ? rawChanges.map((c: any) => String(c))
+          : typeof rawChanges === 'string'
+          ? [rawChanges]
+          : ['Applied requested visual styling & layout adjustments'];
+
+        return NextResponse.json({
+          success: true,
+          source: 'gemini',
+          model: modelName,
+          aiReply: parsedData.aiReply || 'Applied requested changes.',
+          theme: parsedData.theme || currentTheme || 'bram-light',
+          changesApplied,
+          updatedHtml: finalHtml,
+        });
       } catch (candidateErr: any) {
         lastError = candidateErr;
         console.warn(`[AI Chat API] Model ${modelName} call failed, trying next candidate:`, candidateErr?.message || candidateErr);
       }
     }
 
-    // If all models failed, return explicit error
+    // If all models failed
     return NextResponse.json(
       {
-        error: `Gemini API call failed: ${lastError?.message || 'Unable to contact Google Gemini API'}`,
+        error: `Gemini API call failed: ${lastError?.message || 'Google Gemini API is temporarily busy. Please try again in a few moments.'}`,
       },
-      { status: 502 }
+      { status: 503 }
     );
   } catch (err: any) {
     console.error('[AI Chat API Error]:', err);
