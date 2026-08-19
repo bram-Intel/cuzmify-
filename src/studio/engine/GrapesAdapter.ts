@@ -143,11 +143,15 @@ export class GrapesAdapter implements EditorAdapter {
       }
 
       this.editor.setComponents(cleanHtml);
+      try {
+        this.editor.refresh();
+      } catch {}
       this.editor.trigger('cuzmify:change');
     } catch {
       this.editor.once('load', () => {
         try {
           this.editor.setComponents(fullHtml);
+          this.editor.refresh();
           this.editor.trigger('cuzmify:change');
         } catch {
           // bypass

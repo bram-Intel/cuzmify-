@@ -27,17 +27,52 @@ function extractSurroundingContext(fullHtml: string, targetId: string): string {
   return '';
 }
 
-function replaceElementInHtml(fullHtml: string, targetId: string, tagName?: string, newElementHtml?: string): string {
-  if (!newElementHtml) return fullHtml;
-  const tag = tagName || '[a-z0-9]+';
-  const pairedRegex = new RegExp(`<${tag}\\b[^>]*id=["']${targetId}["'][\\s\\S]*?<\\/${tag}>`, 'i');
-  if (pairedRegex.test(fullHtml)) {
-    return fullHtml.replace(pairedRegex, newElementHtml);
+function smartReplaceElement(
+  fullHtml: string,
+  targetElement?: { id?: string; tagName?: string; text?: string; htmlSnippet?: string; href?: string; classes?: string },
+  newElementHtml?: string
+): string {
+  if (!newElementHtml || !fullHtml) return fullHtml;
+  const targetId = targetElement?.id;
+  const tag = targetElement?.tagName?.toLowerCase() || '[a-z0-9]+';
+  const text = targetElement?.text?.trim();
+  const htmlSnippet = targetElement?.htmlSnippet?.trim();
+
+  // Strategy 1: Match by ID
+  if (targetId && fullHtml.includes(targetId)) {
+    const pairedRegex = new RegExp(`<${tag}\\b[^>]*id=["']${targetId}["'][\\s\\S]*?<\\/${tag}>`, 'i');
+    if (pairedRegex.test(fullHtml)) {
+      return fullHtml.replace(pairedRegex, newElementHtml);
+    }
+    const selfClosingRegex = new RegExp(`<${tag}\\b[^>]*id=["']${targetId}["'][^>]*\\/?>`, 'i');
+    if (selfClosingRegex.test(fullHtml)) {
+      return fullHtml.replace(selfClosingRegex, newElementHtml);
+    }
   }
-  const selfClosingRegex = new RegExp(`<${tag}\\b[^>]*id=["']${targetId}["'][^>]*\\/?>`, 'i');
-  if (selfClosingRegex.test(fullHtml)) {
-    return fullHtml.replace(selfClosingRegex, newElementHtml);
+
+  // Strategy 2: Match by exact htmlSnippet
+  if (htmlSnippet && fullHtml.includes(htmlSnippet)) {
+    return fullHtml.replace(htmlSnippet, newElementHtml);
   }
+
+  // Strategy 3: Match by Tag + Text Content
+  if (text && text.length > 2) {
+    const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const textRegex = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?${escapedText}[\\s\\S]*?<\\/${tag}>`, 'i');
+    if (textRegex.test(fullHtml)) {
+      return fullHtml.replace(textRegex, newElementHtml);
+    }
+  }
+
+  // Strategy 4: Match by Href (for links & buttons)
+  if (targetElement?.href && targetElement.href.length > 3) {
+    const escapedHref = targetElement.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const hrefRegex = new RegExp(`<${tag}\\b[^>]*href=["']${escapedHref}["'][\\s\\S]*?<\\/${tag}>`, 'i');
+    if (hrefRegex.test(fullHtml)) {
+      return fullHtml.replace(hrefRegex, newElementHtml);
+    }
+  }
+
   return fullHtml;
 }
 
@@ -162,7 +197,7 @@ Return JSON with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
 
         let finalHtml = currentHtml;
         if (isTargeted && parsedData?.updatedElementHtml) {
-          finalHtml = replaceElementInHtml(currentHtml, targetElement.id, targetElement.tagName, parsedData.updatedElementHtml);
+          finalHtml = smartReplaceElement(currentHtml, targetElement, parsedData.updatedElementHtml);
         } else if (parsedData?.updatedHtml) {
           finalHtml = parsedData.updatedHtml;
         }
