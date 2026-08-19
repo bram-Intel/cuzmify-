@@ -252,13 +252,8 @@ export class EditorService {
     let id = attrs.id || comp.getId?.() || '';
     const classes = comp.getClasses?.()?.join(' ') || attrs.class || '';
     const text = comp.getEl?.()?.textContent?.trim() || '';
-    let htmlSnippet = '';
-    try {
-      htmlSnippet = comp.toHTML?.() || '';
-    } catch {}
-
     // Ensure the component has a unique ID attribute so it can be targeted pinpointed
-    if (!attrs.id) {
+    if (!id || !attrs.id) {
       const generatedId = `cuzmify-target-${Math.random().toString(36).substring(2, 7)}`;
       if (typeof comp.addAttributes === 'function') {
         comp.addAttributes({ id: generatedId });
@@ -266,13 +261,18 @@ export class EditorService {
       }
     }
 
+    let htmlSnippet = '';
+    try {
+      htmlSnippet = comp.toHTML?.() || '';
+    } catch {}
+
     return {
       id,
       tagName,
       type: comp.get?.('type') || tagName,
       text: text.slice(0, 80),
       classes,
-      htmlSnippet: htmlSnippet.slice(0, 500),
+      htmlSnippet: htmlSnippet.slice(0, 800),
     };
   }
 

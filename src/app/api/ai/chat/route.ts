@@ -12,6 +12,21 @@ export interface AIChatMessage {
   snapshotHtml?: string;
 }
 
+function extractSurroundingContext(fullHtml: string, targetId: string): string {
+  if (!fullHtml || !targetId) return '';
+  const sectionMatch = fullHtml.match(
+    new RegExp(`<section[^>]*>[\\s\\S]*?id=["']${targetId}["'][\\s\\S]*?<\\/section>`, 'i')
+  );
+  if (sectionMatch) return sectionMatch[0];
+  const idx = fullHtml.indexOf(targetId);
+  if (idx !== -1) {
+    const start = Math.max(0, idx - 400);
+    const end = Math.min(fullHtml.length, idx + 600);
+    return fullHtml.slice(start, end);
+  }
+  return '';
+}
+
 function replaceElementInHtml(fullHtml: string, targetId: string, tagName?: string, newElementHtml?: string): string {
   if (!newElementHtml) return fullHtml;
   const tag = tagName || '[a-z0-9]+';
@@ -54,7 +69,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // High-speed, sub-second flash candidate models
+    // High-speed sub-second flash candidate models
     const candidateModels = [
       'gemini-flash-lite-latest',
       'gemini-3.5-flash-lite',
@@ -64,6 +79,7 @@ export async function POST(req: Request) {
     ];
 
     const isTargeted = Boolean(targetElement && targetElement.id);
+    const surroundingContext = isTargeted ? extractSurroundingContext(currentHtml, targetElement.id) : '';
     let lastError: any = null;
 
     for (const modelName of candidateModels) {
@@ -72,17 +88,24 @@ export async function POST(req: Request) {
           model: modelName,
           generationConfig: {
             responseMimeType: 'application/json',
-            temperature: 0.2,
+            temperature: 0.1,
           },
           systemInstruction: isTargeted
-            ? `You are Cuzmify AI, the world-class Granular Element Editor. The user selected a specific element on the webpage.
-Modify ONLY that targeted element based on the user's prompt.
-If the user reports that the element is hidden or only visible on hover, make it permanently visible with 100% opacity, contrasting colors, and clear text.
+            ? `You are Cuzmify AI, the world-class Granular Element Editor.
+CRITICAL DESIGN & SCOPE RULES:
+1. BUTTONS & CTAs:
+   - NEVER make buttons 100% full-width across the screen unless explicitly requested for mobile full-width! Always use inline pill sizing:
+     'display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: auto; max-width: fit-content; margin: 8px auto; padding: 12px 28px; border-radius: 9999px; font-size: 14px; font-weight: 700; text-decoration: none;'
+   - ALWAYS preserve the exact text label and icon inside the button. NEVER erase text or leave an empty button!
+   - Ensure the button is fully visible with opacity: 1 and high-contrast colors matching the surrounding section theme.
+2. SURGICAL REPLACEMENT:
+   - Return ONLY the updated single element HTML snippet with the same id attribute intact.
+
 Return strictly a JSON object with:
 {
-  "aiReply": "Brief 1-sentence explanation of what was modified on the element",
-  "changesApplied": ["List of changes made to the element"],
-  "updatedElementHtml": "The full modified HTML snippet of ONLY this single element"
+  "aiReply": "Clear 1-sentence explanation of what was modified on the element",
+  "changesApplied": ["Bullet of change 1", "Bullet of change 2"],
+  "updatedElementHtml": "The complete modified HTML element"
 }`
             : `You are Cuzmify AI, the world-class Autonomous AI Website Architect.
 Transform or generate the website layout according to the user's instruction.
@@ -100,9 +123,15 @@ Return strictly a JSON object with:
           ? `User Instruction: "${message}"
 Target Element ID: "${targetElement.id}"
 Target Element Tag: <${targetElement.tagName}>
-Target Element HTML Snippet:
+Target Element Original Text: "${targetElement.text || ''}"
+Target Element Snippet:
 \`\`\`html
 ${targetElement.htmlSnippet || `<${targetElement.tagName} id="${targetElement.id}">${targetElement.text || ''}</${targetElement.tagName}>`}
+\`\`\`
+
+Surrounding Section Context:
+\`\`\`html
+${surroundingContext}
 \`\`\`
 
 Return JSON with "aiReply", "changesApplied" (array of strings), and "updatedElementHtml".`
@@ -115,7 +144,7 @@ ${currentHtml}
 
 Return JSON with "aiReply", "theme", "changesApplied", and "updatedHtml".`;
 
-        // Add 10-second timeout per candidate model for instant failover
+        // Add 10-second timeout per candidate model for fast failover
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 10s`)), 10000)
         );
