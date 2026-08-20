@@ -66,9 +66,11 @@ export class EditorService {
     });
   }
 
+  private isRestoringState = false;
+
   // ── Snapshot Capture Engine ───────────────────────────────────────────────
   public recordSnapshot(description: string, source: HistorySnapshot['source'], themeOverride?: ThemeName): void {
-    if (this.historyManager.isPerformingRestore) return;
+    if (this.isRestoringState || this.historyManager.isPerformingRestore) return;
 
     try {
       const html = this.adapter.getHtml();
@@ -93,21 +95,30 @@ export class EditorService {
 
   private handleDebouncedChange(description: string, source: HistorySnapshot['source']): void {
     this.notifyChange();
-    if (this.historyManager.isPerformingRestore) return;
+    if (this.isRestoringState || this.historyManager.isPerformingRestore) return;
 
     if (this.snapshotDebounceTimer) clearTimeout(this.snapshotDebounceTimer);
     this.snapshotDebounceTimer = setTimeout(() => {
+      if (this.isRestoringState || this.historyManager.isPerformingRestore) return;
       this.recordSnapshot(description, source);
     }, 500);
   }
 
   // ── Universal Undo / Redo ─────────────────────────────────────────────────
   public undo(): boolean {
+    if (this.snapshotDebounceTimer) {
+      clearTimeout(this.snapshotDebounceTimer);
+      this.snapshotDebounceTimer = null;
+    }
+
+    this.isRestoringState = true;
     const previous = this.historyManager.undo();
     if (!previous) {
-      // Fallback to internal GrapesJS undo
       this.adapter.undo();
       this.notifyChange();
+      setTimeout(() => {
+        this.isRestoringState = false;
+      }, 600);
       return this.historyManager.canUndo();
     }
 
@@ -123,15 +134,27 @@ export class EditorService {
     } catch (err) {
       console.error('[EditorService] Undo restore error:', err);
       return false;
+    } finally {
+      setTimeout(() => {
+        this.isRestoringState = false;
+      }, 600);
     }
   }
 
   public redo(): boolean {
+    if (this.snapshotDebounceTimer) {
+      clearTimeout(this.snapshotDebounceTimer);
+      this.snapshotDebounceTimer = null;
+    }
+
+    this.isRestoringState = true;
     const next = this.historyManager.redo();
     if (!next) {
-      // Fallback to internal GrapesJS redo
       this.adapter.redo();
       this.notifyChange();
+      setTimeout(() => {
+        this.isRestoringState = false;
+      }, 600);
       return this.historyManager.canRedo();
     }
 
@@ -147,15 +170,19 @@ export class EditorService {
     } catch (err) {
       console.error('[EditorService] Redo restore error:', err);
       return false;
+    } finally {
+      setTimeout(() => {
+        this.isRestoringState = false;
+      }, 600);
     }
   }
 
   public canUndo(): boolean {
-    return this.historyManager.canUndo() || this.adapter.canUndo();
+    return this.historyManager.canUndo();
   }
 
   public canRedo(): boolean {
-    return this.historyManager.canRedo() || this.adapter.canRedo();
+    return this.historyManager.canRedo();
   }
 
   public onHistoryChange(listener: (state: { canUndo: boolean; canRedo: boolean; description?: string }) => void): () => void {

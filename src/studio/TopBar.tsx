@@ -156,15 +156,23 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
             onClick={handleUndo}
             disabled={!canUndo}
             title="Undo (Ctrl+Z)"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+              canUndo
+                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 active:scale-95 cursor-pointer opacity-100'
+                : 'text-slate-300 opacity-30 cursor-not-allowed'
+            }`}
           >
             <Undo2 className="w-4 h-4" />
           </button>
           <button
             onClick={handleRedo}
             disabled={!canRedo}
-            title="Redo (Ctrl+Y)"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+            title="Redo (Ctrl+Y / Cmd+Shift+Z)"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+              canRedo
+                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 active:scale-95 cursor-pointer opacity-100'
+                : 'text-slate-300 opacity-30 cursor-not-allowed'
+            }`}
           >
             <Redo2 className="w-4 h-4" />
           </button>

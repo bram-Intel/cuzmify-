@@ -125,10 +125,14 @@ export function EditorProvider({
 
   const handleUndo = useCallback(() => {
     service?.undo();
+    setCanUndo(service?.canUndo() ?? false);
+    setCanRedo(service?.canRedo() ?? false);
   }, [service]);
 
   const handleRedo = useCallback(() => {
     service?.redo();
+    setCanUndo(service?.canUndo() ?? false);
+    setCanRedo(service?.canRedo() ?? false);
   }, [service]);
 
   const handleSave = useCallback(async (isAuto = false) => {
