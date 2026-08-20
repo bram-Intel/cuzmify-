@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useEditor } from './engine/EditorContext';
 import { EditorService } from './engine/EditorService';
-import { Monitor, Lock } from 'lucide-react';
+import { Monitor, Lock, Sparkles } from 'lucide-react';
 
 // Initial HTML loaded into GrapesJS canvas on first load
 const INITIAL_HTML = `
@@ -190,6 +190,7 @@ export function Canvas() {
   const themeRef = useRef(theme);
   const businessNameRef = useRef(businessName);
   const userIdRef = useRef(currentUserId);
+  const [isCanvasLoading, setIsCanvasLoading] = useState(true);
 
   useEffect(() => {
     themeRef.current = theme;
@@ -270,20 +271,25 @@ export function Canvas() {
 
     const service = new EditorService(editor);
 
-    // Prioritize authenticated cloud database for current user, then user-scoped localStorage, then clean template
+    // 1. Instant 0ms SWR Hydration: Hydrate from LocalStorage or Default Template immediately
+    const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);
+    if (localRes.loaded) {
+      if (localRes.theme) handleThemeChange(localRes.theme as any);
+      service.sanitizeCanvas();
+      setIsCanvasLoading(false);
+    } else {
+      service.loadHtml(INITIAL_HTML, 'Initial Template', 'initial');
+      service.sanitizeCanvas();
+      setIsCanvasLoading(false);
+    }
+
+    // 2. Background Cloud Database Sync (reconcile if cloud has newer data)
     service.loadFromDatabase(projectId).then((cloudRes) => {
       if (cloudRes.loaded) {
         if (cloudRes.theme) handleThemeChange(cloudRes.theme as any);
         service.sanitizeCanvas();
-      } else {
-        const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);
-        if (localRes.loaded) {
-          if (localRes.theme) handleThemeChange(localRes.theme as any);
-        } else {
-          service.loadHtml(INITIAL_HTML, 'Initial Template', 'initial');
-        }
-        service.sanitizeCanvas();
       }
+      setIsCanvasLoading(false);
     });
 
     const unsubChange = service.onChanged(() => {
@@ -331,7 +337,7 @@ export function Canvas() {
   return (
     <div className="relative flex-1 bg-[#F1F5F9] overflow-x-auto overflow-y-auto p-2 sm:p-4 flex flex-col items-center justify-center min-w-0">
       {/* Floating Window Container for Pristine UX */}
-      <div className="w-full max-w-[1280px] min-w-[880px] h-full bg-[#FFFFFF] rounded-2xl border border-[#E2E8F0] shadow-[0_20px_60px_rgba(13,87,113,0.08)] flex flex-col overflow-hidden transition-all duration-200">
+      <div className="w-full max-w-[1280px] min-w-[880px] h-full bg-[#FFFFFF] rounded-2xl border border-[#E2E8F0] shadow-[0_20px_60px_rgba(13,87,113,0.08)] flex flex-col overflow-hidden transition-all duration-200 relative">
         {/* Browser Top Bar Decorator */}
         <div className="h-8 bg-[#F8FAFC] border-b border-[#E2E8F0] px-4 flex items-center justify-between shrink-0 font-mono text-[10px]">
           <div className="flex items-center gap-1.5">
@@ -352,6 +358,29 @@ export function Canvas() {
 
         {/* Canvas Target */}
         <div className="flex-1 relative overflow-hidden bg-[#FFFFFF]">
+          {isCanvasLoading && (
+            <div className="absolute inset-0 z-40 bg-[#FFFFFF] flex flex-col items-center justify-center animate-in fade-in duration-200">
+              <div className="flex flex-col items-center space-y-4 max-w-sm text-center px-6">
+                <div className="relative flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0D5771] to-teal-400 animate-spin opacity-70 blur-xs" />
+                  <div className="absolute w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-md border border-slate-100">
+                    <Sparkles className="w-5 h-5 text-[#0D5771] animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xs font-bold text-slate-800 font-display tracking-tight uppercase">
+                    Initializing Cuzmify Studio
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    Hydrating visual canvas &amp; design tokens…
+                  </p>
+                </div>
+                <div className="w-40 h-1 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="w-full h-full bg-gradient-to-r from-[#0D5771] to-teal-400 animate-pulse" />
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={containerRef} className="w-full h-full" />
         </div>
       </div>
