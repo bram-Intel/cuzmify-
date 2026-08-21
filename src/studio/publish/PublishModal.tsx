@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Rocket, CheckCircle2, ExternalLink, X, Globe, ShieldCheck, Loader2, Copy, Check, QrCode, Smartphone } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 
@@ -28,6 +29,11 @@ const DEPLOY_STEPS = [
 ];
 
 export function PublishModal({ onClose, onPublish }: PublishModalProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { businessName, projectId } = useEditor();
   const [state, setState] = useState<PublishState>('ready');
   const [logs, setLogs] = useState<string[]>([]);
@@ -71,8 +77,10 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(fullLiveUrl)}&color=0D5771&bgcolor=FFFFFF`;
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E2E8F0] rounded-3xl shadow-2xl overflow-hidden text-[#1A202C] animate-in zoom-in-95 duration-200">
 
         {/* Studio-Matched Clean Header */}
@@ -109,18 +117,6 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
         <div className="p-6 space-y-5">
           {state === 'ready' && (
             <>
-              <div className="space-y-2.5 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0]">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0D5771] block mb-1">
-                  Pre-Flight Verification
-                </span>
-                {PUBLISH_CHECKLIST.map((item) => (
-                  <div key={item.label} className="flex items-center gap-2.5 text-xs">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="text-[#1A202C] font-medium">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-
               <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center gap-3">
                 <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
                 <div className="text-[11px] text-emerald-900 leading-snug">
@@ -251,6 +247,7 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

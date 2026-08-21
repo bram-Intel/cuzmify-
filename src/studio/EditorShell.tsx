@@ -8,6 +8,7 @@ import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { BottomBar } from './BottomBar';
 import { PublishModal } from './publish/PublishModal';
+import { StudioInfrastructureHub } from './modules/StudioInfrastructureHub';
 import { useEditor } from './engine/EditorContext';
 
 // Canvas must be dynamically imported — GrapesJS requires window/document
@@ -36,6 +37,8 @@ function EditorShellInner() {
     handleUndo,
     handleRedo,
     saveToast,
+    activeModuleModal,
+    setActiveModuleModal,
   } = useEditor();
   const [showPublish, setShowPublish] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -65,12 +68,30 @@ function EditorShellInner() {
         } else if (isRedo) {
           e.preventDefault();
           handleRedo();
+        } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && service) {
+          const comp = service.getSelectedComponentType();
+          if (comp) {
+            e.preventDefault();
+            const delta = e.shiftKey ? 10 : 2;
+            const currentTop = parseInt(service.getSelectedStyle('margin-top') || '0', 10) || 0;
+            const currentLeft = parseInt(service.getSelectedStyle('margin-left') || '0', 10) || 0;
+
+            if (e.key === 'ArrowUp') {
+              service.updateSelectedStyle('margin-top', `${currentTop - delta}px`);
+            } else if (e.key === 'ArrowDown') {
+              service.updateSelectedStyle('margin-top', `${currentTop + delta}px`);
+            } else if (e.key === 'ArrowLeft') {
+              service.updateSelectedStyle('margin-left', `${currentLeft - delta}px`);
+            } else if (e.key === 'ArrowRight') {
+              service.updateSelectedStyle('margin-left', `${currentLeft + delta}px`);
+            }
+          }
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPreviewMode, handlePreviewToggle, handleSave, handleUndo, handleRedo]);
+  }, [isPreviewMode, handlePreviewToggle, handleSave, handleUndo, handleRedo, service]);
 
   const handlePublish = async (): Promise<string> => {
     setIsPublishing(true);
@@ -104,7 +125,7 @@ function EditorShellInner() {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F1F5F9] text-[#1A202C]" suppressHydrationWarning>
       {/* Top Bar */}
-      {!isPreviewMode && (
+      {!isPreviewMode && !activeModuleModal && (
         <TopBar
           onPublish={() => setShowPublish(true)}
           isPublishing={isPublishing}
@@ -112,7 +133,7 @@ function EditorShellInner() {
       )}
 
       {/* Main 3-column layout */}
-      <div className="flex flex-1 overflow-hidden min-h-0 relative">
+      <div className={`flex flex-1 overflow-hidden min-h-0 relative ${activeModuleModal ? 'hidden' : ''}`}>
         {!isPreviewMode && isLeftPanelOpen && <LeftPanel />}
 
         {/* GrapesJS Canvas — always mounted */}
@@ -122,7 +143,7 @@ function EditorShellInner() {
       </div>
 
       {/* Floating Exit Preview Bar */}
-      {isPreviewMode && (
+      {isPreviewMode && !activeModuleModal && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-2 rounded-full bg-[#0D5771] text-white shadow-2xl border border-white/20 backdrop-blur-md animate-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -149,7 +170,15 @@ function EditorShellInner() {
       )}
 
       {/* Bottom Status Bar */}
-      {!isPreviewMode && <BottomBar />}
+      {!isPreviewMode && !activeModuleModal && <BottomBar />}
+
+      {/* Full-Screen Studio Infrastructure Hub */}
+      {activeModuleModal && (
+        <StudioInfrastructureHub
+          initialTab={activeModuleModal as any}
+          onClose={() => setActiveModuleModal(null)}
+        />
+      )}
 
       {/* Publish Modal */}
       {showPublish && (

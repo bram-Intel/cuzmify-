@@ -119,6 +119,16 @@ h1, h2, h3, h4, h5, h6, .font-display {
   height: 100% !important;
 }
 
+/* Responsive device frame styling in GrapesJS */
+.gjs-frame-wrapper {
+  margin: 0 auto !important;
+  transition: width 0.25s ease, max-width 0.25s ease !important;
+}
+
+.gjs-frame {
+  margin: 0 auto !important;
+}
+
 /* Selection badge — Cuzmify brand colors */
 .gjs-badge {
   background: #1D4ED8 !important;
@@ -166,40 +176,55 @@ h1, h2, h3, h4, h5, h6, .font-display {
 
 /* Toolbar action icons (top of selected component) */
 .gjs-toolbar {
-  background: #070C14 !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  border-radius: 10px !important;
-  padding: 4px !important;
-  gap: 2px !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 12px !important;
+  padding: 4px 6px !important;
+  gap: 4px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
+  transform: translateY(-8px);
+  z-index: 99999 !important;
 }
 
 .gjs-toolbar-item {
-  color: #94A3B8 !important;
-  border-radius: 6px !important;
-  padding: 4px 6px !important;
+  color: #CBD5E1 !important;
+  border-radius: 8px !important;
+  padding: 5px 8px !important;
+  font-size: 11px !important;
+  transition: all 0.15s ease !important;
 }
 
 .gjs-toolbar-item:hover {
-  background: rgba(59,130,246,0.2) !important;
-  color: #fff !important;
+  background: rgba(59, 130, 246, 0.25) !important;
+  color: #60A5FA !important;
 }
 
 /* Inline text editor */
 .gjs-rte-toolbar {
-  background: #0D1520 !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  border-radius: 10px !important;
-  padding: 4px !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 12px !important;
+  padding: 4px 6px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
+  transform: translateY(-10px);
+  z-index: 99999 !important;
 }
 
 .gjs-rte-actionbar .gjs-rte-action {
-  color: #94A3B8 !important;
+  color: #CBD5E1 !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  transition: all 0.15s ease !important;
 }
 
 .gjs-rte-actionbar .gjs-rte-action:hover,
 .gjs-rte-actionbar .gjs-rte-active {
-  color: white !important;
-  background: rgba(59,130,246,0.2) !important;
+  color: #60A5FA !important;
+  background: rgba(59, 130, 246, 0.25) !important;
 }
 
 /* Studio scrollbar — thin dark */

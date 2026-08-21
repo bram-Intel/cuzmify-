@@ -87,12 +87,12 @@ const BOOKING_BLOCK_HTML = `
     <div style="display:flex;flex-direction:column;gap:14px;">
       <input type="text" placeholder="Your Full Name" style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid #E2E8F0;font-size:0.85rem;outline:none;box-sizing:border-box;"/>
       <input type="date" style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid #E2E8F0;font-size:0.85rem;outline:none;box-sizing:border-box;"/>
-      <select style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid #E2E8F0;font-size:0.85rem;outline:none;background:#fff;box-sizing:border-box;">
+      <select data-cuzmify-type="service-select" style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid #E2E8F0;font-size:0.85rem;outline:none;background:#fff;box-sizing:border-box;">
         <option>Royal Bridal Suite ($380)</option>
         <option>Red Carpet Soft Glam ($190)</option>
         <option>Masterclass ($480)</option>
       </select>
-      <a href="https://wa.me/1234567890" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;border-radius:14px;background:#25D366;color:#fff;font-weight:700;font-size:0.9rem;text-decoration:none;margin-top:8px;">
+      <a data-cuzmify-action="whatsapp:booking" href="https://wa.me/1234567890" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;border-radius:14px;background:#25D366;color:#fff;font-weight:700;font-size:0.9rem;text-decoration:none;margin-top:8px;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.461c-1.88 0-3.64-.507-5.16-1.39l-.37-.215-3.83.998 1.025-3.732-.238-.376c-.977-1.545-1.492-3.33-1.492-5.163 0-5.32 4.33-9.65 9.664-9.65 5.33 0 9.664 4.33 9.664 9.65 0 5.323-4.334 9.653-9.663 9.653m0-21.344c-6.444 0-11.69 5.245-11.69 11.691 0 2.062.536 4.07 1.554 5.845l-1.65 6.02 6.16-1.614c1.71 1.002 3.673 1.53 5.626 1.53 6.444 0 11.69-5.246 11.69-11.692 0-6.446-5.246-11.69-11.69-11.69"/></svg>
         Send WhatsApp Booking
       </a>
@@ -148,9 +148,100 @@ const CTA_BLOCK_HTML = `
   </div>
 </section>`;
 
+const PRODUCTS_BLOCK_HTML = `
+<section data-cuzmify-type="products" id="store" style="padding:80px 48px;background:#FFFFFF;font-family:'Plus Jakarta Sans',sans-serif;">
+  <div style="max-width:1100px;margin:0 auto;">
+    <div style="text-align:center;margin-bottom:56px;">
+      <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0D5771;font-family:monospace;">Exclusive Store</span>
+      <h2 data-cuzmify-field="section-title" style="font-size:2.25rem;font-weight:800;color:#1A202C;margin:12px 0;font-family:'Playfair Display',serif;">Artistry Products &amp; Kits</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;">
+      <div style="background:#F8FAFC;border-radius:20px;padding:20px;border:1px solid #E2E8F0;box-shadow:0 4px 20px rgba(0,0,0,0.04);display:flex;flex-direction:column;justify-content:between;">
+        <div style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;margin-bottom:16px;background:#E2E8F0;">
+          <img src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&auto=format&fit=crop&q=80" alt="Silk Lashes" style="width:100%;height:100%;object-fit:cover;"/>
+        </div>
+        <div>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0D5771;">Artistry Kit</span>
+          <h3 style="font-size:1.05rem;font-weight:700;color:#1A202C;margin:6px 0 12px;">3D Silk Flutter Lash Set</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <span style="font-size:1.35rem;font-weight:900;color:#10B981;font-family:monospace;">$35</span>
+            <span style="font-size:11px;color:#64748B;">In Stock</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a data-cuzmify-action="cart:add" href="#cart" style="flex:1;padding:10px;border-radius:10px;background:#0D5771;color:#fff;font-weight:700;font-size:0.8rem;text-align:center;text-decoration:none;">Add to Cart 🛒</a>
+          <a data-cuzmify-action="whatsapp:order" href="https://wa.me/1234567890" style="padding:10px 14px;border-radius:10px;background:#25D366;color:#fff;font-weight:700;font-size:0.8rem;text-align:center;text-decoration:none;">WhatsApp</a>
+        </div>
+      </div>
+      <div style="background:#F8FAFC;border-radius:20px;padding:20px;border:1px solid #E2E8F0;box-shadow:0 4px 20px rgba(0,0,0,0.04);display:flex;flex-direction:column;justify-content:between;">
+        <div style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;margin-bottom:16px;background:#E2E8F0;">
+          <img src="https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=500&auto=format&fit=crop&q=80" alt="Setting Mist" style="width:100%;height:100%;object-fit:cover;"/>
+        </div>
+        <div>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0D5771;">Prep &amp; Set</span>
+          <h3 style="font-size:1.05rem;font-weight:700;color:#1A202C;margin:6px 0 12px;">24hr Matte Fixing Mist</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <span style="font-size:1.35rem;font-weight:900;color:#10B981;font-family:monospace;">$45</span>
+            <span style="font-size:11px;color:#64748B;">In Stock</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a data-cuzmify-action="cart:add" href="#cart" style="flex:1;padding:10px;border-radius:10px;background:#0D5771;color:#fff;font-weight:700;font-size:0.8rem;text-align:center;text-decoration:none;">Add to Cart 🛒</a>
+          <a data-cuzmify-action="whatsapp:order" href="https://wa.me/1234567890" style="padding:10px 14px;border-radius:10px;background:#25D366;color:#fff;font-weight:700;font-size:0.8rem;text-align:center;text-decoration:none;">WhatsApp</a>
+        </div>
+      </div>
+      <div style="background:#F8FAFC;border-radius:20px;padding:20px;border:1px solid #E2E8F0;box-shadow:0 4px 20px rgba(0,0,0,0.04);display:flex;flex-direction:column;justify-content:between;">
+        <div style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;margin-bottom:16px;background:#E2E8F0;">
+          <img src="https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=500&auto=format&fit=crop&q=80" alt="Brush Set" style="width:100%;height:100%;object-fit:cover;"/>
+        </div>
+        <div>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0D5771;">Tools</span>
+          <h3 style="font-size:1.05rem;font-weight:700;color:#1A202C;margin:6px 0 12px;">12-Piece Master Pro Brush Set</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <span style="font-size:1.35rem;font-weight:900;color:#10B981;font-family:monospace;">$95</span>
+            <span style="font-size:11px;color:#64748B;">In Stock</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a data-cuzmify-action="cart:add" href="#cart" style="flex:1;padding:10px;border-radius:10px;background:#0D5771;color:#fff;font-weight:700;font-size:0.8rem;text-align:center;text-decoration:none;">Add to Cart 🛒</a>
+          <a data-cuzmify-action="whatsapp:order" href="https://wa.me/1234567890" style="padding:10px 14px;border-radius:10px;background:#25D366;color:#fff;font-weight:700;font-size:0.8rem;text-align:center;text-decoration:none;">WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>`;
+
+const CART_BLOCK_HTML = `
+<div data-cuzmify-type="cart-pill" style="position:fixed;bottom:24px;right:24px;z-index:9999;font-family:'Plus Jakarta Sans',sans-serif;">
+  <a data-cuzmify-action="cart:open" href="#cart" style="display:inline-flex;align-items:center;gap:10px;background:#0D5771;color:#ffffff;padding:14px 22px;border-radius:999px;font-weight:700;font-size:0.9rem;text-decoration:none;box-shadow:0 12px 32px rgba(13,87,113,0.35);border:2px solid rgba(255,255,255,0.2);">
+    <span>🛒 View Cart</span>
+    <span style="background:#F59E0B;color:#000;font-size:11px;font-weight:900;padding:2px 8px;border-radius:999px;">0</span>
+  </a>
+</div>`;
+
+const PAYMENTS_BLOCK_HTML = `
+<section data-cuzmify-type="payments-banner" style="padding:60px 48px;background:linear-gradient(135deg,#0D1520 0%,#1E293B 100%);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;">
+  <div style="max-width:960px;margin:0 auto;display:flex;flex-direction:column;md:flex-row;align-items:center;justify-content:space-between;gap:32px;background:rgba(255,255,255,0.04);padding:40px;border-radius:24px;border:1px solid rgba(255,255,255,0.1);">
+    <div style="max-width:540px;">
+      <span style="font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#60A5FA;font-family:monospace;">Instant Online Checkout</span>
+      <h2 style="font-size:1.75rem;font-weight:800;color:#fff;margin:8px 0 12px;font-family:'Playfair Display',serif;">Lock In Your Session With Instant Deposit</h2>
+      <p style="font-size:0.875rem;color:#94A3B8;line-height:1.6;">Pay securely via card, Apple Pay, or direct bank transfer. Your slot is guaranteed immediately.</p>
+    </div>
+    <div style="text-align:center;">
+      <a data-cuzmify-action="checkout" href="#checkout" style="display:inline-flex;align-items:center;gap:10px;padding:16px 32px;background:linear-gradient(135deg,#0D5771,#3498E3);color:#fff;border-radius:14px;font-weight:800;font-size:0.95rem;text-decoration:none;box-shadow:0 8px 24px rgba(52,152,227,0.3);">
+        <span>Pay Deposit Online →</span>
+      </a>
+      <p style="font-size:11px;color:#64748B;margin-top:8px;">🔒 256-Bit Encrypted Secure Checkout</p>
+    </div>
+  </div>
+</section>`;
+
 export const BLOCK_HTML_MAP: Record<string, string> = {
   'cuzmify-hero': HERO_BLOCK_HTML,
   'cuzmify-services': SERVICES_BLOCK_HTML,
+  'cuzmify-products': PRODUCTS_BLOCK_HTML,
+  'cuzmify-cart': CART_BLOCK_HTML,
+  'cuzmify-payments': PAYMENTS_BLOCK_HTML,
   'cuzmify-gallery': GALLERY_BLOCK_HTML,
   'cuzmify-booking': BOOKING_BLOCK_HTML,
   'cuzmify-testimonials': TESTIMONIALS_BLOCK_HTML,
@@ -174,6 +265,30 @@ export class BlockRegistry {
       category: 'Sections',
       media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`,
       content: SERVICES_BLOCK_HTML,
+    });
+
+    editor.Blocks.add('cuzmify-products', {
+      id: 'cuzmify-products',
+      label: 'Products & Store',
+      category: 'Sections',
+      media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0"/></svg>`,
+      content: PRODUCTS_BLOCK_HTML,
+    });
+
+    editor.Blocks.add('cuzmify-cart', {
+      id: 'cuzmify-cart',
+      label: 'Floating Cart Trigger',
+      category: 'Components',
+      media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>`,
+      content: CART_BLOCK_HTML,
+    });
+
+    editor.Blocks.add('cuzmify-payments', {
+      id: 'cuzmify-payments',
+      label: 'Online Checkout Bar',
+      category: 'Sections',
+      media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`,
+      content: PAYMENTS_BLOCK_HTML,
     });
 
     editor.Blocks.add('cuzmify-gallery', {

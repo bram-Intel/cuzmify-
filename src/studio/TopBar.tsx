@@ -5,7 +5,8 @@ import {
   Undo2, Redo2, Monitor, Tablet, Smartphone,
   Eye, EyeOff, Rocket, Save, CheckCircle2,
   AlertCircle, Loader2, MoreHorizontal, RotateCcw,
-  PanelLeft, Layers, Sparkles, ExternalLink
+  PanelLeft, Layers, Sparkles, ExternalLink,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import type { Breakpoint } from './engine/EditorContext';
@@ -69,6 +70,7 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
     handleSave, saveState,
     isPreviewMode, handlePreviewToggle,
     isLeftPanelOpen, setIsLeftPanelOpen,
+    setActiveModuleModal,
   } = useEditor();
 
   const [justSaved, setJustSaved] = useState(false);
@@ -205,6 +207,26 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
 
       {/* ─── RIGHT: Clean Ghost Actions & Primary Launch Button ─── */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Media Vault Button */}
+        <button
+          onClick={() => setActiveModuleModal('media')}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 transition-all cursor-pointer border border-slate-200 shadow-2xs"
+          title="Open Media Vault & Instagram Assets"
+        >
+          <ImageIcon className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span className="hidden sm:inline">Media Vault</span>
+        </button>
+
+        {/* Attached Business Infrastructure Button */}
+        <button
+          onClick={() => setActiveModuleModal('whatsapp')}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-[#0D5771]/10 text-[#0D5771] hover:bg-[#0D5771]/15 transition-all cursor-pointer border border-[#0D5771]/20 shadow-2xs"
+          title="Configure WhatsApp, Services, Products & Business Blueprint"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span className="hidden sm:inline">Modules</span>
+        </button>
+
         {/* Ghost Save button */}
         <button
           onClick={handleSaveClick}

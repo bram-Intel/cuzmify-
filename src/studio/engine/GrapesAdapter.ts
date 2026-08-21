@@ -1,6 +1,7 @@
 import type { Editor } from 'grapesjs';
 import type { EditorAdapter } from './EditorAdapter';
 import type { CuzmifyComponentTraits } from '@/core/types';
+import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 
 export class GrapesAdapter implements EditorAdapter {
   private editor: Editor;
@@ -162,11 +163,56 @@ export class GrapesAdapter implements EditorAdapter {
 
   sanitizeCanvas(): void {
     try {
+      // 1. Ensure responsive CSS stylesheet is always fresh in the document head
+      const doc = this.editor.Canvas?.getDocument();
+      if (doc) {
+        let style = doc.getElementById('cuzmify-base-css');
+        if (!style) {
+          style = doc.createElement('style');
+          style.id = 'cuzmify-base-css';
+          doc.head.appendChild(style);
+        }
+        style.innerHTML = RESPONSIVE_CORE_CSS;
+
+        // 2. Automatically upgrade Navbar elements with responsive helper classes
+        const nav = doc.querySelector('nav, [data-cuzmify-type="navbar"]');
+        if (nav) {
+          const brand = nav.querySelector('[data-cuzmify-field="business-name"], span:first-of-type');
+          if (brand && !brand.classList.contains('brand-name')) {
+            brand.classList.add('brand-name');
+          }
+          const linksContainer = nav.querySelector('div:nth-child(2), div[style*="gap"]');
+          if (linksContainer && !linksContainer.classList.contains('nav-links')) {
+            linksContainer.classList.add('nav-links');
+          }
+          const cta = nav.querySelector('a[href*="booking"], a[data-cuzmify-action], a:last-child');
+          if (cta && !cta.classList.contains('nav-cta')) {
+            cta.classList.add('nav-cta');
+          }
+        }
+
+        // 3. Upgrade announcement bar
+        const announcement = doc.querySelector('div[style*="background:#083D50"], div[style*="background: #083D50"]');
+        if (announcement && !announcement.classList.contains('cuzmify-announcement-bar')) {
+          announcement.classList.add('cuzmify-announcement-bar');
+        }
+
+        // 4. Upgrade any legacy multi-column grids to fluid auto-fit
+        const grids = doc.querySelectorAll('div[style*="grid-template-columns"]');
+        grids.forEach((el: any) => {
+          if (el.style && el.style.gridTemplateColumns && (el.style.gridTemplateColumns.includes('repeat(2') || el.style.gridTemplateColumns.includes('repeat(3') || el.style.gridTemplateColumns.includes('1fr 1fr'))) {
+            el.style.gridTemplateColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
+          }
+        });
+      }
+
+      // 5. Remove unwanted block raw strings
       const wrapper = this.editor.getWrapper();
       if (!wrapper) return;
       const blockIds = [
         'cuzmify-booking', 'cuzmify-hero', 'cuzmify-services',
         'cuzmify-gallery', 'cuzmify-testimonials', 'cuzmify-cta', 'cuzmify-whatsapp',
+        'cuzmify-products', 'cuzmify-cart', 'cuzmify-payments',
       ];
       const cleanNode = (comp: any) => {
         if (!comp) return;
@@ -278,6 +324,40 @@ export class GrapesAdapter implements EditorAdapter {
     this.editor.off(event, cb);
   }
 
+  triggerChange(): void {
+    this.editor.trigger('cuzmify:change');
+    try {
+      this.editor.refresh();
+    } catch {}
+  }
+
+  getDoc(): Document | null {
+    try {
+      return this.editor.Canvas.getDocument();
+    } catch {
+      return null;
+    }
+  }
+
+  traverseComponents(callback: (comp: any) => void): void {
+    try {
+      const wrapper = this.editor.getWrapper();
+      if (!wrapper) return;
+
+      const walk = (comp: any) => {
+        if (!comp) return;
+        callback(comp);
+        const children = comp.components?.()?.models || [];
+        for (const child of children) {
+          walk(child);
+        }
+      };
+      walk(wrapper);
+    } catch (err) {
+      console.warn('[GrapesAdapter] traverseComponents error:', err);
+    }
+  }
+
   // ── Component manipulation & Inline Text Editing ─────────────────────────
   updateSelectedTrait(name: string, value: string): void {
     const selected = this.editor.getSelected() as any;
@@ -297,6 +377,35 @@ export class GrapesAdapter implements EditorAdapter {
     }
   }
 
+  getSelectedStyle(prop: string): string {
+    const selected = this.editor.getSelected() as any;
+    if (!selected) return '';
+    try {
+      if (typeof selected.getStyle === 'function') {
+        const styles = selected.getStyle();
+        if (styles && styles[prop] !== undefined) return String(styles[prop]);
+      }
+      const el = selected.getEl?.();
+      if (el && typeof window !== 'undefined') {
+        const win = el.ownerDocument?.defaultView || window;
+        const computed = win.getComputedStyle(el);
+        return computed.getPropertyValue(prop) || '';
+      }
+    } catch {}
+    return '';
+  }
+
+  getAllSelectedStyles(): Record<string, string> {
+    const selected = this.editor.getSelected() as any;
+    if (!selected) return {};
+    try {
+      if (typeof selected.getStyle === 'function') {
+        return selected.getStyle() || {};
+      }
+    } catch {}
+    return {};
+  }
+
   getSelectedComponentText(): string {
     const selected = this.editor.getSelected() as any;
     if (!selected) return '';
@@ -313,19 +422,25 @@ export class GrapesAdapter implements EditorAdapter {
     const selected = this.editor.getSelected() as any;
     if (!selected) return;
     try {
-      // 1. Update DOM element immediately
+      // 1. Update GrapesJS component collection & content model (official GrapesJS API)
+      if (typeof selected.components === 'function') {
+        selected.components(newText);
+      }
+      if (typeof selected.set === 'function') {
+        selected.set('content', newText);
+      }
+
+      // 2. Update live DOM element
       const el = selected.getEl?.();
       if (el) {
         el.textContent = newText;
       }
-      // 2. Update model
-      if (typeof selected.set === 'function') {
-        selected.set('content', newText);
-      }
+
       this.editor.trigger('component:update', selected);
       this.editor.trigger('cuzmify:change');
     } catch {
-      // ignore
+      const el = selected.getEl?.();
+      if (el) el.textContent = newText;
     }
   }
 

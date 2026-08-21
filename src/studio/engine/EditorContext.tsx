@@ -5,9 +5,12 @@ import { useSession } from 'next-auth/react';
 import type { EditorService } from './EditorService';
 import type { ThemeName } from '@/core/project-schema';
 
+import type { BusinessBlueprint } from '@/core/blueprint-schema';
+
 export type Breakpoint = 'desktop' | 'tablet' | 'mobile';
 export type SaveState = 'saved' | 'saving' | 'unsaved' | 'error';
-export type PanelTab = 'add' | 'pages' | 'modules' | 'assets' | 'ai';
+export type PanelTab = 'add' | 'pages' | 'modules' | 'assets' | 'media' | 'ai';
+export type ModuleModalType = 'whatsapp' | 'services' | 'products' | 'media' | 'profile' | 'cart' | 'payments' | null;
 
 export interface SelectedComponent {
   type: string | null;
@@ -27,6 +30,11 @@ interface EditorContextValue {
   // Service reference
   service: EditorService | null;
   setService: (s: EditorService | null) => void;
+
+  // Blueprint & Module Config Modal
+  blueprint: BusinessBlueprint | null;
+  activeModuleModal: ModuleModalType;
+  setActiveModuleModal: (m: ModuleModalType) => void;
 
   // UI State
   breakpoint: Breakpoint;
@@ -108,19 +116,33 @@ export function EditorProvider({
   const [businessName, setBusinessName] = useState(initialBusinessName);
   const [activeModules, setActiveModules] = useState<string[]>(['BOOKING', 'CATALOG']);
   const [saveToast, setSaveToast] = useState<string | null>(null);
+  const [targetElement, setTargetElement] = useState<TargetElementContext | null>(null);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+  const [activeModuleModal, setActiveModuleModal] = useState<ModuleModalType>(null);
+  const [blueprint, setBlueprint] = useState<BusinessBlueprint | null>(null);
 
   const { data: session } = useSession();
   const currentUserId = session?.user?.id || session?.user?.email || 'guest';
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Synchronize reactive history state (Undo / Redo buttons)
+  // Synchronize reactive history state (Undo / Redo buttons) and Blueprint
   React.useEffect(() => {
     if (!service) return;
-    const unsub = service.onHistoryChange((state) => {
+    setBlueprint(service.getBlueprint());
+
+    const unsubHistory = service.onHistoryChange((state) => {
       setCanUndo(state.canUndo);
       setCanRedo(state.canRedo);
     });
-    return () => unsub();
+
+    const unsubBlueprint = service.onBlueprintChange((bp) => {
+      setBlueprint({ ...bp });
+    });
+
+    return () => {
+      unsubHistory();
+      unsubBlueprint();
+    };
   }, [service]);
 
   const handleUndo = useCallback(() => {
@@ -181,9 +203,6 @@ export function EditorProvider({
     }
   }, [service, isPreviewMode]);
 
-  const [targetElement, setTargetElement] = useState<TargetElementContext | null>(null);
-  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
-
   const attachSelectedToChat = useCallback(() => {
     if (!service) return;
     const details = service.getSelectedElementDetails();
@@ -198,6 +217,8 @@ export function EditorProvider({
 
   const value: EditorContextValue = {
     service, setService,
+    blueprint,
+    activeModuleModal, setActiveModuleModal,
     breakpoint, setBreakpoint,
     saveState, setSaveState,
     theme, setTheme,

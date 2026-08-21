@@ -203,6 +203,7 @@ export function AIPanel() {
           targetElement: activeTarget,
           currentHtml,
           theme,
+          blueprint: service?.getBlueprint(),
         }),
       });
 
@@ -238,6 +239,25 @@ export function AIPanel() {
         setTimeout(() => {
           service.highlightSection(targetSec);
         }, 150);
+      }
+
+      if (data?.blueprintUpdates) {
+        if (data.blueprintUpdates.profile) {
+          service.updateProfile(data.blueprintUpdates.profile);
+        }
+        if (Array.isArray(data.blueprintUpdates.services) && data.blueprintUpdates.services.length > 0) {
+          for (const srv of data.blueprintUpdates.services) {
+            if (srv.name && srv.price) {
+              service.addServiceItem({
+                name: srv.name,
+                price: Number(srv.price) || 100,
+                description: srv.description || 'Professional service.',
+                locationType: 'in_studio',
+                enabled: true,
+              });
+            }
+          }
+        }
       }
 
       service.saveToLocalStorage(projectId, newTheme, userId);

@@ -4,6 +4,8 @@ import { ThemeEngine } from '../theme/ThemeEngine';
 import { ComponentRegistry } from './ComponentRegistry';
 import { BlockRegistry } from './BlockRegistry';
 import { HistoryManager, type HistorySnapshot } from './HistoryManager';
+import { BlueprintManager } from './BlueprintManager';
+import { SUPPORTED_CURRENCIES, type BusinessBlueprint, type ServiceItem, type ProductItem, type BusinessProfile, type WhatsAppModuleConfig, type ActionBinding, type MediaVaultAsset } from '@/core/blueprint-schema';
 import type { ThemeName } from '@/core/project-schema';
 import type { CuzmifyComponentTraits } from '@/core/types';
 
@@ -11,20 +13,30 @@ export class EditorService {
   private adapter: GrapesAdapter;
   private themeEngine: ThemeEngine;
   private historyManager: HistoryManager;
+  private blueprintManager: BlueprintManager;
   private changeListeners: Array<() => void> = [];
   private selectionListeners: Array<(type: string | null) => void> = [];
   private historyListeners: Array<(state: { canUndo: boolean; canRedo: boolean; description?: string }) => void> = [];
+  private blueprintListeners: Array<(blueprint: BusinessBlueprint) => void> = [];
   private isMoving = false;
   private snapshotDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private currentTheme: ThemeName = 'bram-light';
 
-  constructor(grapesEditor: Editor) {
+  constructor(grapesEditor: Editor, initialBusinessName?: string) {
     this.adapter = new GrapesAdapter(grapesEditor);
     this.themeEngine = new ThemeEngine(this.adapter);
     this.historyManager = new HistoryManager(50);
+    this.blueprintManager = new BlueprintManager(initialBusinessName);
 
     ComponentRegistry.register(grapesEditor);
     BlockRegistry.register(grapesEditor);
+
+    // Forward blueprint updates & dynamically synchronize canvas DOM
+    this.blueprintManager.onChange((bp) => {
+      this.syncCanvasWithBlueprint(bp);
+      this.blueprintListeners.forEach((fn) => fn(bp));
+      this.notifyChange();
+    });
 
     // Forward history changes to reactive subscribers
     this.historyManager.onChange((state) => {
@@ -63,10 +75,144 @@ export class EditorService {
 
     this.adapter.on('component:deselected', () => {
       this.selectionListeners.forEach((fn) => fn(null));
+      this.syncBlueprintFromCanvas();
+    });
+
+    this.adapter.on('rte:enable', () => {
+      this.isRteActive = true;
+    });
+
+    this.adapter.on('rte:disable', () => {
+      this.isRteActive = false;
+      this.syncBlueprintFromCanvas();
+      this.notifyChange();
+      this.recordSnapshot('Inline text edit', 'manual_edit');
     });
   }
 
   private isRestoringState = false;
+  private isSyncingFromCanvas = false;
+  private isRteActive = false;
+
+  // ── Canvas ➔ Blueprint Upstream Sync (Bidirectional Engine) ───────────────
+  public syncBlueprintFromCanvas(): void {
+    if (this.isRestoringState || this.isSyncingFromCanvas || this.isRteActive) return;
+
+    try {
+      const doc = this.adapter.getDoc();
+      if (!doc) return;
+
+      const bp = this.blueprintManager.getBlueprint();
+      let profileUpdated = false;
+      const profileUpdates: Partial<BusinessProfile> = {};
+
+      // 1. Check Primary Brand Name Anchor
+      const brandEl = doc.querySelector(
+        '[data-cuzmify-field="business-name"], .brand-name, .cuzmify-brand-name, nav[data-cuzmify-type="navbar"] span:first-of-type, nav[data-brand] span:first-of-type'
+      );
+      if (brandEl) {
+        const rawBrand = (brandEl.textContent || '').trim();
+        if (rawBrand && rawBrand !== bp.profile.name) {
+          profileUpdates.name = rawBrand;
+          profileUpdated = true;
+
+          // Keep announcement bar synced in real-time
+          const announcementSpans = doc.querySelectorAll('div span');
+          announcementSpans.forEach((el) => {
+            if (el.textContent && el.textContent.includes('✦') && el.textContent.toLowerCase().includes('luxury artistry')) {
+              el.textContent = `✦ ${rawBrand} Luxury Artistry`;
+            }
+          });
+        }
+      }
+
+      // 2. Check Service Prices edited directly on canvas cards
+      const services = [...bp.modules.services.items];
+      const currency = bp.profile.currency || 'USD';
+      const currencySymbol = SUPPORTED_CURRENCIES[currency]?.symbol || '$';
+      const currencyRegex = /^(\$|€|£|₦|CA\$|A\$|AED|KSh|R)\s*(\d+(?:,\d+)?(?:\.\d+)?)/i;
+
+      const serviceCards = doc.querySelectorAll('[data-cuzmify-target-id^="srv-"], .services-grid > div, [data-cuzmify-type="services"] div[style*="border-radius"]');
+      let serviceUpdated = false;
+
+      serviceCards.forEach((card) => {
+        const targetId = card.getAttribute('data-cuzmify-target-id');
+        const priceEl = card.querySelector('[data-cuzmify-field="service-price"], .service-price, span[style*="font-weight:900"]');
+        const titleEl = card.querySelector('[data-cuzmify-field="service-name"], .service-title, h3');
+
+        if (priceEl && targetId) {
+          const match = (priceEl.textContent || '').trim().match(currencyRegex);
+          if (match) {
+            const newPrice = parseFloat(match[2].replace(/,/g, ''));
+            const srv = services.find((s) => s.id === targetId);
+            if (srv && !isNaN(newPrice) && srv.price !== newPrice) {
+              srv.price = newPrice;
+              serviceUpdated = true;
+            }
+          }
+        }
+
+        if (titleEl && targetId) {
+          const newTitle = (titleEl.textContent || '').trim();
+          const srv = services.find((s) => s.id === targetId);
+          if (srv && newTitle && srv.name !== newTitle) {
+            srv.name = newTitle;
+            serviceUpdated = true;
+          }
+        }
+      });
+
+      if (profileUpdated || serviceUpdated) {
+        this.isSyncingFromCanvas = true;
+        if (profileUpdated) {
+          this.blueprintManager.updateProfile(profileUpdates);
+        }
+        if (serviceUpdated) {
+          this.blueprintManager.setServices(services);
+        }
+
+        // Update booking select dropdowns to reflect new service prices/name
+        const selects = doc.querySelectorAll('select');
+        selects.forEach((sel) => {
+          const optionsList = Array.from(sel.options);
+          const isServiceSelect =
+            sel.getAttribute('data-cuzmify-type') === 'service-select' ||
+            optionsList.some(
+              (opt) =>
+                opt.text.includes('(') ||
+                opt.text.includes('$') ||
+                opt.text.includes('₦') ||
+                opt.text.includes('€') ||
+                opt.text.includes('£') ||
+                opt.text.toLowerCase().includes('glam') ||
+                opt.text.toLowerCase().includes('bridal')
+            );
+          if (isServiceSelect && services.length > 0) {
+            sel.innerHTML = services
+              .map((srv) => `<option value="${srv.id}">${srv.name} (${currencySymbol}${srv.price})</option>`)
+              .join('');
+          }
+        });
+
+        // Update WhatsApp action links with new brand name and prices
+        const waLinks = doc.querySelectorAll('a');
+        waLinks.forEach((a) => {
+          const action = a.getAttribute('data-cuzmify-action');
+          const targetId = a.getAttribute('data-cuzmify-target-id');
+          const href = a.getAttribute('href') || '';
+          if (action === 'whatsapp:booking' || (!action && href.includes('wa.me'))) {
+            const newUrl = this.blueprintManager.generateWhatsAppLink({ type: 'booking', targetId: targetId || undefined });
+            a.setAttribute('href', newUrl);
+          }
+        });
+
+        this.isSyncingFromCanvas = false;
+      }
+    } catch (err) {
+      this.isSyncingFromCanvas = false;
+      console.warn('[EditorService] Error in syncBlueprintFromCanvas:', err);
+    }
+  }
 
   // ── Snapshot Capture Engine ───────────────────────────────────────────────
   public recordSnapshot(description: string, source: HistorySnapshot['source'], themeOverride?: ThemeName): void {
@@ -94,12 +240,27 @@ export class EditorService {
   }
 
   private handleDebouncedChange(description: string, source: HistorySnapshot['source']): void {
-    this.notifyChange();
     if (this.isRestoringState || this.historyManager.isPerformingRestore) return;
+
+    // While user is actively typing in RTE, do not trigger DOM modifications or React re-renders mid-stroke
+    if (this.isRteActive) {
+      if (this.snapshotDebounceTimer) clearTimeout(this.snapshotDebounceTimer);
+      this.snapshotDebounceTimer = setTimeout(() => {
+        if (!this.isRteActive) {
+          this.syncBlueprintFromCanvas();
+          this.notifyChange();
+          this.recordSnapshot(description, source);
+        }
+      }, 800);
+      return;
+    }
+
+    this.notifyChange();
+    this.syncBlueprintFromCanvas();
 
     if (this.snapshotDebounceTimer) clearTimeout(this.snapshotDebounceTimer);
     this.snapshotDebounceTimer = setTimeout(() => {
-      if (this.isRestoringState || this.historyManager.isPerformingRestore) return;
+      if (this.isRestoringState || this.historyManager.isPerformingRestore || this.isRteActive) return;
       this.recordSnapshot(description, source);
     }, 500);
   }
@@ -193,6 +354,315 @@ export class EditorService {
     };
   }
 
+  // ── Blueprint APIs ────────────────────────────────────────────────────────
+  getBlueprint(): BusinessBlueprint {
+    return this.blueprintManager.getBlueprint();
+  }
+
+  getProfile(): BusinessProfile {
+    return this.blueprintManager.getProfile();
+  }
+
+  getServices(): ServiceItem[] {
+    return this.blueprintManager.getServices();
+  }
+
+  getProducts(): ProductItem[] {
+    return this.blueprintManager.getProducts();
+  }
+
+  getWhatsAppConfig(): WhatsAppModuleConfig {
+    return this.blueprintManager.getWhatsAppConfig();
+  }
+
+  updateProfile(updates: Partial<BusinessProfile>): void {
+    this.blueprintManager.updateProfile(updates);
+    this.recordSnapshot('Updated Business Profile', 'manual_edit');
+  }
+
+  updateWhatsAppConfig(updates: Partial<WhatsAppModuleConfig>): void {
+    this.blueprintManager.updateWhatsAppConfig(updates);
+    this.recordSnapshot('Updated WhatsApp Engine', 'manual_edit');
+  }
+
+  addServiceItem(item: Omit<ServiceItem, 'id'>): ServiceItem {
+    const res = this.blueprintManager.addServiceItem(item);
+    this.recordSnapshot(`Added Service: ${item.name}`, 'manual_edit');
+    return res;
+  }
+
+  updateServiceItem(id: string, updates: Partial<ServiceItem>): void {
+    this.blueprintManager.updateServiceItem(id, updates);
+    this.recordSnapshot('Updated Service Item', 'manual_edit');
+  }
+
+  deleteServiceItem(id: string): void {
+    this.blueprintManager.deleteServiceItem(id);
+    this.recordSnapshot('Deleted Service Item', 'manual_edit');
+  }
+
+  addProductItem(item: Omit<ProductItem, 'id'>): ProductItem {
+    const res = this.blueprintManager.addProductItem(item);
+    this.recordSnapshot(`Added Product: ${item.name}`, 'manual_edit');
+    return res;
+  }
+
+  updateProductItem(id: string, updates: Partial<ProductItem>): void {
+    this.blueprintManager.updateProductItem(id, updates);
+    this.recordSnapshot('Updated Product Item', 'manual_edit');
+  }
+
+  deleteProductItem(id: string): void {
+    this.blueprintManager.deleteProductItem(id);
+    this.recordSnapshot('Deleted Product Item', 'manual_edit');
+  }
+
+  getMediaVault(): MediaVaultAsset[] {
+    return this.blueprintManager.getMediaVault();
+  }
+
+  addMediaAsset(asset: Omit<MediaVaultAsset, 'id' | 'addedAt'>): MediaVaultAsset {
+    const res = this.blueprintManager.addMediaAsset(asset);
+    this.recordSnapshot(`Added Media Asset: ${asset.name}`, 'manual_edit');
+    return res;
+  }
+
+  deleteMediaAsset(id: string): void {
+    this.blueprintManager.deleteMediaAsset(id);
+    this.recordSnapshot('Deleted Media Asset', 'manual_edit');
+  }
+
+  applyMediaToSelected(url: string, alt?: string): void {
+    const selected = this.adapter.getSelectedComponent();
+    if (!selected) return;
+    const type = (selected.get('type') || '').toLowerCase();
+    const tagName = (selected.get('tagName') || '').toLowerCase();
+
+    if (type === 'image' || tagName === 'img') {
+      selected.addAttributes({ src: url, ...(alt ? { alt } : {}) });
+    } else {
+      selected.addStyle({
+        'background-image': `url("${url}")`,
+        'background-size': 'cover',
+        'background-position': 'center',
+      });
+    }
+    this.recordSnapshot('Applied Media to Canvas', 'manual_edit');
+  }
+
+  generateWhatsAppLink(options: { type: 'booking' | 'order' | 'general'; targetId?: string; customMessage?: string }): string {
+    return this.blueprintManager.generateWhatsAppLink(options);
+  }
+
+  resolveActionBinding(binding: ActionBinding): { url: string; previewLabel: string } {
+    return this.blueprintManager.resolveActionBinding(binding);
+  }
+
+  formatCurrency(amount: number): string {
+    return this.blueprintManager.formatCurrency(amount);
+  }
+
+  onBlueprintChange(listener: (bp: BusinessBlueprint) => void): () => void {
+    return this.blueprintManager.onChange(listener);
+  }
+
+  public syncCanvasWithBlueprint(blueprint?: BusinessBlueprint): void {
+    if (!this.adapter || this.isSyncingFromCanvas) return;
+    const bp = blueprint || this.blueprintManager.getBlueprint();
+    const profile = bp.profile;
+    const services = bp.modules.services.items;
+    const products = bp.modules.products.items;
+    const currency = profile.currency || 'USD';
+    const currencySymbol = SUPPORTED_CURRENCIES[currency]?.symbol || '$';
+    const currencyRegex = /^(\$|€|£|₦|CA\$|A\$|AED|KSh|R)\s*(\d+(?:,\d+)?(?:\.\d+)?)/i;
+
+    let modified = false;
+
+    // ── 1. Direct Canvas Iframe DOM Synchronization (Instant UI Update) ──
+    const doc = this.adapter.getDoc();
+    if (doc) {
+      // 1a. Business Name in Navbar & brand headers
+      const brandElements = doc.querySelectorAll(
+        '[data-cuzmify-field="business-name"], .brand-name, .cuzmify-brand-name, nav[data-cuzmify-type="navbar"] span:first-of-type, nav[data-brand] span:first-of-type'
+      );
+      brandElements.forEach((el) => {
+        if (profile.name && el.textContent !== profile.name) {
+          el.textContent = profile.name;
+          modified = true;
+        }
+      });
+
+      // 1b. Announcement Bar Brand Name
+      const announcementSpans = doc.querySelectorAll('div span');
+      announcementSpans.forEach((el) => {
+        if (el.textContent && el.textContent.includes('✦') && el.textContent.toLowerCase().includes('luxury artistry')) {
+          el.textContent = `✦ ${profile.name} Luxury Artistry`;
+          modified = true;
+        }
+      });
+
+      // 1c. WhatsApp Links on Canvas
+      const waLinks = doc.querySelectorAll('a');
+      waLinks.forEach((a) => {
+        const action = a.getAttribute('data-cuzmify-action');
+        const targetId = a.getAttribute('data-cuzmify-target-id');
+        const href = a.getAttribute('href') || '';
+        const text = (a.textContent || '').toLowerCase();
+
+        if (action === 'whatsapp:booking' || (!action && href.includes('wa.me') && !text.includes('chat') && !text.includes('general'))) {
+          const newUrl = this.blueprintManager.generateWhatsAppLink({ type: 'booking', targetId: targetId || undefined });
+          if (a.getAttribute('href') !== newUrl) {
+            a.setAttribute('href', newUrl);
+            modified = true;
+          }
+        } else if (action === 'whatsapp:order') {
+          const newUrl = this.blueprintManager.generateWhatsAppLink({ type: 'order', targetId: targetId || undefined });
+          if (a.getAttribute('href') !== newUrl) {
+            a.setAttribute('href', newUrl);
+            modified = true;
+          }
+        } else if (action === 'whatsapp:general' || href.includes('wa.me') || text.includes('whatsapp')) {
+          const newUrl = this.blueprintManager.generateWhatsAppLink({ type: 'general' });
+          if (a.getAttribute('href') !== newUrl) {
+            a.setAttribute('href', newUrl);
+            modified = true;
+          }
+        }
+      });
+
+      // 1d. Prices & Currency Symbol Synchronization across all price tags in DOM
+      const allElements = doc.querySelectorAll('span, p, div, h1, h2, h3, h4');
+      allElements.forEach((el) => {
+        const text = el.textContent?.trim() || '';
+        const match = text.match(currencyRegex);
+        if (match && el.children.length === 0) {
+          const amount = match[2];
+          const newFormatted = `${currencySymbol}${amount}`;
+          if (text !== newFormatted) {
+            el.textContent = newFormatted;
+            modified = true;
+          }
+        }
+      });
+
+      // 1e. Booking Select Dropdowns Synchronization (DOM)
+      const selects = doc.querySelectorAll('select');
+      selects.forEach((sel) => {
+        const optionsList = Array.from(sel.options);
+        const isServiceSelect =
+          sel.getAttribute('data-cuzmify-type') === 'service-select' ||
+          optionsList.some(
+            (opt) =>
+              opt.text.includes('(') ||
+              opt.text.includes('$') ||
+              opt.text.includes('₦') ||
+              opt.text.includes('€') ||
+              opt.text.includes('£') ||
+              opt.text.toLowerCase().includes('glam') ||
+              opt.text.toLowerCase().includes('bridal') ||
+              opt.text.toLowerCase().includes('suite')
+          );
+
+        if (isServiceSelect && services.length > 0) {
+          sel.innerHTML = services
+            .map(
+              (srv) =>
+                `<option value="${srv.id}">${srv.name} (${currencySymbol}${srv.price})</option>`
+            )
+            .join('');
+          modified = true;
+        }
+      });
+    }
+
+    // ── 2. GrapesJS Component Tree Model Synchronization (Persistence) ──
+    this.adapter.traverseComponents((comp) => {
+      if (!comp) return;
+      const attrs = comp.getAttributes?.() || {};
+      const action = attrs['data-cuzmify-action'];
+      const targetId = attrs['data-cuzmify-target-id'];
+      const field = attrs['data-cuzmify-field'];
+      const classes = (comp.getClasses?.() || []).join(' ');
+      const href = attrs.href || '';
+      const text = (comp.get?.('content') || comp.components?.()?.models?.[0]?.get?.('content') || '').trim();
+
+      // Sync Select dropdown options in component tree
+      if (comp.get?.('tagName')?.toLowerCase() === 'select' && services.length > 0) {
+        const selectHtml = services
+          .map(
+            (srv) =>
+              `<option value="${srv.id}">${srv.name} (${currencySymbol}${srv.price})</option>`
+          )
+          .join('');
+        comp.components(selectHtml);
+        modified = true;
+      }
+
+      // Sync Action links & WhatsApp
+      if (action) {
+        const newBinding = this.blueprintManager.resolveActionBinding({
+          action: action as any,
+          targetId,
+          url: attrs.href,
+        });
+
+        if (newBinding.url && attrs.href !== newBinding.url) {
+          comp.addAttributes({ href: newBinding.url });
+          modified = true;
+        }
+      } else if (href.includes('wa.me')) {
+        const newUrl = this.blueprintManager.generateWhatsAppLink({ type: 'booking' });
+        comp.addAttributes({ href: newUrl });
+        modified = true;
+      }
+
+      // Sync Brand Name
+      if (field === 'business-name' || classes.includes('brand-name') || classes.includes('cuzmify-brand-name')) {
+        if (profile.name && text !== profile.name) {
+          comp.components(profile.name);
+          comp.set('content', profile.name);
+          const el = comp.getEl?.();
+          if (el) el.textContent = profile.name;
+          modified = true;
+        }
+      }
+
+      // Sync Prices & Currency Symbols
+      const match = text.match(currencyRegex);
+      if (match) {
+        const amount = match[2];
+        const newFormatted = `${currencySymbol}${amount}`;
+        if (text !== newFormatted) {
+          comp.components(newFormatted);
+          comp.set('content', newFormatted);
+          const el = comp.getEl?.();
+          if (el) el.textContent = newFormatted;
+          modified = true;
+        }
+      }
+
+      // Sync Phone & Email links
+      if (attrs.href?.startsWith('tel:') && profile.phone) {
+        const cleanPhone = profile.phone.replace(/[^\d+]/g, '');
+        if (attrs.href !== `tel:${cleanPhone}`) {
+          comp.addAttributes({ href: `tel:${cleanPhone}` });
+          modified = true;
+        }
+      }
+
+      if (attrs.href?.startsWith('mailto:') && profile.email) {
+        if (attrs.href !== `mailto:${profile.email}`) {
+          comp.addAttributes({ href: `mailto:${profile.email}` });
+          modified = true;
+        }
+      }
+    });
+
+    if (modified) {
+      this.adapter.triggerChange();
+    }
+  }
+
   // ── Persistence ───────────────────────────────────────────────────────────
   saveToLocalStorage(projectId: string, theme?: string, userId?: string): void {
     try {
@@ -202,6 +672,7 @@ export class EditorService {
         html: this.adapter.getHtml(),
         css: this.adapter.getCss(),
         theme: theme || this.currentTheme,
+        blueprint: this.blueprintManager.getBlueprint(),
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -218,17 +689,22 @@ export class EditorService {
     try {
       const html = this.adapter.getHtml();
       const grapesData = this.adapter.getProjectData();
+      const blueprint = this.blueprintManager.getBlueprint();
       const res = await fetch('/api/sites/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           siteId: projectId,
-          name: meta?.businessName,
+          name: meta?.businessName || blueprint.profile.name,
           template: meta?.template,
-          category: meta?.category,
+          category: meta?.category || blueprint.profile.category,
           htmlContent: html,
-          grapesData,
+          grapesData: {
+            ...(typeof grapesData === 'object' ? grapesData : {}),
+            blueprint,
+          },
           theme: meta?.theme || this.currentTheme,
+          blueprintData: blueprint,
         }),
       });
       return res.ok;
@@ -248,6 +724,10 @@ export class EditorService {
 
       if (site.theme) {
         this.currentTheme = site.theme as ThemeName;
+      }
+
+      if (site.blueprintData) {
+        this.blueprintManager.hydrate(site.blueprintData);
       }
 
       // 1. Try grapesData first
@@ -288,6 +768,10 @@ export class EditorService {
 
       if (parsed.theme) {
         this.currentTheme = parsed.theme as ThemeName;
+      }
+
+      if (parsed.blueprint) {
+        this.blueprintManager.hydrate(parsed.blueprint);
       }
 
       if (parsed.grapesData) {
@@ -396,6 +880,14 @@ export class EditorService {
   updateSelectedStyle(prop: string, value: string): void {
     this.adapter.updateSelectedStyle(prop, value);
     this.handleDebouncedChange(`Updated style ${prop}`, 'manual_edit');
+  }
+
+  getSelectedStyle(prop: string): string {
+    return this.adapter.getSelectedStyle(prop);
+  }
+
+  getAllSelectedStyles(): Record<string, string> {
+    return this.adapter.getAllSelectedStyles();
   }
 
   getSelectedElementDetails(): {

@@ -39,6 +39,30 @@ const SECTION_BLOCKS = [
     bg: 'bg-amber-50',
   },
   {
+    id: 'cuzmify-products',
+    label: 'Products & Store',
+    tag: 'COMMERCE',
+    desc: 'Product showcase with Add-to-Cart & WhatsApp buy triggers',
+    icon: <ShoppingCart className="w-4 h-4 text-emerald-600" />,
+    bg: 'bg-emerald-50',
+  },
+  {
+    id: 'cuzmify-cart',
+    label: 'Floating Cart Trigger',
+    tag: 'MODULE',
+    desc: 'Floating checkout pill with live item count badge',
+    icon: <ShoppingCart className="w-4 h-4 text-blue-600" />,
+    bg: 'bg-blue-50',
+  },
+  {
+    id: 'cuzmify-payments',
+    label: 'Online Checkout Bar',
+    tag: 'PAYMENTS',
+    desc: 'PCI-compliant card payment and deposit checkout banner',
+    icon: <ShieldCheck className="w-4 h-4 text-indigo-600" />,
+    bg: 'bg-indigo-50',
+  },
+  {
     id: 'cuzmify-gallery',
     label: 'Portfolio Showcase',
     tag: 'GALLERY',
@@ -514,7 +538,7 @@ function PagesTab({ service }: { service: ReturnType<typeof useEditor>['service'
 }
 
 function ModulesTab() {
-  const { activeModules } = useEditor();
+  const { activeModules, setActiveModuleModal } = useEditor();
 
   const attachedModules = MODULES.filter((mod) => activeModules.includes(mod.type));
 
@@ -550,10 +574,17 @@ function ModulesTab() {
             </div>
 
             <div className="mt-3 pt-2.5 border-t border-emerald-200/60 flex items-center justify-between">
-              <span className="text-[9px] font-mono text-emerald-700 flex items-center gap-1 font-bold">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                Wired to Edge Infrastructure
-              </span>
+              <button
+                onClick={() => {
+                  if (mod.type === 'BOOKING') setActiveModuleModal('whatsapp');
+                  else if (mod.type === 'CATALOG') setActiveModuleModal('services');
+                  else if (mod.type === 'CART') setActiveModuleModal('products');
+                  else setActiveModuleModal('whatsapp');
+                }}
+                className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#0D5771] text-white hover:bg-[#083D50] transition-all cursor-pointer shadow-2xs"
+              >
+                Configure in Studio
+              </button>
 
               <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-100 text-emerald-700 border border-emerald-300 font-mono">
                 ✓ Attached
@@ -578,6 +609,94 @@ function ModulesTab() {
         <span>Add More Modules in Dashboard</span>
         <ArrowUpRight className="w-3.5 h-3.5 text-[#0D5771]" />
       </Link>
+    </div>
+  );
+}
+
+function MediaVaultTab() {
+  const { service, setActiveModuleModal, setSaveToast } = useEditor();
+  const mediaVault = service?.getMediaVault() || [];
+  const [filter, setFilter] = useState<'all' | 'instagram' | 'upload' | 'video'>('all');
+
+  return (
+    <div className="space-y-3 w-full max-w-full overflow-hidden">
+      <div className="px-1 flex items-center justify-between">
+        <div>
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#64748B] font-mono block">
+            MEDIA VAULT ({mediaVault.length})
+          </span>
+          <p className="text-[10px] text-[#64748B] leading-snug">
+            Instagram &amp; uploaded brand assets.
+          </p>
+        </div>
+        <button
+          onClick={() => setActiveModuleModal('media')}
+          className="px-2 py-1 rounded-lg text-[10px] font-bold bg-[#0D5771] text-white hover:bg-[#083D50] transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+        >
+          <Plus className="w-3 h-3" />
+          <span>Add Media</span>
+        </button>
+      </div>
+
+      {/* Mini filter */}
+      <div className="flex gap-1 overflow-x-auto pb-1">
+        {[
+          { id: 'all' as const, label: 'All' },
+          { id: 'instagram' as const, label: '📷 IG' },
+          { id: 'upload' as const, label: '⬆️ Uploads' },
+          { id: 'video' as const, label: '🎬 Video' },
+        ].map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`px-2 py-0.5 rounded-md text-[9px] font-bold transition-all ${
+              filter === f.id ? 'bg-[#0D5771] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Media Thumbnails Grid */}
+      <div className="grid grid-cols-2 gap-2">
+        {mediaVault
+          .filter((m) => {
+            if (filter === 'instagram') return m.source === 'instagram';
+            if (filter === 'upload') return m.source === 'upload';
+            if (filter === 'video') return m.type === 'video';
+            return true;
+          })
+          .map((item) => (
+            <div
+              key={item.id}
+              onClick={() => {
+                service?.applyMediaToSelected(item.url, item.name);
+                setSaveToast(`✦ Applied "${item.name}" to canvas`);
+                setTimeout(() => setSaveToast(null), 2500);
+              }}
+              className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 hover:border-[#0D5771] hover:shadow-sm transition-all cursor-pointer aspect-video flex flex-col justify-end"
+              title="Click to apply to selected canvas element"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.url} alt={item.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+              <div className="relative z-10 p-1.5 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white">
+                <p className="text-[9px] font-bold truncate leading-none">{item.name}</p>
+                <span className="text-[8px] font-mono text-emerald-300 opacity-90 block mt-0.5">
+                  {item.source === 'instagram' ? '📷 Instagram' : 'Click to apply'}
+                </span>
+              </div>
+            </div>
+          ))}
+      </div>
+
+      <button
+        onClick={() => setActiveModuleModal('media')}
+        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold transition-all cursor-pointer"
+      >
+        <Sliders className="w-3 h-3 text-[#0D5771]" />
+        <span>Manage Full Media Vault</span>
+      </button>
     </div>
   );
 }

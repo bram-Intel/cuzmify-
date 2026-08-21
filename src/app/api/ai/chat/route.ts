@@ -117,9 +117,33 @@ export async function POST(req: Request) {
       'gemini-3-flash-preview',
     ];
 
+    const blueprint = body.blueprint;
+    const profile = blueprint?.profile || {};
+    const currency = profile.currency || 'USD';
+    const mediaVault = blueprint?.mediaVault || [];
+    const services = blueprint?.modules?.services?.items || [];
+    const products = blueprint?.modules?.products?.items || [];
+    const whatsappPhone = blueprint?.modules?.whatsapp?.phoneNumber || '18005554526';
+    const isCartActive = blueprint?.modules?.cart?.enabled !== false;
+    const isPaymentsActive = Boolean(blueprint?.modules?.payments?.enabled);
+
     const isTargeted = Boolean(targetElement && targetElement.id);
     const surroundingContext = isTargeted ? extractSurroundingContext(currentHtml, targetElement.id) : '';
     let lastError: any = null;
+
+    const mediaContextSnippet = mediaVault.length > 0
+      ? `AUTHENTIC MEDIA VAULT ASSETS:
+${JSON.stringify(mediaVault.slice(0, 12).map((m: any) => ({ name: m.name, url: m.url, type: m.type, source: m.source, caption: m.caption })), null, 2)}`
+      : 'No custom media uploaded yet.';
+
+    const modulesContextSnippet = `
+ATTACHED COMPOSABLE MODULES & ARCHITECTURE:
+- Business Profile: Name: "${profile.name || 'Studio'}", Tagline: "${profile.tagline || ''}", Currency: "${currency}"
+- WhatsApp Booking: Phone: "${whatsappPhone}" ➔ data-cuzmify-action="whatsapp:booking"
+- Services Catalog (${services.length} active): ${JSON.stringify(services.slice(0, 6).map((s: any) => ({ name: s.name, price: `${currency} ${s.price}`, duration: s.duration })))}
+- Products Store (${products.length} active): ${JSON.stringify(products.slice(0, 6).map((p: any) => ({ name: p.name, price: `${currency} ${p.price}`, category: p.category })))}
+- Shopping Cart: ${isCartActive ? 'ACTIVE (Use data-cuzmify-action="cart:add" and data-cuzmify-action="cart:open")' : 'INACTIVE'}
+- Online Payments: ${isPaymentsActive ? 'ACTIVE (Use data-cuzmify-action="checkout")' : 'AVAILABLE'}`;
 
     for (const modelName of candidateModels) {
       try {
@@ -149,11 +173,34 @@ Return strictly a JSON object with:
             : `You are Cuzmify AI, the world-class Autonomous AI Website Architect.
 Transform or generate the website layout according to the user's instruction.
 Return clean, self-contained HTML that lives inside the canvas wrapper.
+
+${modulesContextSnippet}
+
+${mediaContextSnippet}
+
+VISUAL ASSETS & COMPONENT GENERATION GUIDELINES:
+1. Active Module Components: When the user asks to add or enhance sections (store, cart, pricing, booking, testimonials), generate rich section markup using the active modules and currency (${currency}).
+   - For Product Store: Use data-cuzmify-type="products" with "Add to Cart" (data-cuzmify-action="cart:add") and WhatsApp buy links.
+   - For Shopping Cart: Use data-cuzmify-action="cart:open" or floating cart pill data-cuzmify-type="cart-pill".
+   - For Booking Suite: Use data-cuzmify-type="service-select" for dropdowns and data-cuzmify-action="whatsapp:booking".
+   - For Payments: Use data-cuzmify-action="checkout".
+2. Authentic Media Vault Priority: Prioritize using the user's authentic Media Vault image/video URLs whenever suitable.
+3. Flexible Visual Synthesis: You are NOT constrained only to the vault. When a section needs supporting graphics (such as modern SVG icons, badge accents, background patterns, or curated Unsplash imagery), you are fully empowered to generate matching clean inline SVGs or curated visuals.
+4. SPOTLESS MOBILE-FIRST RESPONSIVE ARCHITECTURE:
+   - Fluid Typography: Use font-size: clamp(1.75rem, 4.5vw, 3rem) for headlines and clamp(1.4rem, 3.5vw, 2.25rem) for section titles so text NEVER overflows or breaks awkwardly on small screens.
+   - Auto-Stacking Grids: NEVER use rigid fixed-pixel widths without 'max-width: 100%; box-sizing: border-box;'. Always use fluid auto-fit grids: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;'.
+   - Touch Ergonomics: All interactive buttons and inputs must have comfortable touch targets (min 44px height, padding: 12px 24px) with 'box-sizing: border-box'.
+   - Zero-Break Containers: Always set 'box-sizing: border-box;' and 'max-width: 1200px; margin: 0 auto;' on section containers.
+
 Return strictly a JSON object with:
 {
   "aiReply": "Brief explanation of the layout changes",
   "theme": "luxury" | "modern" | "minimal" | "editorial" | "bram-light" | "dark-obsidian" | "apple-luxury" | "vibrant",
   "changesApplied": ["List of applied changes"],
+  "blueprintUpdates": {
+    "profile": { "name": "Business Name", "tagline": "Tagline", "currency": "${currency}" },
+    "services": [{ "name": "Service Name", "price": 150, "description": "Summary" }]
+  },
   "updatedHtml": "The complete resulting HTML markup"
 }`,
         });

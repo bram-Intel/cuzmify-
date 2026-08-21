@@ -1,575 +1,44 @@
 'use client';
 
-import React from 'react';
-import { MousePointer2, Type, Image, Square, Star, Layout, ExternalLink, Phone, Palette, X, Sparkles, Wand2, Zap, Crown, MessageSquare, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  MousePointer2,
+  Type,
+  Image as ImageIcon,
+  Square,
+  Layout,
+  Phone,
+  Palette,
+  X,
+  Sparkles,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  Maximize2,
+  Sliders,
+  Move,
+  Box,
+  ChevronDown,
+  ChevronRight,
+  MessageSquare,
+  Wand2,
+  Link as LinkIcon,
+  Columns,
+  Rows,
+  ExternalLink,
+  MessageCircle,
+  ShoppingBag,
+  CreditCard,
+  Calendar,
+  Settings,
+} from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import { DESIGN_TOKENS } from './theme/DesignTokens';
 import { AIEngine } from './ai/AIEngine';
 import type { ThemeName } from '@/core/project-schema';
 
-// ── No selection state ─────────────────────────────────────────────────────
-
-function NoSelectionPanel() {
-  const { theme, handleThemeChange } = useEditor();
-
-  const THEMES: { id: ThemeName; label: string; emoji: string }[] = [
-    { id: 'bram-light', label: 'Bram Light', emoji: '💎' },
-    { id: 'luxury', label: 'Luxury', emoji: '✨' },
-    { id: 'dark-obsidian', label: 'Dark Obsidian', emoji: '🖤' },
-    { id: 'editorial', label: 'Editorial', emoji: '📰' },
-    { id: 'minimal', label: 'Minimal', emoji: '⬜' },
-    { id: 'modern', label: 'Modern', emoji: '🔵' },
-    { id: 'vibrant', label: 'Vibrant', emoji: '💗' },
-    { id: 'apple-luxury', label: 'Apple Luxury', emoji: '🍏' },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0D5771] mb-1.5 px-1 font-mono">
-          SELECT AN ELEMENT
-        </p>
-        <div className="flex items-start gap-3 px-3.5 py-3.5 rounded-xl bg-[#F7FAFC] border border-[#E2E8F0] shadow-sm">
-          <MousePointer2 className="w-4 h-4 text-[#0D5771] mt-0.5 shrink-0" />
-          <p className="text-[11px] text-[#64748B] leading-relaxed">
-            Click any element on your website canvas to select it and inspect design properties here.
-          </p>
-        </div>
-      </div>
-
-      <div className="h-px bg-[#E2E8F0]" />
-
-      {/* Global theme switcher */}
-      <div>
-        <div className="flex items-center justify-between mb-2.5 px-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#0D5771] font-mono flex items-center gap-1.5">
-            <Palette className="w-3 h-3 text-[#0D5771]" /> DESIGN THEMES
-          </p>
-          <span className="text-[9px] text-[#94A3B8] font-mono">10 Curated</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          {THEMES.map((t) => {
-            const tok = DESIGN_TOKENS[t.id];
-            const isSelected = theme === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => handleThemeChange(t.id)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all ${
-                  isSelected
-                    ? 'border-[#0D5771] bg-[#0D5771]/10 text-[#0D5771] font-bold shadow-sm'
-                    : 'border-[#E2E8F0] bg-[#F7FAFC] hover:border-[#0D5771]/40 text-[#64748B] hover:text-[#1A202C]'
-                }`}
-              >
-                <div
-                  className="w-4 h-4 rounded-full shrink-0 border border-slate-300 shadow-sm"
-                  style={{ background: tok.colorSecondary }}
-                />
-                <span className="text-[10px] font-bold truncate">
-                  {t.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Hero panel ─────────────────────────────────────────────────────────────
-
-function HeroPanel() {
-  const { service } = useEditor();
-  const traits = service?.getSelectedComponentTraits() ?? {};
-
-  return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Layout className="w-4 h-4" />} title="Hero Section" badge="Hero" />
-
-      <TraitGroup title="Headline & Text">
-        <TraitInput label="Headline" value={traits['data-headline'] ?? ''} onChange={(v) => service?.updateSelectedTrait('data-headline', v)} />
-        <TraitInput label="Subtitle" value={traits['data-subheadline'] ?? ''} onChange={(v) => service?.updateSelectedTrait('data-subheadline', v)} multiline />
-        <TraitInput label="CTA Button Text" value={traits['data-cta-text'] ?? 'Book Session'} onChange={(v) => service?.updateSelectedTrait('data-cta-text', v)} />
-      </TraitGroup>
-
-      <TraitGroup title="Media Asset">
-        <TraitInput label="Hero Image URL" value={traits['data-image-url'] ?? ''} onChange={(v) => service?.updateSelectedTrait('data-image-url', v)} placeholder="https://images.unsplash.com/..." />
-      </TraitGroup>
-    </div>
-  );
-}
-
-// ── Text panel ─────────────────────────────────────────────────────────────
-
-function AIRewriteBlock() {
-  const { service } = useEditor();
-  const [customPrompt, setCustomPrompt] = React.useState('');
-  const [showCustom, setShowCustom] = React.useState(false);
-  const [variations, setVariations] = React.useState<string[] | null>(null);
-  const [lastAction, setLastAction] = React.useState<string | null>(null);
-
-  const handleAIRewrite = async (action: 'polish' | 'punchy' | 'tone_luxury' | 'whatsapp_hook' | 'variations' | 'custom') => {
-    if (!service) return;
-    const text = service.getSelectedText();
-    if (!text) return;
-
-    try {
-      if (action === 'variations') {
-        const res = await AIEngine.rewriteInlineTextAsync(text, 'variations');
-        setVariations(res.variations || null);
-        return;
-      }
-
-      const res = await AIEngine.rewriteInlineTextAsync(text, action, customPrompt);
-      service.updateSelectedText(res.transformed);
-      setLastAction(res.action);
-      setShowCustom(false);
-      setVariations(null);
-      setTimeout(() => setLastAction(null), 2200);
-    } catch (err) {
-      console.error('[AIRewriteBlock] Error:', err);
-    }
-  };
-
-  const handleApplyVariation = (vText: string) => {
-    if (!service) return;
-    const clean = vText.replace(/^[^\w]+Option\s*\d+\s*\([^)]+\):\s*/i, '').trim();
-    service.updateSelectedText(clean);
-    setVariations(null);
-    setLastAction('Applied Variation');
-    setTimeout(() => setLastAction(null), 2200);
-  };
-
-  return (
-    <div className="p-3 rounded-2xl bg-[#0D5771]/5 border border-[#0D5771]/15 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-[#0D5771]">
-          <Sparkles className="w-3.5 h-3.5 text-[#0D5771] animate-pulse" />
-          <span>AI REWRITE ASSISTANT</span>
-        </div>
-        {lastAction && (
-          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-            ✓ {lastAction}
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-1.5">
-        <button
-          onClick={() => handleAIRewrite('polish')}
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-[#E2E8F0] text-[11px] font-semibold text-[#1A202C] hover:text-[#0D5771] transition-all shadow-2xs cursor-pointer"
-        >
-          <Wand2 className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Polish</span>
-        </button>
-        <button
-          onClick={() => handleAIRewrite('punchy')}
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-[#E2E8F0] text-[11px] font-semibold text-[#1A202C] hover:text-[#0D5771] transition-all shadow-2xs cursor-pointer"
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-500" />
-          <span>Punchy</span>
-        </button>
-        <button
-          onClick={() => handleAIRewrite('tone_luxury')}
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-[#E2E8F0] text-[11px] font-semibold text-[#1A202C] hover:text-[#0D5771] transition-all shadow-2xs cursor-pointer"
-        >
-          <Crown className="w-3.5 h-3.5 text-yellow-500" />
-          <span>Luxury</span>
-        </button>
-        <button
-          onClick={() => handleAIRewrite('whatsapp_hook')}
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-[#E2E8F0] text-[11px] font-semibold text-[#1A202C] hover:text-[#0D5771] transition-all shadow-2xs cursor-pointer"
-        >
-          <MessageSquare className="w-3.5 h-3.5 text-green-600" />
-          <span>WhatsApp</span>
-        </button>
-      </div>
-
-      <div className="flex gap-1.5 pt-1 border-t border-[#0D5771]/10">
-        <button
-          onClick={() => handleAIRewrite('variations')}
-          className="flex-1 py-1.5 px-2 rounded-xl bg-white hover:bg-slate-50 border border-[#E2E8F0] text-[10px] font-bold text-[#64748B] hover:text-[#0D5771] transition-all flex items-center justify-center gap-1 cursor-pointer"
-        >
-          <span>3 Variations</span>
-          <ChevronDown className="w-3 h-3 text-[#94A3B8]" />
-        </button>
-        <button
-          onClick={() => setShowCustom(!showCustom)}
-          className="py-1.5 px-3 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-[10px] font-extrabold transition-all cursor-pointer"
-        >
-          Ask AI…
-        </button>
-      </div>
-
-      {showCustom && (
-        <div className="flex items-center gap-1 pt-1 animate-in fade-in duration-150">
-          <input
-            type="text"
-            id="panel-ai-custom-prompt"
-            name="panelAiCustomPrompt"
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAIRewrite('custom');
-            }}
-            placeholder="e.g. 'translate to French', 'make friendly'…"
-            className="flex-1 bg-white border border-[#E2E8F0] focus:border-[#0D5771] rounded-lg px-2 py-1 text-[11px] text-[#1A202C] outline-none"
-            suppressHydrationWarning
-          />
-          <button
-            onClick={() => handleAIRewrite('custom')}
-            disabled={!customPrompt.trim()}
-            className="px-2 py-1 bg-[#0D5771] hover:bg-[#083D50] disabled:opacity-40 text-white rounded-lg text-[10px] font-bold cursor-pointer"
-          >
-            Run
-          </button>
-        </div>
-      )}
-
-      {variations && (
-        <div className="space-y-1 pt-1.5 border-t border-[#0D5771]/10 animate-in fade-in duration-150">
-          <span className="text-[9px] font-mono font-bold text-[#0D5771]">CLICK TO APPLY:</span>
-          {variations.map((v, i) => (
-            <button
-              key={i}
-              onClick={() => handleApplyVariation(v)}
-              className="w-full text-left p-2 rounded-lg bg-white hover:bg-[#0D5771]/10 border border-[#E2E8F0] text-[10px] text-[#1A202C] leading-snug transition-all cursor-pointer font-normal"
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Text panel ─────────────────────────────────────────────────────────────
-
-export const FONT_FAMILIES = [
-  { label: 'Playfair Display (Luxury Serif)', value: "'Playfair Display', serif" },
-  { label: 'Cormorant Garamond (Haute Couture)', value: "'Cormorant Garamond', serif" },
-  { label: 'Plus Jakarta Sans (Modern Sans)', value: "'Plus Jakarta Sans', sans-serif" },
-  { label: 'Outfit (Geometric Display)', value: "'Outfit', sans-serif" },
-  { label: 'Cinzel (Royal Roman Serif)', value: "'Cinzel', serif" },
-  { label: 'Syne (Avant-Garde High Fashion)', value: "'Syne', sans-serif" },
-  { label: 'Bodoni Moda (Vogue Italian Serif)', value: "'Bodoni Moda', serif" },
-  { label: 'Inter (Crisp Minimal UI)', value: "'Inter', sans-serif" },
-  { label: 'Space Grotesk (Tech Brutalist)', value: "'Space Grotesk', sans-serif" },
-  { label: 'Montserrat (Bold Display)', value: "'Montserrat', sans-serif" },
-  { label: 'DM Sans (Humanist Editorial)', value: "'DM Sans', sans-serif" },
-  { label: 'Inherit Theme Font', value: 'inherit' },
-];
-
-function TextPanel() {
-  const { service } = useEditor();
-
-  return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Type className="w-4 h-4" />} title="Dynamic Typography" badge="Typography" />
-
-      {/* AI Assistant */}
-      <AIRewriteBlock />
-
-      <TraitGroup title="Font & Style">
-        <StyleInput
-          label="Font Family"
-          prop="font-family"
-          defaultValue="'Plus Jakarta Sans', sans-serif"
-          type="select"
-          options={FONT_FAMILIES}
-          service={service}
-        />
-        <StyleInput
-          label="Font Size"
-          prop="font-size"
-          defaultValue="16px"
-          service={service}
-        />
-        <StyleInput
-          label="Font Weight"
-          prop="font-weight"
-          defaultValue="400"
-          type="select"
-          options={['300', '400', '500', '600', '700', '800', '900']}
-          service={service}
-        />
-        <StyleInput
-          label="Text Transform"
-          prop="text-transform"
-          defaultValue="none"
-          type="select"
-          options={['none', 'uppercase', 'capitalize', 'lowercase']}
-          service={service}
-        />
-        <StyleInput
-          label="Letter Spacing"
-          prop="letter-spacing"
-          defaultValue="0em"
-          type="select"
-          options={['-0.05em', '0em', '0.02em', '0.05em', '0.1em', '0.15em', '0.25em']}
-          service={service}
-        />
-        <StyleInput
-          label="Line Height"
-          prop="line-height"
-          defaultValue="1.6"
-          type="select"
-          options={['1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.75', '2.0']}
-          service={service}
-        />
-        <StyleInput
-          label="Text Color"
-          prop="color"
-          defaultValue="#1A202C"
-          type="color"
-          service={service}
-        />
-      </TraitGroup>
-
-      <TraitGroup title="Alignment">
-        <AlignmentButtons service={service} />
-      </TraitGroup>
-    </div>
-  );
-}
-
-// ── Image panel ─────────────────────────────────────────────────────────────
-
-function ImagePanel() {
-  const { service } = useEditor();
-
-  return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Image className="w-4 h-4" />} title="Image Element" badge="Image" />
-
-      <TraitGroup title="Source">
-        <p className="text-[10px] text-[#64748B] leading-relaxed">
-          Double-click the image on canvas to replace it directly.
-        </p>
-      </TraitGroup>
-
-      <TraitGroup title="Layout & Fit">
-        <StyleInput label="Object Fit" prop="object-fit" defaultValue="cover" type="select"
-          options={['cover', 'contain', 'fill', 'none', 'scale-down']} service={service} />
-        <StyleInput label="Border Radius" prop="border-radius" defaultValue="0px" service={service} />
-        <StyleInput label="Width" prop="width" defaultValue="100%" service={service} />
-        <StyleInput label="Height" prop="height" defaultValue="auto" service={service} />
-      </TraitGroup>
-    </div>
-  );
-}
-
-// ── Button panel ───────────────────────────────────────────────────────────
-
-function ButtonPanel() {
-  const { service } = useEditor();
-
-  return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Square className="w-4 h-4" />} title="Button Element" badge="Button" />
-
-      {/* AI Assistant for Button Copy */}
-      <AIRewriteBlock />
-
-      <TraitGroup title="Typography">
-        <StyleInput
-          label="Font Family"
-          prop="font-family"
-          defaultValue="'Plus Jakarta Sans', sans-serif"
-          type="select"
-          options={FONT_FAMILIES}
-          service={service}
-        />
-        <StyleInput label="Font Size" prop="font-size" defaultValue="14px" service={service} />
-        <StyleInput
-          label="Font Weight"
-          prop="font-weight"
-          defaultValue="700"
-          type="select"
-          options={['400', '500', '600', '700', '800', '900']}
-          service={service}
-        />
-        <StyleInput
-          label="Text Transform"
-          prop="text-transform"
-          defaultValue="none"
-          type="select"
-          options={['none', 'uppercase', 'capitalize', 'lowercase']}
-          service={service}
-        />
-        <StyleInput
-          label="Letter Spacing"
-          prop="letter-spacing"
-          defaultValue="0.02em"
-          type="select"
-          options={['0em', '0.02em', '0.05em', '0.1em', '0.15em']}
-          service={service}
-        />
-      </TraitGroup>
-
-      <TraitGroup title="Appearance">
-        <StyleInput label="Background" prop="background-color" defaultValue="#0D5771" type="color" service={service} />
-        <StyleInput label="Text Color" prop="color" defaultValue="#FFFFFF" type="color" service={service} />
-        <StyleInput label="Border Radius" prop="border-radius" defaultValue="12px" service={service} />
-        <StyleInput label="Padding" prop="padding" defaultValue="12px 24px" service={service} />
-      </TraitGroup>
-    </div>
-  );
-}
-
-// ── Booking/WhatsApp panel ─────────────────────────────────────────────────
-
-function BookingPanel() {
-  const { service } = useEditor();
-  const traits = service?.getSelectedComponentTraits() ?? {};
-
-  return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Phone className="w-4 h-4" />} title="WhatsApp Booking" badge="Booking" badgeColor="text-emerald-700" />
-
-      <TraitGroup title="Integration">
-        <TraitInput label="WhatsApp Number" value={traits['data-phone'] ?? ''} placeholder="+1234567890" onChange={(v) => service?.updateSelectedTrait('data-phone', v)} />
-        <TraitInput label="Pre-filled Message" value={traits['data-message'] ?? ''} placeholder="Hi! I'd like to book..." onChange={(v) => service?.updateSelectedTrait('data-message', v)} multiline />
-      </TraitGroup>
-
-      <div className="px-1">
-        <a
-          href="https://wa.me"
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 text-[11px] text-emerald-700 hover:text-emerald-800 font-bold transition-colors"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Test WhatsApp link
-        </a>
-      </div>
-    </div>
-  );
-}
-
-// ── Services panel ─────────────────────────────────────────────────────────
-
-function ServicesPanel() {
-  const { service } = useEditor();
-  const traits = service?.getSelectedComponentTraits() ?? {};
-
-  return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Star className="w-4 h-4" />} title="Services Section" badge="Services" />
-      <TraitGroup title="Content">
-        <TraitInput label="Section Title" value={traits['data-section-title'] ?? 'Curated Beauty Experiences'} onChange={(v) => service?.updateSelectedTrait('data-section-title', v)} />
-      </TraitGroup>
-      <div className="px-1">
-        <p className="text-[10px] text-[#64748B] leading-relaxed">
-          Click individual service cards on canvas to edit their title, price, and description directly.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ── Generic fallback (raw element selected) ────────────────────────────────
-
-function GenericPanel({ type }: { type: string }) {
-  const { service } = useEditor();
-
-  return (
-    <div className="space-y-4">
-      <SectionHeader icon={<Square className="w-4 h-4" />} title={`<${type}> Element`} badge="Element" />
-
-      <TraitGroup title="Layout & Dimensions">
-        <StyleInput
-          label="Display"
-          prop="display"
-          defaultValue="block"
-          type="select"
-          options={['block', 'flex', 'grid', 'inline-block', 'inline-flex', 'inline']}
-          service={service}
-        />
-        <StyleInput label="Width" prop="width" defaultValue="auto" service={service} />
-        <StyleInput label="Max Width" prop="max-width" defaultValue="100%" service={service} />
-        <StyleInput label="Padding" prop="padding" defaultValue="0px" service={service} />
-        <StyleInput label="Margin" prop="margin" defaultValue="0px" service={service} />
-      </TraitGroup>
-
-      <TraitGroup title="Appearance & Colors">
-        <StyleInput label="Background" prop="background-color" defaultValue="#FFFFFF" type="color" service={service} />
-        <StyleInput label="Text Color" prop="color" defaultValue="#1A202C" type="color" service={service} />
-        <StyleInput label="Border Radius" prop="border-radius" defaultValue="0px" service={service} />
-        <StyleInput label="Font Size" prop="font-size" defaultValue="16px" service={service} />
-      </TraitGroup>
-    </div>
-  );
-}
-
-// ── Shared sub-components ──────────────────────────────────────────────────
-
-function SectionHeader({
-  icon, title, badge, badgeColor = 'text-[#0D5771]',
-}: {
-  icon: React.ReactNode; title: string; badge: string; badgeColor?: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 px-1">
-      <span className="text-[#0D5771]">{icon}</span>
-      <h3 className="text-[12px] font-extrabold text-[#1A202C]">{title}</h3>
-      <span className={`ml-auto text-[8px] font-bold uppercase tracking-wider ${badgeColor} bg-[#F7FAFC] px-2 py-0.5 rounded-full border border-[#E2E8F0]`}>
-        {badge}
-      </span>
-    </div>
-  );
-}
-
-function TraitGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-[#0D5771] font-mono px-1">{title}</p>
-      <div className="space-y-2 bg-[#F7FAFC] rounded-xl p-3 border border-[#E2E8F0]">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function TraitInput({
-  label, value, onChange, placeholder, multiline,
-}: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean;
-}) {
-  const inputId = `trait-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-  return (
-    <div className="space-y-1">
-      <label htmlFor={inputId} className="text-[10px] text-[#64748B] font-bold block">{label}</label>
-      {multiline ? (
-        <textarea
-          id={inputId}
-          name={inputId}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          className="w-full bg-[#FFFFFF] border border-[#E2E8F0] rounded-lg px-2.5 py-2 text-[11px] text-[#1A202C] placeholder-[#94A3B8] focus:outline-none focus:border-[#0D5771] focus:ring-1 focus:ring-[#0D5771] resize-none"
-          suppressHydrationWarning
-        />
-      ) : (
-        <input
-          id={inputId}
-          name={inputId}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full bg-[#FFFFFF] border border-[#E2E8F0] rounded-lg px-2.5 py-2 text-[11px] text-[#1A202C] placeholder-[#94A3B8] focus:outline-none focus:border-[#0D5771] focus:ring-1 focus:ring-[#0D5771]"
-          suppressHydrationWarning
-        />
-      )}
-    </div>
-  );
-}
-
+// ── Color Sanitizer ─────────────────────────────────────────────────────────
 function ensureHexColor(color?: string, fallback: string = '#FFFFFF'): string {
   if (!color || color === 'transparent' || color === 'inherit' || color === 'initial' || color === 'none') {
     return fallback;
@@ -590,158 +59,1146 @@ function ensureHexColor(color?: string, fallback: string = '#FFFFFF'): string {
   return fallback;
 }
 
-function StyleInput({
-  label, prop, defaultValue, type = 'text', options, service,
+// ── Clean CSS Unit Parser ───────────────────────────────────────────────────
+function parseCleanUnit(value: string, defaultUnit = 'px', isDecimal = false): { num: number; unit: string; isSpecial: boolean } {
+  if (!value || value === 'auto' || value === 'fit-content' || value === 'none') {
+    return { num: 0, unit: value || 'auto', isSpecial: true };
+  }
+  const match = String(value).trim().match(/^([+-]?\d*\.?\d+)\s*(px|%|rem|em|vw|vh)?$/i);
+  if (match) {
+    const rawNum = parseFloat(match[1]) || 0;
+    return {
+      num: isDecimal ? Math.round(rawNum * 100) / 100 : Math.round(rawNum),
+      unit: match[2] || defaultUnit,
+      isSpecial: false,
+    };
+  }
+  return { num: 0, unit: defaultUnit, isSpecial: false };
+}
+
+// ── Streamlined Clean Slider + Manual Input Component ───────────────────────
+function CleanSlider({
+  label,
+  prop,
+  min = 0,
+  max = 100,
+  step = 1,
+  defaultUnit = 'px',
+  defaultValue = '',
+  presets,
+  service,
 }: {
-  label: string; prop: string; defaultValue: string; type?: 'text' | 'color' | 'select';
-  options?: (string | { label: string; value: string })[]; service: ReturnType<typeof useEditor>['service'];
+  label: string;
+  prop: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  defaultUnit?: string;
+  defaultValue?: string;
+  presets?: { label: string; value: string }[];
+  service: ReturnType<typeof useEditor>['service'];
 }) {
-  const [val, setVal] = React.useState(defaultValue);
-  const inputId = `style-${prop.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+  const isDecimal = step < 1;
+  const currentVal = service?.getSelectedStyle(prop) || defaultValue || '';
+  const parsed = parseCleanUnit(currentVal, defaultUnit, isDecimal);
 
-  React.useEffect(() => {
-    setVal(defaultValue);
-  }, [defaultValue]);
+  const [numValue, setNumValue] = useState<number>(parsed.num);
+  const [activeUnit, setActiveUnit] = useState<string>(parsed.unit || defaultUnit);
+  const [isSpecial, setIsSpecial] = useState<boolean>(parsed.isSpecial);
 
-  const handleChange = (v: string) => {
-    setVal(v);
-    service?.updateSelectedStyle(prop, v);
+  useEffect(() => {
+    const val = service?.getSelectedStyle(prop) || defaultValue || '';
+    const p = parseCleanUnit(val, defaultUnit, isDecimal);
+    setNumValue(p.num);
+    setActiveUnit(p.unit || defaultUnit);
+    setIsSpecial(p.isSpecial);
+  }, [currentVal, prop, defaultValue, defaultUnit, isDecimal, service]);
+
+  // Subscribe to editor change events (e.g. keyboard arrow nudging) so slider updates in real time
+  useEffect(() => {
+    if (!service) return;
+    const unsub = service.onChanged(() => {
+      const val = service.getSelectedStyle(prop) || defaultValue || '';
+      const p = parseCleanUnit(val, defaultUnit, isDecimal);
+      setNumValue(p.num);
+      setActiveUnit(p.unit || defaultUnit);
+      setIsSpecial(p.isSpecial);
+    });
+    return () => unsub();
+  }, [service, prop, defaultValue, defaultUnit, isDecimal]);
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawN = parseFloat(e.target.value);
+    const n = isDecimal ? Math.round(rawN * 100) / 100 : Math.round(rawN);
+    setNumValue(n);
+    setIsSpecial(false);
+    const unit = activeUnit === 'auto' ? defaultUnit : activeUnit;
+    service?.updateSelectedStyle(prop, `${n}${unit}`);
   };
 
-  const safeColorVal = type === 'color' ? ensureHexColor(val, '#FFFFFF') : val;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.trim().toLowerCase();
+    if (raw === 'auto' || raw === 'fit-content' || raw === 'none') {
+      setIsSpecial(true);
+      service?.updateSelectedStyle(prop, raw);
+      return;
+    }
+    const rawN = parseFloat(raw);
+    if (!isNaN(rawN)) {
+      const n = isDecimal ? Math.round(rawN * 100) / 100 : Math.round(rawN);
+      setNumValue(n);
+      setIsSpecial(false);
+      const unit = activeUnit === 'auto' ? defaultUnit : activeUnit;
+      service?.updateSelectedStyle(prop, `${n}${unit}`);
+    }
+  };
+
+  const handlePreset = (val: string) => {
+    const p = parseCleanUnit(val, defaultUnit, isDecimal);
+    setNumValue(p.num);
+    setActiveUnit(p.unit);
+    setIsSpecial(p.isSpecial);
+    service?.updateSelectedStyle(prop, val);
+  };
+
+  const effectiveMin = Math.min(min, numValue);
+  const effectiveMax = Math.max(max, numValue);
 
   return (
-    <div className="flex items-center justify-between gap-2">
-      <label htmlFor={inputId} className="text-[10px] text-[#64748B] font-bold whitespace-nowrap">{label}</label>
-      {type === 'color' ? (
-        <div className="flex items-center gap-2">
+    <div className="space-y-1.5 py-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold text-slate-700">{label}</span>
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5 shadow-2xs">
           <input
-            id={inputId}
-            name={inputId}
-            type="color"
-            value={safeColorVal}
-            onChange={(e) => handleChange(e.target.value)}
-            className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
-            suppressHydrationWarning
+            type="text"
+            value={isSpecial ? parsed.unit : numValue}
+            onChange={handleInputChange}
+            className="w-12 text-[11px] font-mono font-bold text-slate-800 text-right bg-transparent focus:outline-none"
           />
-          <span className="text-[10px] text-[#64748B] font-mono">{val}</span>
+          {!isSpecial && <span className="text-[10px] font-mono text-slate-400">{defaultUnit}</span>}
         </div>
-      ) : type === 'select' ? (
-        <select
-          id={inputId}
-          name={inputId}
-          value={val}
-          onChange={(e) => handleChange(e.target.value)}
-          className="max-w-[140px] truncate bg-[#FFFFFF] border border-[#E2E8F0] rounded-lg px-2 py-1 text-[11px] text-[#1A202C] focus:outline-none focus:border-[#0D5771]"
-          suppressHydrationWarning
-        >
-          {options?.map((o) => {
-            const optVal = typeof o === 'string' ? o : o.value;
-            const optLabel = typeof o === 'string' ? o : o.label;
-            return <option key={optVal} value={optVal}>{optLabel}</option>;
+      </div>
+
+      <input
+        type="range"
+        min={effectiveMin}
+        max={effectiveMax}
+        step={step}
+        value={isSpecial ? effectiveMin : numValue}
+        onChange={handleSliderChange}
+        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0D5771] hover:bg-slate-300 transition-all"
+      />
+
+      {presets && presets.length > 0 && (
+        <div className="flex items-center gap-1 pt-0.5">
+          {presets.map((p) => {
+            const isSelected = isSpecial ? parsed.unit === p.value : `${numValue}${activeUnit}` === p.value;
+            return (
+              <button
+                key={p.label}
+                onClick={() => handlePreset(p.value)}
+                className={`text-[9px] font-bold font-mono px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#0D5771] text-white border-[#0D5771]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {p.label}
+              </button>
+            );
           })}
-        </select>
-      ) : (
-        <input
-          id={inputId}
-          name={inputId}
-          type="text"
-          value={val}
-          onChange={(e) => handleChange(e.target.value)}
-          className="w-24 bg-[#FFFFFF] border border-[#E2E8F0] rounded-lg px-2 py-1 text-[11px] text-[#1A202C] font-mono focus:outline-none focus:border-[#0D5771]"
-          suppressHydrationWarning
-        />
+        </div>
       )}
     </div>
   );
 }
 
-function AlignmentButtons({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
-  const options = ['left', 'center', 'right', 'justify'];
+// ── Clean Color Input with Palette ──────────────────────────────────────────
+function CleanColorPicker({
+  label,
+  prop,
+  defaultValue = '#FFFFFF',
+  service,
+}: {
+  label: string;
+  prop: string;
+  defaultValue?: string;
+  service: ReturnType<typeof useEditor>['service'];
+}) {
+  const currentVal = service?.getSelectedStyle(prop) || defaultValue;
+  const safeHex = ensureHexColor(currentVal, defaultValue);
+
+  const handleChange = (hex: string) => {
+    service?.updateSelectedStyle(prop, hex);
+  };
+
+  const palette = ['#0D5771', '#070C14', '#25D366', '#FFFFFF', '#F8FAFC', '#F59E0B', '#10B981', '#3B82F6'];
+
   return (
-    <div className="flex gap-1">
-      {options.map((align) => (
-        <button
-          key={align}
-          onClick={() => service?.updateSelectedStyle('text-align', align)}
-          className="flex-1 py-1.5 rounded-lg bg-[#FFFFFF] border border-[#E2E8F0] text-[10px] text-[#64748B] hover:text-[#1A202C] hover:border-[#0D5771] transition-all capitalize"
-        >
-          {align.charAt(0).toUpperCase()}
-        </button>
-      ))}
+    <div className="space-y-1.5 py-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold text-slate-700">{label}</span>
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-1 shadow-2xs">
+          <input
+            type="color"
+            value={safeHex}
+            onChange={(e) => handleChange(e.target.value)}
+            className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+          />
+          <input
+            type="text"
+            value={currentVal}
+            onChange={(e) => handleChange(e.target.value)}
+            className="w-16 text-[10px] font-mono font-bold text-slate-800 focus:outline-none uppercase"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 pt-0.5">
+        {palette.map((c) => (
+          <button
+            key={c}
+            onClick={() => handleChange(c)}
+            style={{ backgroundColor: c }}
+            className={`w-4 h-4 rounded-full border border-slate-300 shadow-2xs hover:scale-110 transition-transform cursor-pointer ${
+              safeHex.toLowerCase() === c.toLowerCase() ? 'ring-2 ring-[#0D5771] ring-offset-1' : ''
+            }`}
+            title={c}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-// ── Main RightPanel ─────────────────────────────────────────────────────────
+// ── Card Section Container ──────────────────────────────────────────────────
+function InspectorCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2.5 mb-2.5">
+      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-800 font-mono border-b border-slate-100 pb-2">
+        <span className="text-[#0D5771]">{icon}</span>
+        <span>{title}</span>
+      </div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
 
+// ── AI Rewrite Inline Block ────────────────────────────────────────────────
+function AIRewriteHelper({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleRewrite = async (style: 'polish' | 'punchy' | 'tone_luxury') => {
+    if (!service || loading) return;
+    const text = service.getSelectedText();
+    if (!text || text.trim().length === 0) return;
+
+    setLoading(true);
+    try {
+      const res = await AIEngine.rewriteInlineTextAsync(text.trim(), style);
+      if (res?.transformed && res.transformed.trim().length > 0) {
+        service.updateSelectedText(res.transformed.trim());
+      }
+    } catch (e) {
+      console.warn('[AI Rewrite] error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-2.5 rounded-xl bg-[#0D5771]/5 border border-[#0D5771]/15 space-y-2">
+      <div className="flex items-center justify-between text-[10px] font-mono font-bold text-[#0D5771]">
+        <span className="flex items-center gap-1.5">
+          <Wand2 className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span>AI COPYWRITER</span>
+        </span>
+        {loading && <span className="animate-pulse text-[9px]">Generating…</span>}
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        {[
+          { id: 'polish' as const, label: '✨ Polish' },
+          { id: 'punchy' as const, label: '⚡ Punchy' },
+          { id: 'tone_luxury' as const, label: '💎 Luxury' },
+        ].map((btn) => (
+          <button
+            key={btn.id}
+            onClick={() => handleRewrite(btn.id)}
+            disabled={loading}
+            className="py-1 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            {btn.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Smart Action & Link Engine Inspector Card ──────────────────────────────
+export function SmartActionLinkerCard({
+  service,
+  title = 'Smart Action & Link Engine',
+}: {
+  service: ReturnType<typeof useEditor>['service'];
+  title?: string;
+}) {
+  const { setActiveModuleModal } = useEditor();
+  const currentText = service?.getSelectedText() || '';
+  const traits = service?.getSelectedComponentTraits() || {};
+  const currentHref = traits.href || '';
+  const currentAction = traits['data-cuzmify-action'] || (currentHref.includes('wa.me') ? 'whatsapp:booking' : (currentHref ? 'custom:url' : 'whatsapp:booking'));
+  const currentTargetId = traits['data-cuzmify-target-id'] || '';
+
+  const services = service?.getServices() || [];
+  const products = service?.getProducts() || [];
+
+  const handleActionChange = (action: string) => {
+    if (!service) return;
+    service.updateSelectedTrait('data-cuzmify-action', action);
+
+    if (action === 'whatsapp:booking') {
+      const firstSrv = services[0];
+      const targetId = currentTargetId || firstSrv?.id;
+      if (targetId) {
+        service.updateSelectedTrait('data-cuzmify-target-id', targetId);
+      }
+      const url = service.generateWhatsAppLink({ type: 'booking', targetId });
+      service.updateSelectedTrait('href', url);
+    } else if (action === 'whatsapp:order') {
+      const firstPrd = products[0];
+      const targetId = currentTargetId || firstPrd?.id;
+      if (targetId) {
+        service.updateSelectedTrait('data-cuzmify-target-id', targetId);
+      }
+      const url = service.generateWhatsAppLink({ type: 'order', targetId });
+      service.updateSelectedTrait('href', url);
+    } else if (action === 'whatsapp:general') {
+      const url = service.generateWhatsAppLink({ type: 'general' });
+      service.updateSelectedTrait('href', url);
+    } else if (action === 'cart:add') {
+      service.updateSelectedTrait('href', '#cart');
+    } else if (action === 'cart:open' || action === 'cart:toggle') {
+      service.updateSelectedTrait('href', '#cart');
+    } else if (action === 'checkout' || action === 'payment:checkout') {
+      service.updateSelectedTrait('href', '#checkout');
+    } else if (action === 'booking:calendar') {
+      service.updateSelectedTrait('href', '#booking');
+    }
+  };
+
+  const handleServiceSelect = (srvId: string) => {
+    if (!service) return;
+    service.updateSelectedTrait('data-cuzmify-action', 'whatsapp:booking');
+    service.updateSelectedTrait('data-cuzmify-target-id', srvId);
+    const url = service.generateWhatsAppLink({ type: 'booking', targetId: srvId });
+    service.updateSelectedTrait('href', url);
+  };
+
+  const handleProductSelect = (prdId: string) => {
+    if (!service) return;
+    service.updateSelectedTrait('data-cuzmify-action', 'whatsapp:order');
+    service.updateSelectedTrait('data-cuzmify-target-id', prdId);
+    const url = service.generateWhatsAppLink({ type: 'order', targetId: prdId });
+    service.updateSelectedTrait('href', url);
+  };
+
+  return (
+    <InspectorCard title={title} icon={<LinkIcon className="w-3.5 h-3.5" />}>
+      {/* Action Label */}
+      {currentText && (
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-600">Element Label</label>
+          <input
+            type="text"
+            value={currentText}
+            onChange={(e) => service?.updateSelectedText(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-800 focus:outline-none focus:border-[#0D5771]"
+            placeholder="Action Label"
+          />
+        </div>
+      )}
+
+      {/* Action Type Dropdown */}
+      <div className="space-y-1 pt-1">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-slate-600">Attached Action Engine</label>
+          <button
+            onClick={() => setActiveModuleModal('whatsapp')}
+            className="text-[9px] font-bold text-[#0D5771] hover:underline flex items-center gap-0.5 cursor-pointer"
+          >
+            <Settings className="w-2.5 h-2.5" />
+            <span>Configure</span>
+          </button>
+        </div>
+        <select
+          value={currentAction}
+          onChange={(e) => handleActionChange(e.target.value)}
+          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-800 focus:outline-none focus:border-[#0D5771]"
+        >
+          <option value="whatsapp:booking">💬 WhatsApp Booking (Service)</option>
+          <option value="whatsapp:order">💬 WhatsApp Quick Order (Product)</option>
+          <option value="whatsapp:general">💬 WhatsApp General Chat</option>
+          <option value="cart:add">🛒 Add to Cart &amp; Open Drawer</option>
+          <option value="cart:open">🛍️ Open Shopping Cart</option>
+          <option value="checkout">💳 Online Checkout (Paystack/Stripe)</option>
+          <option value="booking:calendar">📅 Booking Form Modal</option>
+          <option value="custom:url">🔗 Custom URL / Section Anchor</option>
+        </select>
+      </div>
+
+      {/* Dynamic Target Selector depending on Action */}
+      {currentAction === 'whatsapp:booking' && (
+        <div className="space-y-1.5 p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80">
+          <label className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 font-mono">
+            Target Service Item
+          </label>
+          <select
+            value={currentTargetId}
+            onChange={(e) => handleServiceSelect(e.target.value)}
+            className="w-full bg-white border border-emerald-200 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-800 focus:outline-none"
+          >
+            <option value="">General Booking Consultation</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({service?.formatCurrency(s.price) || `$${s.price}`})
+              </option>
+            ))}
+          </select>
+          <a
+            href={currentHref || service?.generateWhatsAppLink({ type: 'booking', targetId: currentTargetId })}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between text-[10px] text-emerald-700 hover:text-emerald-900 font-bold pt-1"
+          >
+            <span>Test WhatsApp Link</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      )}
+
+      {currentAction === 'whatsapp:order' && (
+        <div className="space-y-1.5 p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80">
+          <label className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 font-mono">
+            Target Product Item
+          </label>
+          <select
+            value={currentTargetId}
+            onChange={(e) => handleProductSelect(e.target.value)}
+            className="w-full bg-white border border-emerald-200 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-800 focus:outline-none"
+          >
+            <option value="">Select a Product</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({service?.formatCurrency(p.price) || `$${p.price}`})
+              </option>
+            ))}
+          </select>
+          <a
+            href={currentHref || service?.generateWhatsAppLink({ type: 'order', targetId: currentTargetId })}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between text-[10px] text-emerald-700 hover:text-emerald-900 font-bold pt-1"
+          >
+            <span>Test WhatsApp Order</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      )}
+
+      {currentAction === 'custom:url' && (
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-600">Destination Link</label>
+          <input
+            type="text"
+            value={currentHref}
+            onChange={(e) => service?.updateSelectedTrait('href', e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-slate-700 focus:outline-none focus:border-[#0D5771]"
+            placeholder="https://... or #services"
+          />
+        </div>
+      )}
+    </InspectorCard>
+  );
+}
+
+// ── Button Specific Controls ────────────────────────────────────────────────
+function ButtonInspector({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
+  return (
+    <>
+      <SmartActionLinkerCard service={service} title="Smart Action & Link Engine" />
+
+      <InspectorCard title="Button Sizing & Shape" icon={<Maximize2 className="w-3.5 h-3.5" />}>
+        {/* Shape Presets */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-slate-600">Button Shape</label>
+          <div className="grid grid-cols-3 gap-1">
+            {[
+              { label: 'Square', radius: '0px' },
+              { label: 'Rounded', radius: '12px' },
+              { label: 'Pill 💊', radius: '9999px' },
+            ].map((s) => (
+              <button
+                key={s.label}
+                onClick={() => service?.updateSelectedStyle('border-radius', s.radius)}
+                className="py-1.5 text-[10px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all cursor-pointer shadow-2xs text-center"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <CleanSlider
+          label="Button Width"
+          prop="width"
+          min={80}
+          max={600}
+          step={4}
+          defaultValue="auto"
+          presets={[
+            { label: 'Auto (Fit)', value: 'auto' },
+            { label: '100% Full', value: '100%' },
+            { label: '240px', value: '240px' },
+          ]}
+          service={service}
+        />
+
+        <CleanSlider
+          label="Button Padding"
+          prop="padding"
+          min={4}
+          max={32}
+          step={2}
+          defaultValue="12px 24px"
+          presets={[
+            { label: 'Compact', value: '8px 16px' },
+            { label: 'Standard', value: '12px 24px' },
+            { label: 'Spacious', value: '16px 32px' },
+          ]}
+          service={service}
+        />
+      </InspectorCard>
+
+      <InspectorCard title="Button Colors" icon={<Palette className="w-3.5 h-3.5" />}>
+        <CleanColorPicker label="Background" prop="background-color" defaultValue="#0D5771" service={service} />
+        <CleanColorPicker label="Text Color" prop="color" defaultValue="#FFFFFF" service={service} />
+      </InspectorCard>
+    </>
+  );
+}
+
+// ── Typography Controls (Headings, Paragraphs, Text) ────────────────────────
+function TypographyInspector({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
+  const currentAlign = service?.getSelectedStyle('text-align') || 'left';
+  const currentFont = service?.getSelectedStyle('font-family') || "'Plus Jakarta Sans', sans-serif";
+
+  const fonts = [
+    { label: 'Plus Jakarta Sans (Modern Clean)', val: "'Plus Jakarta Sans', sans-serif" },
+    { label: 'Playfair Display (Luxury Serif)', val: "'Playfair Display', serif" },
+    { label: 'Cormorant Garamond (Editorial)', val: "'Cormorant Garamond', serif" },
+    { label: 'Bodoni Moda (High Fashion)', val: "'Bodoni Moda', serif" },
+    { label: 'Inter (Tech Minimal)', val: "'Inter', sans-serif" },
+    { label: 'Outfit (Geometric)', val: "'Outfit', sans-serif" },
+    { label: 'Syne (Avant-Garde)', val: "'Syne', sans-serif" },
+    { label: 'Space Grotesk (Neo-Brutalism)', val: "'Space Grotesk', sans-serif" },
+    { label: 'Cinzel (Royal Roman)', val: "'Cinzel', serif" },
+  ];
+
+  return (
+    <>
+      <AIRewriteHelper service={service} />
+
+      <SmartActionLinkerCard service={service} title="Attach Action / Link to Text" />
+
+      <InspectorCard title="Typography & Font" icon={<Type className="w-3.5 h-3.5" />}>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-slate-600">Font Family</label>
+          <select
+            value={currentFont}
+            onChange={(e) => service?.updateSelectedStyle('font-family', e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-800 focus:outline-none focus:border-[#0D5771]"
+          >
+            {fonts.map((f) => (
+              <option key={f.label} value={f.val}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <CleanSlider
+          label="Font Size"
+          prop="font-size"
+          min={10}
+          max={84}
+          step={1}
+          defaultValue="16px"
+          presets={[
+            { label: '14px', value: '14px' },
+            { label: '18px', value: '18px' },
+            { label: '24px', value: '24px' },
+            { label: '36px', value: '36px' },
+            { label: '48px', value: '48px' },
+          ]}
+          service={service}
+        />
+
+        {/* Font Weight */}
+        <div className="space-y-1.5 pt-1">
+          <label className="text-[10px] font-bold text-slate-600">Font Weight</label>
+          <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg">
+            {[
+              { label: 'Regular', val: '400' },
+              { label: 'Medium', val: '500' },
+              { label: 'Semi', val: '600' },
+              { label: 'Bold', val: '700' },
+            ].map((w) => (
+              <button
+                key={w.label}
+                onClick={() => service?.updateSelectedStyle('font-weight', w.val)}
+                className="py-1 text-[10px] font-bold rounded-md text-slate-600 hover:text-slate-900 hover:bg-white/80 transition-all cursor-pointer text-center"
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Alignment Segmented Buttons */}
+        <div className="space-y-1.5 pt-1">
+          <label className="text-[10px] font-bold text-slate-600">Alignment</label>
+          <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg">
+            {[
+              { id: 'left', icon: <AlignLeft className="w-3.5 h-3.5 mx-auto" /> },
+              { id: 'center', icon: <AlignCenter className="w-3.5 h-3.5 mx-auto" /> },
+              { id: 'right', icon: <AlignRight className="w-3.5 h-3.5 mx-auto" /> },
+              { id: 'justify', icon: <AlignJustify className="w-3.5 h-3.5 mx-auto" /> },
+            ].map((a) => (
+              <button
+                key={a.id}
+                onClick={() => service?.updateSelectedStyle('text-align', a.id)}
+                className={`py-1 rounded-md transition-all cursor-pointer ${
+                  currentAlign.toLowerCase() === a.id ? 'bg-[#0D5771] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {a.icon}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <CleanColorPicker label="Text Color" prop="color" defaultValue="#1A202C" service={service} />
+      </InspectorCard>
+
+      {/* Text Position, Spacing & Nudging */}
+      <InspectorCard title="Text Position & Spacing" icon={<Move className="w-3.5 h-3.5" />}>
+        <CleanSlider
+          label="Vertical Position (Top Shift)"
+          prop="margin-top"
+          min={-150}
+          max={300}
+          step={4}
+          defaultValue="0px"
+          presets={[
+            { label: '-40px', value: '-40px' },
+            { label: '0px', value: '0px' },
+            { label: '24px', value: '24px' },
+            { label: '64px', value: '64px' },
+            { label: '120px', value: '120px' },
+          ]}
+          service={service}
+        />
+
+        <CleanSlider
+          label="Bottom Spacing (Gap Below)"
+          prop="margin-bottom"
+          min={0}
+          max={200}
+          step={4}
+          defaultValue="0px"
+          presets={[
+            { label: '0px', value: '0px' },
+            { label: '16px', value: '16px' },
+            { label: '32px', value: '32px' },
+            { label: '64px', value: '64px' },
+          ]}
+          service={service}
+        />
+
+        <CleanSlider
+          label="Horizontal Position / Indent"
+          prop="margin-left"
+          min={-200}
+          max={800}
+          step={4}
+          defaultValue="0px"
+          presets={[
+            { label: '0px', value: '0px' },
+            { label: 'Center (0 auto)', value: '0px auto' },
+            { label: '120px', value: '120px' },
+            { label: '300px', value: '300px' },
+            { label: '500px', value: '500px' },
+          ]}
+          service={service}
+        />
+      </InspectorCard>
+
+      {/* Text Box Width & Line Wrapping */}
+      <InspectorCard title="Text Box Width & Wrap" icon={<Maximize2 className="w-3.5 h-3.5" />}>
+        <CleanSlider
+          label="Max Width"
+          prop="max-width"
+          min={160}
+          max={1200}
+          step={10}
+          defaultValue="none"
+          presets={[
+            { label: '100% Full', value: '100%' },
+            { label: '540px (Paragraph)', value: '540px' },
+            { label: '380px (Compact)', value: '380px' },
+            { label: 'Auto / None', value: 'none' },
+          ]}
+          service={service}
+        />
+
+        <CleanSlider
+          label="Line Height"
+          prop="line-height"
+          min={0.8}
+          max={2.5}
+          step={0.05}
+          defaultUnit=""
+          defaultValue="1.5"
+          presets={[
+            { label: 'Tight (1.1)', value: '1.1' },
+            { label: 'Normal (1.5)', value: '1.5' },
+            { label: 'Relaxed (1.8)', value: '1.8' },
+          ]}
+          service={service}
+        />
+
+        <CleanSlider
+          label="Letter Spacing (Tracking)"
+          prop="letter-spacing"
+          min={-0.05}
+          max={0.3}
+          step={0.01}
+          defaultUnit="em"
+          defaultValue="0em"
+          presets={[
+            { label: 'Normal (0)', value: '0em' },
+            { label: 'Wide (0.08em)', value: '0.08em' },
+            { label: 'Caps (0.12em)', value: '0.12em' },
+          ]}
+          service={service}
+        />
+      </InspectorCard>
+    </>
+  );
+}
+
+// ── Image Inspector ────────────────────────────────────────────────────────
+function ImageInspector({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
+  const { setActiveModuleModal } = useEditor();
+  const traits = service?.getSelectedComponentTraits() || {};
+  const currentSrc = traits.src || '';
+  const currentAlt = traits.alt || '';
+
+  const handleSrcChange = (val: string) => {
+    service?.updateSelectedTrait('src', val);
+  };
+
+  return (
+    <>
+      <SmartActionLinkerCard service={service} title="Image Click Action" />
+
+      <InspectorCard title="Image Source & Media Vault" icon={<ImageIcon className="w-3.5 h-3.5" />}>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-bold text-slate-600">Image URL</label>
+            <button
+              onClick={() => setActiveModuleModal('media')}
+              className="text-[9px] font-bold text-[#0D5771] hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+              <span>Open Media Vault</span>
+            </button>
+          </div>
+          <input
+            type="text"
+            value={currentSrc}
+            onChange={(e) => handleSrcChange(e.target.value)}
+            placeholder="https://images.unsplash.com/..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-slate-800 focus:outline-none focus:border-[#0D5771]"
+          />
+        </div>
+
+        <div className="space-y-1 pt-1">
+          <label className="text-[10px] font-bold text-slate-600">Alt Text (SEO &amp; Accessibility)</label>
+          <input
+            type="text"
+            value={currentAlt}
+            onChange={(e) => service?.updateSelectedTrait('alt', e.target.value)}
+            placeholder="e.g. Bridal Glam Artistry"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-800 focus:outline-none focus:border-[#0D5771]"
+          />
+        </div>
+      </InspectorCard>
+
+      <InspectorCard title="Dimensions & Style" icon={<Maximize2 className="w-3.5 h-3.5" />}>
+        <CleanSlider
+          label="Corner Radius"
+          prop="border-radius"
+          min={0}
+          max={60}
+          step={2}
+          defaultValue="16px"
+          presets={[
+            { label: 'Square', value: '0px' },
+            { label: 'Rounded', value: '16px' },
+            { label: 'Circle ⭕', value: '9999px' },
+          ]}
+          service={service}
+        />
+        <CleanSlider
+          label="Max Width"
+          prop="max-width"
+          min={100}
+          max={1200}
+          step={20}
+          defaultValue="100%"
+          service={service}
+        />
+      </InspectorCard>
+    </>
+  );
+}
+
+// ── Generic / Container Inspector ───────────────────────────────────────────
+function ContainerInspector({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
+  const currentDisplay = service?.getSelectedStyle('display') || 'block';
+
+  return (
+    <>
+      <SmartActionLinkerCard service={service} title="Attach Action / Clickable Card" />
+
+      <InspectorCard title="Dimensions & Sizing" icon={<Maximize2 className="w-3.5 h-3.5" />}>
+        <CleanSlider
+          label="Width"
+          prop="width"
+          min={0}
+          max={1200}
+          step={10}
+          defaultValue="100%"
+          presets={[
+            { label: '100% Full', value: '100%' },
+            { label: 'Auto (Fit)', value: 'auto' },
+            { label: '50%', value: '50%' },
+          ]}
+          service={service}
+        />
+
+        <CleanSlider
+          label="Max Width"
+          prop="max-width"
+          min={300}
+          max={1400}
+          step={20}
+          defaultValue="1200px"
+          presets={[
+            { label: '1200px (Standard)', value: '1200px' },
+            { label: '100% Full', value: '100%' },
+            { label: 'None', value: 'none' },
+          ]}
+          service={service}
+        />
+      </InspectorCard>
+
+      <InspectorCard title="Spacing" icon={<Box className="w-3.5 h-3.5" />}>
+        <CleanSlider
+          label="Inner Spacing (Padding)"
+          prop="padding"
+          min={0}
+          max={100}
+          step={4}
+          defaultValue="16px"
+          presets={[
+            { label: '0', value: '0px' },
+            { label: '16px', value: '16px' },
+            { label: '32px', value: '32px' },
+            { label: '64px', value: '64px' },
+          ]}
+          service={service}
+        />
+
+        <CleanSlider
+          label="Outer Spacing (Margin)"
+          prop="margin"
+          min={0}
+          max={80}
+          step={4}
+          defaultValue="0px auto"
+          presets={[
+            { label: '0', value: '0px' },
+            { label: 'Center (0 auto)', value: '0px auto' },
+            { label: '24px', value: '24px' },
+          ]}
+          service={service}
+        />
+      </InspectorCard>
+
+      <InspectorCard title="Layout Arrangement" icon={<Layout className="w-3.5 h-3.5" />}>
+        <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg">
+          {[
+            { id: 'block', label: 'Stacked' },
+            { id: 'flex', label: 'Side by Side' },
+            { id: 'grid', label: 'Grid' },
+          ].map((d) => (
+            <button
+              key={d.id}
+              onClick={() => service?.updateSelectedStyle('display', d.id)}
+              className={`py-1.5 text-[10px] font-bold rounded-md transition-all cursor-pointer text-center ${
+                currentDisplay.toLowerCase() === d.id ? 'bg-[#0D5771] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+      </InspectorCard>
+
+      <InspectorCard title="Appearance & Colors" icon={<Palette className="w-3.5 h-3.5" />}>
+        <CleanColorPicker label="Background Color" prop="background-color" defaultValue="#FFFFFF" service={service} />
+        <CleanSlider
+          label="Corner Radius"
+          prop="border-radius"
+          min={0}
+          max={60}
+          step={2}
+          defaultValue="0px"
+          presets={[
+            { label: 'Square', value: '0px' },
+            { label: 'Rounded', value: '16px' },
+            { label: 'Pill 💊', value: '9999px' },
+          ]}
+          service={service}
+        />
+      </InspectorCard>
+    </>
+  );
+}
+
+// ── Collapsible Advanced Drawer (Position, Z-Index, Raw Coordinates) ────────
+function AdvancedDrawer({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const currentPos = service?.getSelectedStyle('position') || 'static';
+
+  return (
+    <div className="border border-slate-200 rounded-xl bg-white overflow-hidden shadow-2xs mb-4">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-left transition-colors cursor-pointer text-slate-600"
+      >
+        <span className="text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5">
+          <Move className="w-3 h-3 text-slate-500" />
+          <span>Advanced Positioning &amp; Z-Index</span>
+        </span>
+        {isOpen ? <ChevronDown className="w-3 h-3 text-slate-400" /> : <ChevronRight className="w-3 h-3 text-slate-400" />}
+      </button>
+
+      {isOpen && (
+        <div className="p-3 space-y-3 border-t border-slate-100 bg-white">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-600">Position Mode</label>
+            <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg">
+              {['static', 'relative', 'absolute', 'fixed'].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => service?.updateSelectedStyle('position', p)}
+                  className={`py-1 text-[9px] font-bold rounded-md capitalize transition-all cursor-pointer text-center ${
+                    currentPos.toLowerCase() === p ? 'bg-[#0D5771] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <CleanSlider label="Z-Index" prop="z-index" min={0} max={999} step={1} defaultUnit="" service={service} />
+          <CleanSlider
+            label="Opacity"
+            prop="opacity"
+            min={0}
+            max={1}
+            step={0.05}
+            defaultUnit=""
+            defaultValue="1"
+            presets={[
+              { label: '100%', value: '1' },
+              { label: '75%', value: '0.75' },
+              { label: '50%', value: '0.5' },
+              { label: '25%', value: '0.25' },
+            ]}
+            service={service}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── No Selection Panel ──────────────────────────────────────────────────────
+function NoSelectionPanel() {
+  const { theme, handleThemeChange } = useEditor();
+
+  const THEMES: { id: ThemeName; label: string; emoji: string }[] = [
+    { id: 'bram-light', label: 'Bram Light', emoji: '💎' },
+    { id: 'luxury', label: 'Luxury', emoji: '✨' },
+    { id: 'dark-obsidian', label: 'Dark Obsidian', emoji: '🖤' },
+    { id: 'editorial', label: 'Editorial', emoji: '📰' },
+    { id: 'minimal', label: 'Minimal', emoji: '⬜' },
+    { id: 'modern', label: 'Modern', emoji: '🔵' },
+    { id: 'vibrant', label: 'Vibrant', emoji: '💗' },
+    { id: 'apple-luxury', label: 'Apple Luxury', emoji: '🍏' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
+        <MousePointer2 className="w-5 h-5 text-[#0D5771] mx-auto animate-bounce" />
+        <h3 className="text-xs font-bold text-slate-800">Select Any Element</h3>
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          Click any button, text, heading, or container on the canvas to customize its styling with visual sliders.
+        </p>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-2.5">
+        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-800 font-mono border-b border-slate-100 pb-2">
+          <Palette className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span>Curated Theme Presets</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {THEMES.map((t) => {
+            const tok = DESIGN_TOKENS[t.id];
+            const isSelected = theme === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => handleThemeChange(t.id)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                  isSelected
+                    ? 'border-[#0D5771] bg-[#0D5771]/10 text-[#0D5771] font-bold shadow-xs'
+                    : 'border-slate-200 bg-slate-50 hover:border-[#0D5771]/40 text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <div className="w-3.5 h-3.5 rounded-full shrink-0 border border-slate-300" style={{ background: tok.colorSecondary }} />
+                <span className="text-[10px] font-bold truncate">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Streamlined RightPanel ─────────────────────────────────────────────
 export function RightPanel() {
   const { selectedComponent, service, attachSelectedToChat } = useEditor();
   const type = selectedComponent.type?.toLowerCase() ?? null;
 
-  const renderPanel = () => {
-    if (!type) return <NoSelectionPanel />;
-    if (type.includes('hero') || type.includes('cuzmify-hero')) return <HeroPanel />;
-    if (type.includes('services') || type.includes('service')) return <ServicesPanel />;
-    if (type.includes('booking') || type.includes('whatsapp')) return <BookingPanel />;
-    if (type === 'text' || type === 'span' || type === 'p' || type === 'h1' || type === 'h2' || type === 'h3') return <TextPanel />;
-    if (type === 'image' || type === 'img') return <ImagePanel />;
-    if (type === 'button' || type === 'a' || type.includes('button')) return <ButtonPanel />;
-    return <GenericPanel type={type} />;
-  };
+  const isButton =
+    type === 'button' ||
+    type === 'a' ||
+    type === 'link' ||
+    (type && type.includes('button')) ||
+    (type && type.includes('link')) ||
+    (selectedComponent.traits && ('href' in selectedComponent.traits || 'data-cuzmify-action' in selectedComponent.traits));
+  const isText = type === 'text' || type === 'span' || type === 'p' || type === 'h1' || type === 'h2' || type === 'h3';
+  const isImage = type === 'image' || type === 'img' || (selectedComponent.traits && 'src' in selectedComponent.traits);
 
   return (
     <aside
       style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
-      className="shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-x-hidden animate-in slide-in-from-right duration-200 shadow-2xs z-30"
+      className="shrink-0 bg-slate-50/70 border-l border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 shadow-2xs z-30 select-none"
     >
       {/* Precision Panel Header */}
-      <div className="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/50 shrink-0 flex items-center justify-between">
-        <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-mono">
-          {!type ? 'DESIGN & THEMES' : type.replace('cuzmify-', '').replace(/-/g, ' ')}
-        </h2>
+      <div className="px-4 py-2.5 border-b border-slate-200 bg-white shrink-0 flex items-center justify-between shadow-2xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <Sliders className="w-3.5 h-3.5 text-[#0D5771]" />
+          <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono truncate">
+            {!type ? 'DESIGN INSPECTOR' : `<${type.replace('cuzmify-', '')}>`}
+          </h2>
+        </div>
         <div className="flex items-center gap-1.5">
           {type && (
             <span className="text-[9px] font-bold text-[#0D5771] uppercase bg-[#0D5771]/10 px-2 py-0.5 rounded font-mono border border-[#0D5771]/20">
-              INSPECTING
+              ACTIVE
             </span>
           )}
           <button
             onClick={() => service?.deselect()}
-            className="w-6 h-6 rounded-md hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-            title="Close Panel (Deselect)"
+            className="w-6 h-6 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+            title="Deselect Element (Esc)"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin">
-        {type && (
-          <div className="p-3 rounded-xl bg-gradient-to-br from-[#0D5771]/10 via-[#0D5771]/5 to-transparent border border-[#0D5771]/20 shadow-2xs space-y-2 mb-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-[#0D5771] flex items-center gap-1.5 uppercase">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" /> TARGET WITH AI
-              </span>
-              <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
-                &lt;{type}&gt;
-              </span>
+      {/* Scrollable Inspector Body */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+        {!type ? (
+          <NoSelectionPanel />
+        ) : (
+          <>
+            {/* Quick AI Pinpoint Bar */}
+            <div className="p-3 rounded-xl bg-gradient-to-br from-[#0D5771]/10 via-[#0D5771]/5 to-transparent border border-[#0D5771]/20 shadow-2xs space-y-2 mb-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono font-bold text-[#0D5771] flex items-center gap-1.5 uppercase">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" /> AI PINPOINT COPILOT
+                </span>
+                <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
+                  &lt;{type}&gt;
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-snug">
+                Target this element with AI prompts to modify copy or styling with zero impact on other sections.
+              </p>
+              <button
+                onClick={attachSelectedToChat}
+                className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-[11px] font-bold shadow-md shadow-[#0D5771]/20 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-amber-300" />
+                <span>Target Element with AI</span>
+              </button>
             </div>
-            <p className="text-[11px] text-[#64748B] leading-snug">
-              Pinpoint this element in the AI Copilot to modify styling, width, or text with zero impact on other sections.
-            </p>
-            <button
-              onClick={attachSelectedToChat}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-[11px] font-bold shadow-md shadow-[#0D5771]/20 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-amber-300" />
-              <span>Add Element to AI Chat</span>
-            </button>
-          </div>
-        )}
 
-        {renderPanel()}
+            {/* Context-Aware Inspector Sections */}
+            {isButton ? (
+              <ButtonInspector service={service} />
+            ) : isText ? (
+              <TypographyInspector service={service} />
+            ) : isImage ? (
+              <ImageInspector service={service} />
+            ) : (
+              <ContainerInspector service={service} />
+            )}
+
+            {/* Collapsed Advanced Positioning & Z-Index */}
+            <AdvancedDrawer service={service} />
+          </>
+        )}
       </div>
     </aside>
   );
