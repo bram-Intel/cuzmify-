@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MousePointer2,
   Type,
@@ -32,6 +32,8 @@ import {
   CreditCard,
   Calendar,
   Settings,
+  Upload,
+  Check,
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import { DESIGN_TOKENS } from './theme/DesignTokens';
@@ -808,13 +810,40 @@ function TypographyInspector({ service }: { service: ReturnType<typeof useEditor
 
 // ── Image Inspector ────────────────────────────────────────────────────────
 function ImageInspector({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
-  const { setActiveModuleModal } = useEditor();
+  const { setActiveModuleModal, setSaveToast } = useEditor();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const traits = service?.getSelectedComponentTraits() || {};
   const currentSrc = traits.src || '';
   const currentAlt = traits.alt || '';
 
+  const mediaVault = service?.getMediaVault() || [];
+
   const handleSrcChange = (val: string) => {
     service?.updateSelectedTrait('src', val);
+  };
+
+  const handleUploadLocalFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) return;
+
+      const name = file.name.replace(/\.[^/.]+$/, '');
+      service?.applyImageToSelected(dataUrl, name);
+      service?.addMediaAsset({
+        url: dataUrl,
+        name,
+        type: 'gallery',
+        source: 'upload',
+      });
+      setSaveToast(`✦ Replaced image on canvas with "${name}"!`);
+      setTimeout(() => setSaveToast(null), 3000);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   return (
@@ -822,17 +851,83 @@ function ImageInspector({ service }: { service: ReturnType<typeof useEditor>['se
       <SmartActionLinkerCard service={service} title="Image Click Action" />
 
       <InspectorCard title="Image Source & Media Vault" icon={<ImageIcon className="w-3.5 h-3.5" />}>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold text-slate-600">Image URL</label>
-            <button
-              onClick={() => setActiveModuleModal('media')}
-              className="text-[9px] font-bold text-[#0D5771] hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-              <span>Open Media Vault</span>
-            </button>
+        {/* Hidden File Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleUploadLocalFile}
+          className="hidden"
+        />
+
+        {/* Upload Action Button */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-[#0D5771] to-[#3498E3] hover:opacity-95 text-white font-bold text-[11px] shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload from Computer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveModuleModal('media')}
+            className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Sparkles className="w-3 h-3 text-amber-500" />
+            <span>Browse Vault</span>
+          </button>
+        </div>
+
+        {/* Quick Swap Media Vault Strips */}
+        {mediaVault.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-slate-500 uppercase font-mono">
+                Quick Swap from Vault
+              </label>
+              <button
+                type="button"
+                onClick={() => setActiveModuleModal('media')}
+                className="text-[9px] font-bold text-[#0D5771] hover:underline"
+              >
+                View all ({mediaVault.length})
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {mediaVault.slice(0, 4).map((m) => {
+                const isActive = currentSrc === m.url;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      service?.applyImageToSelected(m.url, m.name);
+                      setSaveToast(`✦ Swapped image: ${m.name}`);
+                      setTimeout(() => setSaveToast(null), 2000);
+                    }}
+                    className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                      isActive ? 'border-[#0D5771] ring-2 ring-[#0D5771]/20 scale-105' : 'border-slate-200 hover:border-slate-400'
+                    }`}
+                    title={`Click to use ${m.name}`}
+                  >
+                    <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                    {isActive && (
+                      <span className="absolute inset-0 bg-[#0D5771]/30 flex items-center justify-center text-white">
+                        <Check className="w-3 h-3 font-bold" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        )}
+
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <label className="text-[10px] font-bold text-slate-600">Direct Image URL</label>
           <input
             type="text"
             value={currentSrc}

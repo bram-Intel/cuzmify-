@@ -174,55 +174,77 @@ export interface ActionBinding {
   url?: string;
 }
 
+export interface BlueprintInitOptions {
+  name?: string;
+  tagline?: string;
+  category?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  currency?: CurrencyCode;
+  instagramHandle?: string;
+  services?: ServiceItem[];
+  products?: ProductItem[];
+  mediaVault?: MediaVaultAsset[];
+}
+
 // ── Initial Default Blueprint Factory ───────────────────────────────────────
-export function createDefaultBlueprint(businessName = 'Gmakeup Studio', theme: string = 'bram-light'): BusinessBlueprint {
+export function createDefaultBlueprint(optionsOrName?: string | BlueprintInitOptions, theme: string = 'bram-light'): BusinessBlueprint {
+  const options: BlueprintInitOptions = typeof optionsOrName === 'string' ? { name: optionsOrName } : (optionsOrName || {});
+  const businessName = options.name || 'Gmakeup Studio';
+  const currency = options.currency || 'USD';
+  const category = options.category || 'Makeup Artist';
+  const whatsappNumber = options.whatsapp || '18005554526';
+  const instagramHandle = options.instagramHandle || '';
+
   return {
     version: '1.0',
     profile: {
       name: businessName,
-      tagline: 'World-class luxury beauty artistry and flawless styling.',
-      category: 'Makeup Artist',
-      phone: '+1 (800) 555-GLAM',
-      whatsapp: '18005554526',
-      email: 'concierge@gmakeupstudio.com',
+      tagline: options.tagline || 'World-class luxury beauty artistry and flawless styling.',
+      category,
+      phone: options.phone || '+1 (800) 555-GLAM',
+      whatsapp: whatsappNumber,
+      email: options.email || 'concierge@cuzmify.local',
       address: '742 Evergreen Terrace',
       city: 'Los Angeles, CA',
       country: 'United States',
-      currency: 'USD',
+      currency,
+      instagramHandle,
     },
     modules: {
       whatsapp: {
         enabled: true,
-        phoneNumber: '18005554526',
-        defaultBookingTemplate: 'Hello {businessName}, I would like to inquire about booking the {serviceName} ({price}). My preferred date is [insert date].',
-        defaultProductOrderTemplate: 'Hello {businessName}, I would like to order {productName} ({price}). Please confirm availability!',
-        generalInquiryTemplate: 'Hello {businessName}, I have a general inquiry regarding your services.',
+        phoneNumber: whatsappNumber,
+        defaultBookingTemplate: `Hello ${businessName}, I would like to inquire about booking the {serviceName} ({price}). My preferred date is [insert date].`,
+        defaultProductOrderTemplate: `Hello ${businessName}, I would like to order {productName} ({price}). Please confirm availability!`,
+        generalInquiryTemplate: `Hello ${businessName}, I have a general inquiry regarding your services.`,
         floatingWidgetEnabled: true,
         floatingWidgetPosition: 'bottom-right',
         floatingWidgetGreeting: 'Chat with our artistry team on WhatsApp',
       },
       services: {
         enabled: true,
-        currency: 'USD',
-        items: [
+        currency,
+        items: options.services && options.services.length > 0 ? options.services : [
           {
             id: 'srv-bridal-suite',
             name: 'Royal Platinum Bridal Suite',
-            price: 380,
+            price: currency === 'NGN' ? 380000 : 380,
             durationMinutes: 120,
             locationType: 'on_location',
             description: 'Complete bridal preview trial, 24hr HD airbrush makeup, couture hair design, and emergency touch-up kit.',
             tag: 'BRIDAL',
             category: 'Bridal',
             depositRequired: true,
-            depositAmount: 100,
+            depositAmount: currency === 'NGN' ? 100000 : 100,
             imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',
             enabled: true,
           },
           {
             id: 'srv-glam-session',
             name: 'Red Carpet & Evening Glam',
-            price: 180,
+            price: currency === 'NGN' ? 190000 : 180,
             durationMinutes: 75,
             locationType: 'in_studio',
             description: 'Full luxury soft/cut-crease glam with premium mink lashes and precision 24hr airbrushing.',
@@ -232,8 +254,8 @@ export function createDefaultBlueprint(businessName = 'Gmakeup Studio', theme: s
           },
           {
             id: 'srv-destination-concierge',
-            name: 'Destination Wedding VIP Concierge',
-            price: 1200,
+            name: 'Destination VIP Concierge',
+            price: currency === 'NGN' ? 1200000 : 1200,
             durationMinutes: 480,
             locationType: 'on_location',
             description: 'Full-day dedicated on-location artist for ceremony, reception restyling, and photoshoot glam.',
@@ -244,7 +266,7 @@ export function createDefaultBlueprint(businessName = 'Gmakeup Studio', theme: s
           {
             id: 'srv-masterclass',
             name: '1-on-1 Pro Masterclass Session',
-            price: 260,
+            price: currency === 'NGN' ? 260000 : 260,
             durationMinutes: 90,
             locationType: 'in_studio',
             description: 'Hands-on bespoke technique training covering skin diagnosis, lash mapping, and contouring.',
@@ -256,13 +278,13 @@ export function createDefaultBlueprint(businessName = 'Gmakeup Studio', theme: s
       },
       products: {
         enabled: true,
-        currency: 'USD',
-        items: [
+        currency,
+        items: options.products && options.products.length > 0 ? options.products : [
           {
             id: 'prd-silk-lashes',
             name: 'Haute Couture 3D Silk Lashes',
-            price: 28,
-            compareAtPrice: 35,
+            price: currency === 'NGN' ? 28000 : 28,
+            compareAtPrice: currency === 'NGN' ? 35000 : 35,
             inStock: true,
             inventoryCount: 45,
             category: 'Lashes',
@@ -273,7 +295,7 @@ export function createDefaultBlueprint(businessName = 'Gmakeup Studio', theme: s
           {
             id: 'prd-glow-mist',
             name: '24hr Hydro-Glow Setting Mist',
-            price: 36,
+            price: currency === 'NGN' ? 36000 : 36,
             inStock: true,
             inventoryCount: 20,
             category: 'Skincare',
@@ -285,24 +307,24 @@ export function createDefaultBlueprint(businessName = 'Gmakeup Studio', theme: s
       },
       cart: {
         enabled: true,
-        currency: 'USD',
+        currency,
         checkoutMode: 'whatsapp',
         collectDeliveryAddress: true,
       },
       payments: {
         enabled: false,
         provider: 'paystack',
-        currency: 'USD',
+        currency,
         testMode: true,
       },
       booking: {
         enabled: true,
         mode: 'whatsapp',
         requireDeposit: false,
-        defaultDepositAmount: 50,
+        defaultDepositAmount: currency === 'NGN' ? 50000 : 50,
       },
     },
-    mediaVault: [
+    mediaVault: options.mediaVault && options.mediaVault.length > 0 ? options.mediaVault : [
       {
         id: 'mv-hero-1',
         url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',

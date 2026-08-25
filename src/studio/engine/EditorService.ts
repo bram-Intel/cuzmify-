@@ -432,9 +432,9 @@ export class EditorService {
     this.recordSnapshot('Deleted Media Asset', 'manual_edit');
   }
 
-  applyMediaToSelected(url: string, alt?: string): void {
+  applyMediaToSelected(url: string, alt?: string): boolean {
     const selected = this.adapter.getSelectedComponent();
-    if (!selected) return;
+    if (!selected) return false;
     const type = (selected.get('type') || '').toLowerCase();
     const tagName = (selected.get('tagName') || '').toLowerCase();
 
@@ -448,6 +448,12 @@ export class EditorService {
       });
     }
     this.recordSnapshot('Applied Media to Canvas', 'manual_edit');
+    this.notifyChange();
+    return true;
+  }
+
+  applyImageToSelected(url: string, alt?: string): boolean {
+    return this.applyMediaToSelected(url, alt);
   }
 
   generateWhatsAppLink(options: { type: 'booking' | 'order' | 'general'; targetId?: string; customMessage?: string }): string {

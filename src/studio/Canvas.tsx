@@ -180,6 +180,7 @@ export function Canvas() {
     setCanUndo,
     setCanRedo,
     setSelectedComponent,
+    setActiveModuleModal,
     projectId,
     businessName,
     theme,
@@ -295,6 +296,31 @@ export function Canvas() {
     });
 
     const service = new EditorService(editor);
+
+    // Override legacy GrapesJS asset manager to open Cuzmify's sleek Media Vault
+    (editor.Commands as any).add('open-assets', {
+      run() {
+        setActiveModuleModal('media');
+      },
+    });
+
+    editor.on('asset:select', (asset: any) => {
+      const src = typeof asset === 'string' ? asset : (asset.get?.('src') || asset.src);
+      if (src) {
+        service.applyImageToSelected(src);
+        service.addMediaAsset({
+          url: src,
+          name: asset.get?.('name') || 'Uploaded Media',
+          type: 'gallery',
+          source: 'upload',
+        });
+      }
+      editor.Modal?.close();
+    });
+
+    editor.on('asset:custom', () => {
+      setActiveModuleModal('media');
+    });
 
     // 1. Instant 0ms SWR Hydration: Hydrate from LocalStorage or Default Template immediately
     const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);

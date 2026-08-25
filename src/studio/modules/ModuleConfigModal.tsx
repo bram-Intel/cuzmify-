@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -18,9 +18,14 @@ import {
   Sparkles,
   ShieldCheck,
   Globe,
+  Image as ImageIcon,
+  Upload,
+  Copy,
+  Check,
+  Maximize2,
 } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
-import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem } from '@/core/blueprint-schema';
+import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
 
 export function ModuleConfigModal() {
   const { activeModuleModal, setActiveModuleModal, service, blueprint, setSaveToast } = useEditor();
@@ -30,7 +35,7 @@ export function ModuleConfigModal() {
     setMounted(true);
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'whatsapp' | 'services' | 'products' | 'profile' | 'payments'>(
+  const [activeTab, setActiveTab] = useState<'whatsapp' | 'services' | 'products' | 'profile' | 'payments' | 'media'>(
     (activeModuleModal as any) || 'whatsapp'
   );
 
@@ -39,6 +44,13 @@ export function ModuleConfigModal() {
       setActiveTab(activeModuleModal as any);
     }
   }, [activeModuleModal]);
+
+  // Media Vault State
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [newImageName, setNewImageName] = useState('');
+  const [newImageType, setNewImageType] = useState<'hero' | 'gallery' | 'service' | 'product'>('gallery');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New Service Form State
   const [newServiceName, setNewServiceName] = useState('');
@@ -62,8 +74,10 @@ export function ModuleConfigModal() {
   const whatsapp = currentBlueprint.modules.whatsapp;
   const services = currentBlueprint.modules.services.items;
   const products = currentBlueprint.modules.products.items;
+  const mediaVault = currentBlueprint.mediaVault || [];
   const currency = profile.currency || 'USD';
   const currencySymbol = SUPPORTED_CURRENCIES[currency]?.symbol || '$';
+  const selectedCompType = service.getSelectedComponentType();
 
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +116,81 @@ export function ModuleConfigModal() {
     setTimeout(() => setSaveToast(null), 2500);
   };
 
+  const handleUploadLocalFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) return;
+
+      const newAsset = service.addMediaAsset({
+        url: dataUrl,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        type: newImageType,
+        source: 'upload',
+      });
+
+      // If an image or element is active on canvas, apply immediately
+      const applied = service.applyImageToSelected(dataUrl, newAsset.name);
+      if (applied) {
+        setSaveToast(`✦ Applied "${newAsset.name}" to selected element!`);
+      } else {
+        setSaveToast(`✦ Uploaded "${newAsset.name}" to Media Vault!`);
+      }
+      setTimeout(() => setSaveToast(null), 3000);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleAddImageUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newImageUrl.trim()) return;
+
+    const name = newImageName.trim() || 'Curated Asset';
+    const newAsset = service.addMediaAsset({
+      url: newImageUrl.trim(),
+      name,
+      type: newImageType,
+      source: 'upload',
+    });
+
+    const applied = service.applyImageToSelected(newImageUrl.trim(), name);
+    if (applied) {
+      setSaveToast(`✦ Applied "${name}" to selected element!`);
+    } else {
+      setSaveToast(`✦ Added "${name}" to Media Vault!`);
+    }
+    setNewImageUrl('');
+    setNewImageName('');
+    setTimeout(() => setSaveToast(null), 3000);
+  };
+
+  const handleApplyMediaToCanvas = (asset: MediaVaultAsset) => {
+    const applied = service.applyImageToSelected(asset.url, asset.name);
+    if (applied) {
+      setSaveToast(`✦ Applied "${asset.name}" to canvas!`);
+      setTimeout(() => setSaveToast(null), 2500);
+    } else {
+      setSaveToast(`⚠️ Click on an image or section on the canvas first to select it.`);
+      setTimeout(() => setSaveToast(null), 3500);
+    }
+  };
+
+  const handleDeleteMedia = (id: string, name: string) => {
+    service.deleteMediaAsset(id);
+    setSaveToast(`Removed ${name} from Media Vault`);
+    setTimeout(() => setSaveToast(null), 2000);
+  };
+
+  const handleCopyUrl = (url: string, id: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const testWhatsAppUrl = service.generateWhatsAppLink({ type: 'booking' });
 
   return createPortal(
@@ -129,6 +218,7 @@ export function ModuleConfigModal() {
         {/* Tab Navigation */}
         <div className="flex items-center gap-1 px-6 border-b border-slate-200 bg-white overflow-x-auto py-2">
           {[
+            { id: 'media' as const, label: `Media Vault (${mediaVault.length})`, icon: <ImageIcon className="w-3.5 h-3.5" /> },
             { id: 'whatsapp' as const, label: 'WhatsApp Engine', icon: <Phone className="w-3.5 h-3.5" /> },
             { id: 'services' as const, label: `Services (${services.length})`, icon: <Scissors className="w-3.5 h-3.5" /> },
             { id: 'products' as const, label: `Products (${products.length})`, icon: <ShoppingBag className="w-3.5 h-3.5" /> },
@@ -138,7 +228,7 @@ export function ModuleConfigModal() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-[#0D5771] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -152,6 +242,166 @@ export function ModuleConfigModal() {
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/40 font-sans">
+          {/* ── 0. MEDIA VAULT & ASSETS TAB ── */}
+          {activeTab === 'media' && (
+            <div className="space-y-5">
+              {/* Selected Element Notice */}
+              {selectedCompType && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                    <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
+                    <span>Selected Canvas Element: &lt;{selectedCompType}&gt;</span>
+                  </div>
+                  <span className="text-[11px] font-medium text-amber-700">
+                    Click any photo below to instantly replace it!
+                  </span>
+                </div>
+              )}
+
+              {/* Upload & Add Asset Bar */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 uppercase font-mono tracking-wider">
+                      Upload Photos from Device or URL
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Add photography, portfolio shots, and branding banners to your project media vault.
+                    </p>
+                  </div>
+
+                  {/* Hidden file input triggered by button */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUploadLocalFile}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#0D5771] to-[#3498E3] text-white font-bold text-xs flex items-center gap-2 hover:opacity-95 shadow-sm transition-all cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload from Computer</span>
+                  </button>
+                </div>
+
+                {/* Direct Image URL Form */}
+                <form onSubmit={handleAddImageUrl} className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-2 border-t border-slate-100">
+                  <input
+                    type="url"
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/... or image URL"
+                    className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                  />
+                  <input
+                    type="text"
+                    value={newImageName}
+                    onChange={(e) => setNewImageName(e.target.value)}
+                    placeholder="Photo Title (optional)"
+                    className="w-full sm:w-44 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newImageUrl.trim()}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    Add URL
+                  </button>
+                </form>
+              </div>
+
+              {/* Media Vault Gallery Grid */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-700 uppercase font-mono tracking-wider">
+                    Project Media Assets ({mediaVault.length})
+                  </h3>
+                  <span className="text-[11px] text-slate-400">
+                    Hover card to apply or copy
+                  </span>
+                </div>
+
+                {mediaVault.length === 0 ? (
+                  <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-slate-200 space-y-2">
+                    <ImageIcon className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-xs font-bold text-slate-600">No media uploaded yet</p>
+                    <p className="text-[11px] text-slate-400">
+                      Upload your high-res photos or import from Instagram to build your media catalog.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                    {mediaVault.map((asset) => {
+                      const isCopied = copiedId === asset.id;
+                      return (
+                        <div
+                          key={asset.id}
+                          className="group relative bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col"
+                        >
+                          <div className="relative aspect-square w-full bg-slate-100 overflow-hidden">
+                            <img
+                              src={asset.url}
+                              alt={asset.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+
+                            {/* Badge */}
+                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-white text-[9px] font-mono uppercase">
+                              {asset.source === 'instagram' ? 'Instagram' : asset.type}
+                            </span>
+
+                            {/* Hover Overlay with Action Buttons */}
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleApplyMediaToCanvas(asset)}
+                                className="w-full py-1.5 px-2.5 rounded-lg bg-[#0D5771] hover:bg-[#083D50] text-white text-[11px] font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Apply to Canvas</span>
+                              </button>
+
+                              <div className="flex items-center gap-1.5 w-full">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyUrl(asset.url, asset.id)}
+                                  className="flex-1 py-1 px-2 rounded-lg bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                                >
+                                  {isCopied ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5" />}
+                                  <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMedia(asset.id, asset.name)}
+                                  className="p-1 rounded-lg bg-red-500/80 hover:bg-red-600 text-white text-[10px] transition-all cursor-pointer"
+                                  title="Delete asset"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-2 bg-white">
+                            <p className="text-[11px] font-bold text-slate-800 truncate" title={asset.name}>
+                              {asset.name}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── 1. WHATSAPP ENGINE TAB ── */}
           {activeTab === 'whatsapp' && (
             <div className="space-y-5">

@@ -23,9 +23,12 @@ const THEME_MAP: Record<string, ThemeName> = {
 export default function StudioContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
-  const importName = searchParams.get('importName');
+  const nameParam = searchParams.get('name') || searchParams.get('importName');
   const templateName = searchParams.get('template');
   const categoryParam = searchParams.get('category');
+  const currencyParam = searchParams.get('currency');
+  const whatsappParam = searchParams.get('whatsapp');
+  const instagramParam = searchParams.get('instagram');
   const projectId = searchParams.get('projectId') ?? 'proj_default';
 
   if (status === 'loading') {
@@ -45,7 +48,7 @@ export default function StudioContent() {
 
   const blueprint = getBlueprintByNameOrCategory(templateName || categoryParam || 'beauty');
   const initialTheme: ThemeName = THEME_MAP[blueprint.themeConfig.style] ?? 'bram-light';
-  const initialBusinessName = importName || (templateName ? `${templateName} Studio` : 'Glory Beauty Studio');
+  const initialBusinessName = nameParam || (templateName ? `${templateName} Studio` : 'Glory Beauty Studio');
 
   return (
     <EditorProvider

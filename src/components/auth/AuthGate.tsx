@@ -4,29 +4,49 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
-import { ArrowRight, Globe, ShieldCheck, Zap, ShoppingBag, Mail, Lock, Loader2 } from 'lucide-react';
+import { ArrowRight, Globe, ShieldCheck, Zap, ShoppingBag, Mail, Lock, Loader2, DollarSign } from 'lucide-react';
+import { SUPPORTED_CURRENCIES, CurrencyCode } from '@/core/blueprint-schema';
+
+export interface WizardSummaryData {
+  businessName?: string;
+  category?: string;
+  currency?: CurrencyCode;
+  whatsapp?: string;
+  instagramHandle?: string;
+  template?: string;
+}
 
 interface AuthGateProps {
-  wizardSummary?: {
-    category?: string;
-    template?: string;
-    instagramHandle?: string;
-  };
+  wizardSummary?: WizardSummaryData;
 }
 
 export const AuthGate: React.FC<AuthGateProps> = ({ wizardSummary }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const templateParam = encodeURIComponent(wizardSummary?.template || 'Modern Business Template');
-  const categoryParam = encodeURIComponent(wizardSummary?.category || 'General');
-  const targetUrl = `/editor?template=${templateParam}&category=${categoryParam}`;
+  const businessName = wizardSummary?.businessName || 'My Business Studio';
+  const category = wizardSummary?.category || 'Makeup Artist';
+  const currency = wizardSummary?.currency || 'USD';
+  const template = wizardSummary?.template || 'BeautyPro Studio Suite';
+  const whatsapp = wizardSummary?.whatsapp || '';
+  const instagram = wizardSummary?.instagramHandle || '';
+
+  const queryParams = new URLSearchParams({
+    name: businessName,
+    category: category,
+    currency: currency,
+    template: template,
+    ...(whatsapp ? { whatsapp } : {}),
+    ...(instagram ? { instagram } : {}),
+  });
+
+  const targetUrl = `/studio?${queryParams.toString()}`;
 
   const handleInstantSignIn = async () => {
     setLoading(true);
     await signIn('credentials', {
       email: 'creator@cuzmify.local',
-      name: 'Cuzmify Creator',
+      name: businessName || 'Cuzmify Creator',
       callbackUrl: targetUrl,
     });
   };
@@ -37,7 +57,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ wizardSummary }) => {
     setLoading(true);
     await signIn('credentials', {
       email: email.trim(),
-      name: email.split('@')[0],
+      name: businessName || email.split('@')[0],
       callbackUrl: targetUrl,
     });
   };
@@ -46,9 +66,11 @@ export const AuthGate: React.FC<AuthGateProps> = ({ wizardSummary }) => {
     signIn('google', { callbackUrl: targetUrl });
   };
 
+  const currSymbol = SUPPORTED_CURRENCIES[currency as CurrencyCode]?.symbol || '$';
+
   return (
-    <div className="min-h-[75vh] flex items-center justify-center px-4 sm:px-6 py-8">
-      <div className="w-full max-w-md space-y-6 text-center bg-white rounded-3xl border border-[#E2E8F0] shadow-sm p-6 sm:p-8">
+    <div className="min-h-[75vh] flex items-center justify-center px-4 sm:px-6 py-4">
+      <div className="w-full max-w-md space-y-5 text-center bg-white rounded-3xl border border-[#E2E8F0] shadow-sm p-6 sm:p-8">
 
         {/* Logo + Brand */}
         <div className="flex flex-col items-center gap-2">
@@ -63,34 +85,48 @@ export const AuthGate: React.FC<AuthGateProps> = ({ wizardSummary }) => {
           </div>
         </div>
 
-        {/* What we built summary */}
-        {(wizardSummary?.category || wizardSummary?.template) && (
-          <div className="bg-[#F7FAFC] rounded-2xl border border-[#E2E8F0] p-3.5 text-left space-y-2">
-            <p className="text-[10px] font-mono font-bold text-[#0D5771] uppercase tracking-widest">
-              Ready to Customize
-            </p>
-            {wizardSummary.category && (
-              <div className="flex items-center gap-2 text-xs text-[#1A202C]">
-                <Zap className="w-3.5 h-3.5 text-[#3498E3] flex-shrink-0" />
-                <span>Category: <strong>{wizardSummary.category}</strong></span>
+        {/* Blueprint summary card */}
+        <div className="bg-[#F7FAFC] rounded-2xl border border-[#E2E8F0] p-4 text-left space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono font-bold text-[#0D5771] uppercase tracking-widest">
+              Blueprint Summary
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#0D5771]/10 text-[#0D5771]">
+              Ready to Launch
+            </span>
+          </div>
+
+          <div className="space-y-1.5 text-xs text-[#1A202C]">
+            <div className="flex items-center justify-between">
+              <span className="text-[#64748B]">Business Name:</span>
+              <strong className="text-[#0D5771]">{businessName}</strong>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[#64748B]">Category:</span>
+              <span><strong>{category}</strong></span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[#64748B]">Currency:</span>
+              <span className="font-mono font-bold text-emerald-700">{currSymbol} {currency}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[#64748B]">Starter Blueprint:</span>
+              <strong className="text-[#1A202C] truncate max-w-[180px]">{template}</strong>
+            </div>
+            {instagram && (
+              <div className="flex items-center justify-between pt-1 border-t border-[#E2E8F0]/70">
+                <span className="text-[#64748B]">Instagram:</span>
+                <span className="text-pink-600 font-semibold">@{instagram}</span>
               </div>
             )}
-            {wizardSummary.template && (
-              <div className="flex items-center justify-between text-xs text-[#1A202C] pt-1 border-t border-[#E2E8F0]/70">
-                <div className="flex items-center gap-2">
-                  <Globe className="w-3.5 h-3.5 text-[#0D5771] flex-shrink-0" />
-                  <span>Template: <strong>{wizardSummary.template}</strong></span>
-                </div>
-              </div>
-            )}
-            {wizardSummary.instagramHandle && (
-              <div className="flex items-center gap-2 text-xs text-[#1A202C] pt-1 border-t border-[#E2E8F0]/70">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                <span>Connected: <strong>@{wizardSummary.instagramHandle}</strong></span>
+            {whatsapp && (
+              <div className="flex items-center justify-between">
+                <span className="text-[#64748B]">WhatsApp:</span>
+                <span className="text-emerald-600 font-semibold">{whatsapp}</span>
               </div>
             )}
           </div>
-        )}
+        </div>
 
         {/* 1-Click Fast Sign In */}
         <button
@@ -153,14 +189,12 @@ export const AuthGate: React.FC<AuthGateProps> = ({ wizardSummary }) => {
           <span>Continue with Google</span>
         </button>
 
-        {/* Trust badges */}
-        <div className="flex items-center justify-center gap-6 pt-2 text-[10px] text-[#94A3B8] font-mono">
-          <span className="flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Auto-Save Active
-          </span>
-          <span>•</span>
-          <span>Zero Password Required</span>
-        </div>
+        <p className="text-[11px] text-[#94A3B8]">
+          By continuing, you agree to Cuzmify's{' '}
+          <Link href="/terms" className="text-[#0D5771] underline">Terms of Service</Link>{' '}
+          and{' '}
+          <Link href="/privacy" className="text-[#0D5771] underline">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
   );
