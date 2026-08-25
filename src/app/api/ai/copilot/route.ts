@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getGeminiClient, GEMINI_MODEL } from '@/lib/gemini';
 import { AIEngine, type InlineRewriteResult } from '@/studio/ai/AIEngine';
 
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     // 1. If Gemini API key is configured, call live LLM
     const genAI = getGeminiClient();
     if (genAI) {
-      const candidateModels = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.5-flash-lite-preview-06-17'];
+      const candidateModels = ['gemini-3.6-flash'];
       for (const modelName of candidateModels) {
         try {
           const model = genAI.getGenerativeModel({

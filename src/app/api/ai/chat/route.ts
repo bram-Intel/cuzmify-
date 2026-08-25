@@ -328,13 +328,7 @@ ${currentHtml}
 Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "updatedHtml".`;
     }
 
-    const candidateModels = [
-      'gemini-2.0-flash',
-      'gemini-2.5-flash',
-      'gemini-1.5-flash',
-      'gemini-2.5-flash-lite-preview-06-17',
-      'gemini-1.5-flash-latest',
-    ];
+    const candidateModels = ['gemini-3.6-flash'];
 
     let lastError: any = null;
     for (const modelName of candidateModels) {
@@ -401,4 +395,5 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
     return NextResponse.json({ error: err?.message || 'Failed to process AI chat request' }, { status: 500 });
   }
 }
+
 
