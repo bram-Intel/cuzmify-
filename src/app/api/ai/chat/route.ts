@@ -1,5 +1,6 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getGeminiClient } from '@/lib/gemini';
+import { AIEngine } from '@/studio/ai/AIEngine';
 import type { ThemeName } from '@/core/project-schema';
 
 // ── Intent Classifier ─────────────────────────────────────────────────────────
@@ -328,66 +329,119 @@ ${currentHtml}
 Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "updatedHtml".`;
     }
 
-    const candidateModels = ['gemini-3.6-flash'];
+    const candidateModels = ['gemini-3.6-flash', 'gemini-3-flash-preview'];
 
     let lastError: any = null;
     for (const modelName of candidateModels) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.15 },
-          systemInstruction,
-        });
+      // Retry up to 2 times on transient Google 503/429 spikes
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.15 },
+            systemInstruction,
+          });
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout: ${modelName} over 25s`)), 25000)
-        );
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout: ${modelName} over 25s`)), 25000)
+          );
 
-        const result: any = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
-        const responseText = result.response.text();
-        let cleanJson = responseText.trim();
-        if (cleanJson.startsWith('```')) {
-          cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+          const result: any = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
+          const responseText = result.response.text();
+          let cleanJson = responseText.trim();
+          if (cleanJson.startsWith('```')) {
+            cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+          }
+          const parsedData = JSON.parse(cleanJson);
+
+          let finalHtml: string | null = null;
+          if (intent === 'element-style' && parsedData?.updatedElementHtml) {
+            finalHtml = smartReplaceElement(currentHtml, targetElement, parsedData.updatedElementHtml);
+          } else if (intent === 'add-section' && parsedData?.newSectionHtml) {
+            const newSection = parsedData.newSectionHtml;
+            finalHtml = currentHtml.includes('</body>')
+              ? currentHtml.replace(/<\/body>/i, `\n${newSection}\n</body>`)
+              : currentHtml + '\n' + newSection;
+          } else if ((intent === 'full-transform' || intent === 'full-rebuild') && parsedData?.updatedHtml) {
+            finalHtml = parsedData.updatedHtml;
+          }
+
+          const rawChanges = parsedData.changesApplied;
+          const changesApplied: string[] = Array.isArray(rawChanges)
+            ? rawChanges.map((c: any) => String(c))
+            : ['Applied requested changes'];
+
+          return NextResponse.json({
+            success: true,
+            source: 'gemini',
+            model: modelName,
+            intent,
+            aiReply: parsedData.aiReply || 'Transformation complete.',
+            theme: parsedData.theme || newTheme || currentTheme,
+            changesApplied,
+            updatedHtml: finalHtml,
+            updatedElementHtml: parsedData?.updatedElementHtml || null,
+            blueprintUpdates: parsedData?.blueprintUpdates || null,
+          });
+        } catch (candidateErr: any) {
+          lastError = candidateErr;
+          const isTransient =
+            candidateErr?.message?.includes('503') ||
+            candidateErr?.message?.includes('429') ||
+            candidateErr?.message?.includes('high demand') ||
+            candidateErr?.message?.includes('fetch failed');
+
+          if (isTransient && attempt === 0) {
+            // Short backoff before retrying same model
+            await new Promise((r) => setTimeout(r, 1200));
+            continue;
+          }
+          console.warn(`[AI Chat] Model ${modelName} (attempt ${attempt + 1}) failed:`, candidateErr?.message);
+          break; // Move to next candidate model
         }
-        const parsedData = JSON.parse(cleanJson);
-
-        let finalHtml: string | null = null;
-        if (intent === 'element-style' && parsedData?.updatedElementHtml) {
-          finalHtml = smartReplaceElement(currentHtml, targetElement, parsedData.updatedElementHtml);
-        } else if (intent === 'add-section' && parsedData?.newSectionHtml) {
-          const newSection = parsedData.newSectionHtml;
-          finalHtml = currentHtml.includes('</body>')
-            ? currentHtml.replace(/<\/body>/i, `\n${newSection}\n</body>`)
-            : currentHtml + '\n' + newSection;
-        } else if ((intent === 'full-transform' || intent === 'full-rebuild') && parsedData?.updatedHtml) {
-          finalHtml = parsedData.updatedHtml;
-        }
-
-        const rawChanges = parsedData.changesApplied;
-        const changesApplied: string[] = Array.isArray(rawChanges)
-          ? rawChanges.map((c: any) => String(c))
-          : ['Applied requested changes'];
-
-        return NextResponse.json({
-          success: true,
-          source: 'gemini',
-          model: modelName,
-          intent,
-          aiReply: parsedData.aiReply || 'Transformation complete.',
-          theme: parsedData.theme || newTheme || currentTheme,
-          changesApplied,
-          updatedHtml: finalHtml,
-          updatedElementHtml: parsedData?.updatedElementHtml || null,
-          blueprintUpdates: parsedData?.blueprintUpdates || null,
-        });
-      } catch (candidateErr: any) {
-        lastError = candidateErr;
-        console.warn(`[AI Chat] Model ${modelName} failed:`, candidateErr?.message);
       }
     }
 
+    // ── GRACEFUL AUTONOMOUS LOCAL FALLBACK ─────────────────────────────────────
+    // If Google's cloud API is experiencing a 503 outage, fall back to Cuzmify's
+    // built-in deterministic design engine so the user is NEVER blocked!
+    try {
+      console.warn('[AI Chat] Google Cloud API unavailable, invoking Cuzmify Autonomous Engine fallback...');
+      const localPlan = AIEngine.generateTransformation(message);
+      const fallbackTheme = localPlan.theme || newTheme || 'dark-obsidian';
+
+      return NextResponse.json({
+        success: true,
+        source: 'cuzmify-autonomous-engine',
+        intent: 'style-only',
+        aiReply: localPlan.summary || `Restyled website to a lush, modern aesthetic matching "${localPlan.nicheDetected}".`,
+        theme: fallbackTheme,
+        changesApplied: [
+          `Applied ${localPlan.toneDetected} theme tokens (${fallbackTheme})`,
+          `Niche tailored for ${localPlan.nicheDetected}`,
+          'Preserved 100% of live sections, WhatsApp hooks, and component hierarchy',
+        ],
+        updatedHtml: null, // Canvas will apply design tokens and preserve layout
+        updatedElementHtml: null,
+        blueprintUpdates: {
+          profile: {
+            name: profile.name || 'Studio',
+            tagline: localPlan.heroHeadline || profile.tagline || '',
+            currency,
+          },
+          services: localPlan.services?.map((s) => ({
+            name: s.name,
+            price: Number(s.price.replace(/[^0-9]/g, '')) || 150,
+            description: s.description,
+          })) || [],
+        },
+      });
+    } catch (fallbackErr: any) {
+      console.error('[AI Chat] Local fallback error:', fallbackErr);
+    }
+
     return NextResponse.json(
-      { error: `Gemini API failed: ${lastError?.message || 'Temporarily busy. Please try again.'}` },
+      { error: `AI Service temporary load spike: ${lastError?.message || 'Please try again in a few seconds.'}` },
       { status: 503 }
     );
   } catch (err: any) {
