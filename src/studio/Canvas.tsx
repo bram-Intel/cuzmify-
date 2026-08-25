@@ -183,6 +183,7 @@ export function Canvas() {
     setActiveModuleModal,
     projectId,
     businessName,
+    setBusinessName,
     theme,
     breakpoint,
     handleThemeChange,
@@ -295,7 +296,7 @@ export function Canvas() {
       }
     });
 
-    const service = new EditorService(editor);
+    const service = new EditorService(editor, businessNameRef.current);
 
     // Override legacy GrapesJS asset manager to open Cuzmify's sleek Media Vault
     (editor.Commands as any).add('open-assets', {
@@ -326,11 +327,20 @@ export function Canvas() {
     const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);
     if (localRes.loaded) {
       if (localRes.theme) handleThemeChange(localRes.theme as any);
+      if (localRes.name) {
+        setBusinessName(localRes.name);
+        service.updateProfile({ name: localRes.name });
+      } else if (businessNameRef.current) {
+        service.updateProfile({ name: businessNameRef.current });
+      }
       service.sanitizeCanvas();
       service.syncCanvasWithBlueprint();
       setIsCanvasLoading(false);
     } else {
       service.loadHtml(INITIAL_HTML, 'Initial Template', 'initial');
+      if (businessNameRef.current) {
+        service.updateProfile({ name: businessNameRef.current });
+      }
       service.sanitizeCanvas();
       service.syncCanvasWithBlueprint();
       setIsCanvasLoading(false);
@@ -340,6 +350,10 @@ export function Canvas() {
     service.loadFromDatabase(projectId).then((cloudRes) => {
       if (cloudRes.loaded) {
         if (cloudRes.theme) handleThemeChange(cloudRes.theme as any);
+        if (cloudRes.name) {
+          setBusinessName(cloudRes.name);
+          service.updateProfile({ name: cloudRes.name });
+        }
         service.sanitizeCanvas();
         service.syncCanvasWithBlueprint();
       }

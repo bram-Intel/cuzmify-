@@ -736,6 +736,8 @@ export class EditorService {
         this.blueprintManager.hydrate(site.blueprintData);
       }
 
+      const name = site.blueprintData?.profile?.name || site.name;
+
       // 1. Try grapesData first
       if (site.grapesData) {
         try {
@@ -744,7 +746,7 @@ export class EditorService {
             this.adapter.loadProjectData(parsed);
             this.adapter.sanitizeCanvas();
             this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
-            return { loaded: true, theme: site.theme, name: site.name };
+            return { loaded: true, theme: site.theme, name };
           }
         } catch {
           // Fall through to htmlContent
@@ -756,7 +758,7 @@ export class EditorService {
         this.adapter.setHtmlContent(site.htmlContent);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
-        return { loaded: true, theme: site.theme, name: site.name };
+        return { loaded: true, theme: site.theme, name };
       }
 
       return { loaded: false };
@@ -765,7 +767,7 @@ export class EditorService {
     }
   }
 
-  loadFromLocalStorage(projectId: string, userId?: string): { loaded: boolean; theme?: string } {
+  loadFromLocalStorage(projectId: string, userId?: string): { loaded: boolean; theme?: string; name?: string } {
     try {
       const storageKey = `cuzmify_project_${userId || 'guest'}_${projectId}`;
       const raw = localStorage.getItem(storageKey);
@@ -780,18 +782,20 @@ export class EditorService {
         this.blueprintManager.hydrate(parsed.blueprint);
       }
 
+      const name = parsed.blueprint?.profile?.name;
+
       if (parsed.grapesData) {
         this.adapter.loadProjectData(parsed.grapesData);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
-        return { loaded: true, theme: parsed.theme };
+        return { loaded: true, theme: parsed.theme, name };
       }
 
       if (parsed.html && typeof parsed.html === 'string' && parsed.html.length > 50) {
         this.adapter.setHtmlContent(parsed.html);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
-        return { loaded: true, theme: parsed.theme };
+        return { loaded: true, theme: parsed.theme, name };
       }
 
       return { loaded: false };
