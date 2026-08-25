@@ -137,6 +137,9 @@ export function EditorProvider({
 
     const unsubBlueprint = service.onBlueprintChange((bp) => {
       setBlueprint({ ...bp });
+      if (bp.profile?.name && bp.profile.name !== 'Gmakeup Studio') {
+        setBusinessName(bp.profile.name);
+      }
     });
 
     return () => {
