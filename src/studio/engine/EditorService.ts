@@ -93,10 +93,15 @@ export class EditorService {
   private isRestoringState = false;
   private isSyncingFromCanvas = false;
   private isRteActive = false;
+  private isInitialized = false;
+
+  public setInitialized(): void {
+    this.isInitialized = true;
+  }
 
   // ── Canvas ➔ Blueprint Upstream Sync (Bidirectional Engine) ───────────────
   public syncBlueprintFromCanvas(): void {
-    if (this.isRestoringState || this.isSyncingFromCanvas || this.isRteActive) return;
+    if (this.isRestoringState || this.isSyncingFromCanvas || this.isRteActive || !this.isInitialized) return;
 
     try {
       const doc = this.adapter.getDoc();
@@ -722,11 +727,18 @@ export class EditorService {
 
   async loadFromDatabase(projectId: string): Promise<{ loaded: boolean; theme?: string; name?: string }> {
     try {
+      this.isRestoringState = true;
       const res = await fetch('/api/sites');
-      if (!res.ok) return { loaded: false };
+      if (!res.ok) {
+        this.isRestoringState = false;
+        return { loaded: false };
+      }
       const data = await res.json();
       const site = data?.sites?.find((s: any) => s.id === projectId) || data?.sites?.[0];
-      if (!site) return { loaded: false };
+      if (!site) {
+        this.isRestoringState = false;
+        return { loaded: false };
+      }
 
       if (site.theme) {
         this.currentTheme = site.theme as ThemeName;
@@ -737,6 +749,9 @@ export class EditorService {
       }
 
       const name = site.blueprintData?.profile?.name || site.name;
+      if (name) {
+        this.blueprintManager.updateProfile({ name });
+      }
 
       // 1. Try grapesData first
       if (site.grapesData) {
@@ -746,6 +761,8 @@ export class EditorService {
             this.adapter.loadProjectData(parsed);
             this.adapter.sanitizeCanvas();
             this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
+            this.isRestoringState = false;
+            this.isInitialized = true;
             return { loaded: true, theme: site.theme, name };
           }
         } catch {
@@ -758,20 +775,39 @@ export class EditorService {
         this.adapter.setHtmlContent(site.htmlContent);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
+        this.isRestoringState = false;
+        this.isInitialized = true;
         return { loaded: true, theme: site.theme, name };
       }
 
+      this.isRestoringState = false;
       return { loaded: false };
     } catch {
+      this.isRestoringState = false;
       return { loaded: false };
     }
   }
 
   loadFromLocalStorage(projectId: string, userId?: string): { loaded: boolean; theme?: string; name?: string } {
     try {
-      const storageKey = `cuzmify_project_${userId || 'guest'}_${projectId}`;
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return { loaded: false };
+      this.isRestoringState = true;
+      const keys = [
+        `cuzmify_project_${userId || 'guest'}_${projectId}`,
+        `cuzmify_project_guest_${projectId}`,
+        `cuzmify_project_${projectId}`,
+      ];
+
+      let raw: string | null = null;
+      for (const k of keys) {
+        raw = localStorage.getItem(k);
+        if (raw) break;
+      }
+
+      if (!raw) {
+        this.isRestoringState = false;
+        return { loaded: false };
+      }
+
       const parsed = JSON.parse(raw);
 
       if (parsed.theme) {
@@ -783,11 +819,16 @@ export class EditorService {
       }
 
       const name = parsed.blueprint?.profile?.name;
+      if (name) {
+        this.blueprintManager.updateProfile({ name });
+      }
 
       if (parsed.grapesData) {
         this.adapter.loadProjectData(parsed.grapesData);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
+        this.isRestoringState = false;
+        this.isInitialized = true;
         return { loaded: true, theme: parsed.theme, name };
       }
 
@@ -795,11 +836,15 @@ export class EditorService {
         this.adapter.setHtmlContent(parsed.html);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
+        this.isRestoringState = false;
+        this.isInitialized = true;
         return { loaded: true, theme: parsed.theme, name };
       }
 
+      this.isRestoringState = false;
       return { loaded: false };
     } catch {
+      this.isRestoringState = false;
       return { loaded: false };
     }
   }
