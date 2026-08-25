@@ -2,90 +2,89 @@
 import { getGeminiClient } from '@/lib/gemini';
 import type { ThemeName } from '@/core/project-schema';
 
-export interface AIChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  changesApplied?: string[];
-  theme?: ThemeName;
-  snapshotHtml?: string;
-}
-
 // ── Intent Classifier ─────────────────────────────────────────────────────────
 type PromptIntent =
-  | 'style-only'
-  | 'text-edit'
-  | 'element-style'
-  | 'add-section'
-  | 'full-rebuild';
+  | 'style-only'        // Pure theme token swap — never touches HTML
+  | 'element-style'     // Targeted element edit (targetElement provided)
+  | 'add-section'       // Append a new section, existing sections are read-only
+  | 'full-transform'    // DEFAULT: Restyle the full site — structure is LOCKED
+  | 'full-rebuild';     // Explicit wipe & rebuild (user said so explicitly)
 
 function classifyIntent(prompt: string, hasTarget: boolean): PromptIntent {
   if (hasTarget) return 'element-style';
-
   const p = prompt.toLowerCase();
 
-  // Explicit full-rebuild keywords only
+  // Pure unconstrained rebuild — only when user explicitly says so
   if (
     (p.includes('redesign') && p.includes('everything')) ||
-    p.includes('start fresh') ||
-    p.includes('rebuild the site') ||
-    p.includes('redo the whole') ||
-    p.includes('completely rebuild') ||
-    p.includes('full redesign')
-  ) {
-    return 'full-rebuild';
-  }
+    p.includes('start fresh') || p.includes('rebuild the site') ||
+    p.includes('redo the whole') || p.includes('completely rebuild') ||
+    p.includes('full redesign') || p.includes('start over')
+  ) return 'full-rebuild';
 
-  // Style-only: NEVER touch HTML structure
+  // Pure style/theme token swap — no HTML needed at all
   if (
-    p.includes('dark') || p.includes('light mode') || p.includes('dark mode') ||
-    p.includes('dark feel') || p.includes('dark theme') || p.includes('obsidian') ||
-    p.includes('luxury feel') || p.includes('minimal feel') || p.includes('vibrant') ||
-    p.includes('color scheme') || p.includes('color palette') || p.includes('change colors') ||
-    p.includes('change the font') || p.includes('change font') ||
-    p.includes('make it darker') || p.includes('make it lighter') ||
-    p.includes('gold accent') || p.includes('change theme') ||
-    p.includes('background color') || p.includes('text color') ||
-    (p.includes('transform') && (p.includes('dark') || p.includes('light') || p.includes('feel') || p.includes('look')))
-  ) {
-    return 'style-only';
-  }
+    (p.includes('change theme') || p.includes('switch theme') || p.includes('apply theme')) &&
+    !p.includes('transform') && !p.includes('design') && !p.includes('make')
+  ) return 'style-only';
 
-  // Add-section: append only, never touch existing
+  // Append-only: add new sections, never touch existing
   if (
-    p.includes('add a') || p.includes('add an') || p.includes('add pricing') ||
-    p.includes('add testimonial') || p.includes('add gallery') || p.includes('add faq') ||
-    p.includes('add footer') || p.includes('add contact') || p.includes('add booking') ||
-    p.includes('add whatsapp') || p.includes('add a section') || p.includes('insert a') ||
-    p.includes('create a new') || p.includes('new section') || p.includes('include a')
-  ) {
-    return 'add-section';
-  }
+    p.includes('add a section') || p.includes('insert a section') ||
+    p.includes('new section') || p.includes('include a section') ||
+    (p.includes('add') && (
+      p.includes('testimonial') || p.includes('faq') || p.includes('pricing table') ||
+      p.includes('gallery section') || p.includes('contact section') ||
+      p.includes('team section') || p.includes('map')
+    ))
+  ) return 'add-section';
 
-  // Text edit
-  if (
-    p.includes('change the heading') || p.includes('update the text') ||
-    p.includes('rewrite') || p.includes('rename') || p.includes('edit the text') ||
-    p.includes('change the title') || p.includes('update copy')
-  ) {
-    return 'text-edit';
-  }
-
-  return 'add-section';
+  // Everything else = full-transform (structure-locked, visuals unlocked)
+  return 'full-transform';
 }
 
 function detectTheme(prompt: string, currentTheme: ThemeName): ThemeName {
   const p = prompt.toLowerCase();
-  if (p.includes('dark') || p.includes('obsidian') || p.includes('night') || p.includes('black')) return 'dark-obsidian';
-  if (p.includes('luxury') || p.includes('gold') || p.includes('royal') || p.includes('dubai')) return 'luxury';
-  if (p.includes('minimal') || p.includes('clean') || p.includes('simple')) return 'minimal';
-  if (p.includes('editorial') || p.includes('vogue') || p.includes('fashion')) return 'editorial';
+  if (p.includes('dark') || p.includes('obsidian') || p.includes('night') || p.includes('black') || p.includes('dark feel')) return 'dark-obsidian';
+  if (p.includes('luxury') || p.includes('gold') || p.includes('royal') || p.includes('dubai') || p.includes('opulent')) return 'luxury';
+  if (p.includes('minimal') || p.includes('clean') || p.includes('simple') || p.includes('swiss')) return 'minimal';
+  if (p.includes('editorial') || p.includes('vogue') || p.includes('fashion') || p.includes('magazine')) return 'editorial';
   if (p.includes('vibrant') || p.includes('pink') || p.includes('playful') || p.includes('gen-z')) return 'vibrant';
   if (p.includes('apple') || p.includes('sleek') || p.includes('tech luxury')) return 'apple-luxury';
   if (p.includes('modern') || p.includes('indigo') || p.includes('contemporary')) return 'modern';
-  if (p.includes('light') || p.includes('bram') || p.includes('bright')) return 'bram-light';
+  if (p.includes('light') || p.includes('bram') || p.includes('bright') || p.includes('professional')) return 'bram-light';
   return currentTheme;
+}
+
+/** Extract the ordered list of sections and their IDs from the current HTML */
+function extractSectionManifest(html: string): string {
+  const sectionPattern = /<section[^>]*>/gi;
+  const sections: string[] = [];
+  let match;
+  while ((match = sectionPattern.exec(html)) !== null) {
+    const tag = match[0];
+    const idMatch = tag.match(/id=["']([^"']+)["']/i);
+    const classMatch = tag.match(/class=["']([^"']+)["']/i);
+    const dataTypeMatch = tag.match(/data-cuzmify-type=["']([^"']+)["']/i);
+    const entry = [
+      idMatch ? `id="${idMatch[1]}"` : '',
+      dataTypeMatch ? `type="${dataTypeMatch[1]}"` : '',
+      classMatch ? `classes="${classMatch[1].slice(0, 60)}"` : '',
+    ].filter(Boolean).join(', ');
+    sections.push(`  ${sections.length + 1}. <section ${entry}>`);
+  }
+  return sections.join('\n') || '  (no named sections found)';
+}
+
+/** Extract all data-cuzmify-* attributes from HTML for the integrity manifest */
+function extractCuzmifyAttributes(html: string): string {
+  const attrPattern = /data-cuzmify-[a-z-]+="[^"]*"/gi;
+  const attrs = new Set<string>();
+  let match;
+  while ((match = attrPattern.exec(html)) !== null) attrs.add(match[0]);
+  return attrs.size > 0
+    ? Array.from(attrs).slice(0, 20).join('\n  ')
+    : '(none)';
 }
 
 function extractSurroundingContext(fullHtml: string, targetId: string): string {
@@ -95,11 +94,7 @@ function extractSurroundingContext(fullHtml: string, targetId: string): string {
   );
   if (sectionMatch) return sectionMatch[0];
   const idx = fullHtml.indexOf(targetId);
-  if (idx !== -1) {
-    const start = Math.max(0, idx - 400);
-    const end = Math.min(fullHtml.length, idx + 600);
-    return fullHtml.slice(start, end);
-  }
+  if (idx !== -1) return fullHtml.slice(Math.max(0, idx - 400), Math.min(fullHtml.length, idx + 600));
   return '';
 }
 
@@ -121,13 +116,11 @@ function smartReplaceElement(
     const selfClosingRegex = new RegExp(`<${tag}\\b[^>]*id=["']${targetId}["'][^>]*\\/?>`, 'i');
     if (selfClosingRegex.test(fullHtml)) return fullHtml.replace(selfClosingRegex, newElementHtml);
   }
-
   if (href && href.length > 3) {
     const escapedHref = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const hrefRegex = new RegExp(`<${tag}\\b[^>]*href=["']${escapedHref}["'][\\s\\S]*?<\\/${tag}>`, 'i');
     if (hrefRegex.test(fullHtml)) return fullHtml.replace(hrefRegex, newElementHtml);
   }
-
   if (text && text.length > 1) {
     const words = text.split(/\s+/).filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     if (words.length > 0) {
@@ -136,7 +129,6 @@ function smartReplaceElement(
       if (textRegex.test(fullHtml)) return fullHtml.replace(textRegex, newElementHtml);
     }
   }
-
   if (htmlSnippet && fullHtml.includes(htmlSnippet)) return fullHtml.replace(htmlSnippet, newElementHtml);
   return fullHtml;
 }
@@ -150,55 +142,28 @@ export async function POST(req: Request) {
     const targetElement = body.targetElement;
     const blueprint = body.blueprint;
 
-    if (!message) {
-      return NextResponse.json({ error: 'Message or prompt is required' }, { status: 400 });
-    }
-    if (message.length > 4000) {
-      return NextResponse.json({ error: 'Prompt exceeds maximum character limit (4,000 characters).' }, { status: 400 });
-    }
+    if (!message) return NextResponse.json({ error: 'Message or prompt is required' }, { status: 400 });
+    if (message.length > 4000) return NextResponse.json({ error: 'Prompt too long (max 4,000 chars).' }, { status: 400 });
 
     const isTargeted = Boolean(targetElement && targetElement.id);
     const intent = classifyIntent(message, isTargeted);
+    const newTheme = detectTheme(message, currentTheme);
 
-    // ── FAST PATH: Style-only ─────────────────────────────────────────────────
+    // ── FAST PATH: Pure theme token swap ──────────────────────────────────────
     if (intent === 'style-only') {
-      const newTheme = detectTheme(message, currentTheme);
-      const themeLabels: Record<ThemeName, string> = {
-        'dark-obsidian': 'Dark Obsidian',
-        'luxury': 'Gold Luxury',
-        'minimal': 'Clean Minimal',
-        'editorial': 'High-Fashion Editorial',
-        'vibrant': 'Vibrant & Playful',
-        'apple-luxury': 'Apple Precision',
-        'google-material': 'Google Material',
-        'dark-elegance': 'Dark Elegance',
-        'modern': 'Modern Indigo',
-        'bram-light': 'Bram Light',
-      };
       return NextResponse.json({
-        success: true,
-        source: 'style-fast-path',
-        intent: 'style-only',
-        aiReply: `Applied the ${themeLabels[newTheme]} theme. Section layout, content order, and all existing text are completely preserved.`,
+        success: true, source: 'style-fast-path', intent,
+        aiReply: `Applied the ${newTheme} theme. All sections, layout, and blueprint connections preserved exactly.`,
         theme: newTheme,
-        changesApplied: [
-          `Switched to "${themeLabels[newTheme]}" theme`,
-          'All existing sections and their order preserved exactly',
-          'Design tokens (colors, fonts, spacing) updated globally',
-        ],
-        updatedHtml: null,
-        updatedElementHtml: null,
-        blueprintUpdates: null,
+        changesApplied: [`Switched to "${newTheme}" theme`, 'Section structure untouched', 'Design tokens updated globally'],
+        updatedHtml: null, updatedElementHtml: null, blueprintUpdates: null,
       });
     }
 
     // ── GEMINI PATH ───────────────────────────────────────────────────────────
     const genAI = getGeminiClient();
     if (!genAI) {
-      return NextResponse.json(
-        { error: 'GEMINI_API_KEY is not configured in the server environment.' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 });
     }
 
     const profile = blueprint?.profile || {};
@@ -209,83 +174,154 @@ export async function POST(req: Request) {
     const whatsappPhone = blueprint?.modules?.whatsapp?.phoneNumber || '18005554526';
     const isCartActive = blueprint?.modules?.cart?.enabled !== false;
 
+    const sectionManifest = extractSectionManifest(currentHtml);
+    const cuzmifyAttributes = extractCuzmifyAttributes(currentHtml);
     const surroundingContext = isTargeted ? extractSurroundingContext(currentHtml, targetElement.id) : '';
 
     const mediaContextSnippet = mediaVault.length > 0
-      ? `AUTHENTIC MEDIA VAULT ASSETS:\n${JSON.stringify(mediaVault.slice(0, 12).map((m: any) => ({ name: m.name, url: m.url, type: m.type })), null, 2)}`
-      : 'No custom media uploaded yet.';
+      ? `MEDIA VAULT (use these authentic images for backgrounds/galleries):\n${JSON.stringify(mediaVault.slice(0, 10).map((m: any) => ({ name: m.name, url: m.url, type: m.type })), null, 2)}`
+      : 'No media vault images uploaded yet — use tasteful curated Unsplash imagery.';
 
-    const modulesContextSnippet = `
-COMPOSABLE MODULES:
-- Business Profile: Name: "${profile.name || 'Studio'}", Currency: "${currency}"
-- WhatsApp: Phone "${whatsappPhone}" -> data-cuzmify-action="whatsapp:booking"
-- Services (${services.length}): ${JSON.stringify(services.slice(0, 6).map((s: any) => ({ name: s.name, price: `${currency} ${s.price}` })))}
-- Products (${products.length}): ${JSON.stringify(products.slice(0, 6).map((p: any) => ({ name: p.name, price: `${currency} ${p.price}` })))}
-- Cart: ${isCartActive ? 'ACTIVE (data-cuzmify-action="cart:add")' : 'INACTIVE'}`;
+    const blueprintCtx = `
+BUSINESS BLUEPRINT (live composable modules — these are ACTIVE and must be preserved):
+- Name: "${profile.name || 'Studio'}", Tagline: "${profile.tagline || ''}", Currency: "${currency}"
+- WhatsApp: "${whatsappPhone}" → use data-cuzmify-action="whatsapp:booking"
+- Services (${services.length} live): ${JSON.stringify(services.slice(0, 8).map((s: any) => ({ name: s.name, price: `${currency} ${s.price}`, desc: s.description?.slice(0, 60) })))}
+- Products (${products.length} live): ${JSON.stringify(products.slice(0, 6).map((p: any) => ({ name: p.name, price: `${currency} ${p.price}` })))}
+- Cart: ${isCartActive ? 'ACTIVE → data-cuzmify-action="cart:add" and data-cuzmify-action="cart:open"' : 'INACTIVE'}`;
 
     let systemInstruction = '';
     let userPrompt = '';
 
-    if (intent === 'element-style' || intent === 'text-edit') {
-      systemInstruction = `You are Cuzmify AI, the world-class Granular Element Editor.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (intent === 'full-transform') {
+      systemInstruction = `You are Cuzmify AI, a world-class creative director and front-end architect.
+Your job: Beautifully restyle and enrich the existing website to match the user's requested aesthetic — while keeping the underlying section structure and blueprint data hooks completely intact.
+
+═══════════════════════════════════════════════════
+STRUCTURAL INTEGRITY RULES (NON-NEGOTIABLE):
+═══════════════════════════════════════════════════
+1. SECTION ORDER IS LOCKED. Keep all existing <section> elements in exactly the same order. Do not add, remove, or reorder sections.
+2. SECTION IDs ARE SACRED. Every section that had an id attribute must keep the exact same id in your output.
+3. DATA ATTRIBUTES ARE SACRED. Every data-cuzmify-* attribute (data-cuzmify-action, data-cuzmify-type, etc.) must be copied exactly into your output — these power live WhatsApp, cart, booking, and payment integrations.
+4. COMPOSABLE MODULE SLOTS: Existing product grids (data-cuzmify-type="products"), service selectors (data-cuzmify-type="service-select"), cart pills (data-cuzmify-type="cart-pill"), and booking forms must remain in place and keep their attributes.
+
+═══════════════════════════════════════════════════
+CREATIVE FREEDOMS (go all out here):
+═══════════════════════════════════════════════════
+✦ Completely restyle backgrounds, gradients, overlays, and images
+✦ Redesign typography: headline sizes, weights, letter-spacing, clamp() fluid scaling
+✦ Redesign color palette to match the requested aesthetic
+✦ Restyle buttons, cards, grids, borders, shadows, and spacing
+✦ Rewrite all copy, headlines, subheadlines, descriptions, and CTAs to match the niche and tone
+✦ Add tasteful decorative elements: SVG accents, blur circles, patterns, grid overlays
+✦ Improve section layout: go multi-column, asymmetric, full-bleed — as long as sections stay in order
+✦ Update services and pricing display to use the real blueprint services listed below
+✦ Use Media Vault images where relevant
+
+═══════════════════════════════════════════════════
+MOBILE-FIRST RESPONSIVE RULES:
+═══════════════════════════════════════════════════
+- Headlines: font-size: clamp(2rem, 5vw, 3.5rem)
+- Body: font-size: clamp(0.9rem, 2vw, 1.1rem)
+- Grids: display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;
+- All containers: box-sizing: border-box; max-width: 1200px; margin: 0 auto; padding: 0 24px;
+- Buttons: min-height: 44px; padding: 12px 28px; width: auto (never full-width unless intended)
+
+${blueprintCtx}
+
+${mediaContextSnippet}
+
+Return strictly a JSON object:
+{
+  "aiReply": "2-3 sentences describing the transformation applied",
+  "theme": "dark-obsidian" | "luxury" | "minimal" | "editorial" | "bram-light" | "apple-luxury" | "vibrant" | "modern" | "dark-elegance" | "google-material",
+  "changesApplied": ["List of specific changes made — be precise"],
+  "blueprintUpdates": { "profile": null, "services": [] },
+  "updatedHtml": "The complete transformed HTML"
+}`;
+
+      userPrompt = `User Request: "${message}"
+Current Theme: "${currentTheme}"
+Requested Theme: "${newTheme}"
+
+EXISTING SECTION STRUCTURE (keep in exactly this order — IDs are locked):
+${sectionManifest}
+
+ACTIVE data-cuzmify-* ATTRIBUTES (must ALL appear in your output HTML):
+  ${cuzmifyAttributes}
+
+EXISTING FULL HTML (transform the visuals, preserve the structure):
+\`\`\`html
+${currentHtml}
+\`\`\`
+
+Transform this into a stunning ${newTheme} aesthetic. Keep all sections in order, all IDs, and all data-cuzmify-* attributes.
+Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "updatedHtml".`;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    } else if (intent === 'element-style') {
+      systemInstruction = `You are Cuzmify AI, the Granular Element Editor.
 RULES:
-1. Return ONLY the updated single element HTML with the same id attribute.
-2. NEVER return full page HTML or touch other elements.
-3. Buttons: inline pill sizing (width: auto, padding: 12px 28px, border-radius: 9999px).
-4. Always preserve the exact text label inside buttons.
-5. Keep all data-cuzmify-* attributes exactly as they were.
+1. Return ONLY the updated element HTML with the same id attribute.
+2. NEVER return full page HTML.
+3. Buttons: inline pill sizing (width: auto; padding: 12px 28px; border-radius: 9999px).
+4. Preserve all data-cuzmify-* attributes exactly.
+5. Never erase text content from buttons or headings.
 
 Return JSON: { "aiReply": "...", "changesApplied": ["..."], "updatedElementHtml": "..." }`;
 
       userPrompt = `User Instruction: "${message}"
-Target Element ID: "${targetElement.id}"
-Target Element: <${targetElement.tagName}>
+Target: <${targetElement.tagName} id="${targetElement.id}">
 Text: "${targetElement.text || ''}"
-Snippet: \`\`\`html\n${targetElement.htmlSnippet || `<${targetElement.tagName} id="${targetElement.id}">${targetElement.text || ''}</${targetElement.tagName}>`}\n\`\`\`
-Context: \`\`\`html\n${surroundingContext}\n\`\`\`
+Snippet:
+\`\`\`html
+${targetElement.htmlSnippet || `<${targetElement.tagName} id="${targetElement.id}">${targetElement.text || ''}</${targetElement.tagName}>`}
+\`\`\`
+Context:
+\`\`\`html
+${surroundingContext}
+\`\`\`
 Return JSON with "aiReply", "changesApplied", "updatedElementHtml".`;
 
+    // ─────────────────────────────────────────────────────────────────────────
     } else if (intent === 'add-section') {
-      systemInstruction = `You are Cuzmify AI, expert at composing new modular sections for a live website builder.
+      systemInstruction = `You are Cuzmify AI, expert at composing modular sections for a live website builder.
 
-CRITICAL STRUCTURE RULES:
-1. NEVER modify, reorder, or delete the existing page sections. They are READ-ONLY.
-2. Return ONLY the NEW section HTML to be APPENDED — not the full page.
-3. The new section must be a self-contained <section> with clean responsive HTML.
-4. Use the business's composable modules from the blueprint.
-5. Use authentic Media Vault images when relevant.
-6. Mobile-first: clamp() for font sizes, auto-fit grids, box-sizing: border-box.
-7. Preserve all data-cuzmify-* attributes.
+CRITICAL RULES:
+1. Return ONLY the new <section> HTML to APPEND — the existing page is READ-ONLY.
+2. Use real blueprint services, products, and WhatsApp from the modules below.
+3. Mobile-first: clamp() typography, auto-fit grids, box-sizing: border-box.
+4. Include data-cuzmify-* attributes for all interactive elements.
 
-${modulesContextSnippet}
+${blueprintCtx}
 ${mediaContextSnippet}
 
 Return JSON: { "aiReply": "...", "changesApplied": ["..."], "newSectionHtml": "<section>...</section>", "blueprintUpdates": null }`;
 
-      userPrompt = `User Instruction: "${message}"
+      userPrompt = `User Request: "${message}"
 Current Theme: "${currentTheme}"
-
-EXISTING PAGE (READ-ONLY — DO NOT REPRODUCE OR MODIFY):
+EXISTING PAGE (READ-ONLY — do not reproduce or modify):
 \`\`\`html
-${currentHtml.slice(0, 8000)}
+${currentHtml.slice(0, 6000)}
 \`\`\`
-
-Generate ONLY the new <section> to append. Do NOT include any existing sections.
+Return ONLY the new section HTML to append.
 Return JSON with "aiReply", "changesApplied", "newSectionHtml", "blueprintUpdates".`;
 
+    // ─────────────────────────────────────────────────────────────────────────
     } else {
-      // full-rebuild — user explicitly requested
+      // full-rebuild — user explicitly asked
       systemInstruction = `You are Cuzmify AI, the Autonomous Website Architect.
-The user has explicitly requested a complete site rebuild.
-${modulesContextSnippet}
+User explicitly requested a complete rebuild. Generate a stunning, fully responsive site.
+${blueprintCtx}
 ${mediaContextSnippet}
-Mobile-first: clamp() typography, auto-fit grids, box-sizing: border-box, 44px touch targets.
+Mobile-first: clamp() typography, auto-fit grids, 44px touch targets, box-sizing: border-box.
 Preserve all data-cuzmify-* attributes.
 Return JSON: { "aiReply": "...", "theme": "...", "changesApplied": ["..."], "blueprintUpdates": {}, "updatedHtml": "..." }`;
 
-      userPrompt = `User Instruction: "${message}"
+      userPrompt = `User Request: "${message}"
 Current Theme: "${currentTheme}"
-Existing HTML:
+Existing HTML (for reference):
 \`\`\`html
 ${currentHtml}
 \`\`\`
@@ -305,12 +341,12 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
       try {
         const model = genAI.getGenerativeModel({
           model: modelName,
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.15 },
           systemInstruction,
         });
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout: ${modelName} over 10s`)), 10000)
+          setTimeout(() => reject(new Error(`Timeout: ${modelName} over 12s`)), 12000)
         );
 
         const result: any = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
@@ -322,16 +358,14 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
         const parsedData = JSON.parse(cleanJson);
 
         let finalHtml: string | null = null;
-        if ((intent === 'element-style' || intent === 'text-edit') && parsedData?.updatedElementHtml) {
+        if (intent === 'element-style' && parsedData?.updatedElementHtml) {
           finalHtml = smartReplaceElement(currentHtml, targetElement, parsedData.updatedElementHtml);
         } else if (intent === 'add-section' && parsedData?.newSectionHtml) {
           const newSection = parsedData.newSectionHtml;
-          if (currentHtml.includes('</body>')) {
-            finalHtml = currentHtml.replace(/<\/body>/i, `\n${newSection}\n</body>`);
-          } else {
-            finalHtml = currentHtml + '\n' + newSection;
-          }
-        } else if (intent === 'full-rebuild' && parsedData?.updatedHtml) {
+          finalHtml = currentHtml.includes('</body>')
+            ? currentHtml.replace(/<\/body>/i, `\n${newSection}\n</body>`)
+            : currentHtml + '\n' + newSection;
+        } else if ((intent === 'full-transform' || intent === 'full-rebuild') && parsedData?.updatedHtml) {
           finalHtml = parsedData.updatedHtml;
         }
 
@@ -345,8 +379,8 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
           source: 'gemini',
           model: modelName,
           intent,
-          aiReply: parsedData.aiReply || 'Applied requested changes.',
-          theme: parsedData.theme || currentTheme,
+          aiReply: parsedData.aiReply || 'Transformation complete.',
+          theme: parsedData.theme || newTheme || currentTheme,
           changesApplied,
           updatedHtml: finalHtml,
           updatedElementHtml: parsedData?.updatedElementHtml || null,
@@ -354,12 +388,12 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
         });
       } catch (candidateErr: any) {
         lastError = candidateErr;
-        console.warn(`[AI Chat API] Model ${modelName} failed:`, candidateErr?.message);
+        console.warn(`[AI Chat] Model ${modelName} failed:`, candidateErr?.message);
       }
     }
 
     return NextResponse.json(
-      { error: `Gemini API call failed: ${lastError?.message || 'Google Gemini API is temporarily busy. Please try again.'}` },
+      { error: `Gemini API failed: ${lastError?.message || 'Temporarily busy. Please try again.'}` },
       { status: 503 }
     );
   } catch (err: any) {
