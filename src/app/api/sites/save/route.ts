@@ -8,8 +8,15 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { siteId, name, template, category, htmlContent, grapesData, theme, domain, status, liveUrl } = body;
 
-    // 1. Determine user ID (logged-in user or default local user for seamless dev)
+    // 1. Determine user ID (logged-in user or fallback by email)
     let userId = session?.user?.id;
+
+    if (!userId && session?.user?.email) {
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+      });
+      userId = user?.id;
+    }
 
     if (!userId) {
       const defaultUser = await prisma.user.upsert({
