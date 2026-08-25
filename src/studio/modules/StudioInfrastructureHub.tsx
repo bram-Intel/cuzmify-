@@ -36,7 +36,7 @@ export function StudioInfrastructureHub({
   onClose: () => void;
   initialTab?: 'whatsapp' | 'services' | 'products' | 'media' | 'profile' | 'payments';
 }) {
-  const { service, setSaveToast, handleSave } = useEditor();
+  const { service, setSaveToast, handleSave, setBusinessName, projectId, theme } = useEditor();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -179,14 +179,18 @@ export function StudioInfrastructureHub({
 
   const testWhatsAppUrl = service.generateWhatsAppLink({ type: 'booking' });
 
-  const handleCloseAndSync = () => {
+  const handleCloseAndSync = async () => {
     service.syncCanvasWithBlueprint();
-    handleSave(true);
+    service.saveToLocalStorage(projectId, theme);
+    await handleSave(true);
     onClose();
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100000] bg-[#F8FAFC] flex flex-col text-slate-900 font-sans animate-in fade-in duration-200">
+    <div
+      onKeyDown={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-[100000] bg-[#F8FAFC] flex flex-col text-slate-900 font-sans animate-in fade-in duration-200"
+    >
       {/* ── Top Bar ── */}
       <header className="h-16 px-6 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
         <div className="flex items-center gap-4">
@@ -951,7 +955,14 @@ export function StudioInfrastructureHub({
                     <input
                       type="text"
                       value={profile.name}
-                      onChange={(e) => service.updateProfile({ name: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        service.updateProfile({ name: val });
+                        setBusinessName(val);
+                        try {
+                          localStorage.setItem('cuzmify_last_business_name', val);
+                        } catch {}
+                      }}
                       className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
                     />
                   </div>

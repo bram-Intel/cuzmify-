@@ -706,7 +706,7 @@ export class EditorService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           siteId: projectId,
-          name: meta?.businessName || blueprint.profile.name,
+          name: blueprint.profile.name || meta?.businessName || 'Glory Beauty Studio',
           template: meta?.template,
           category: meta?.category || blueprint.profile.category,
           htmlContent: html,
