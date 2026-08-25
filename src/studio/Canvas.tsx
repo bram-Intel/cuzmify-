@@ -8,11 +8,11 @@ import { Monitor, Lock, Sparkles } from 'lucide-react';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 
 // Initial HTML loaded into GrapesJS canvas on first load
-const INITIAL_HTML_TEMPLATE = `
+const INITIAL_HTML = `
   <!-- ANNOUNCEMENT BAR -->
   <div style="background:#083D50;color:#fff;padding:10px 24px;font-size:11px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:monospace;">
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <span style="color:#FCD34D;font-weight:700;">✦ {{BRAND_NAME}} Luxury Artistry</span>
+      <span style="color:#FCD34D;font-weight:700;">✦ Gmakeup Luxury Artistry</span>
       <span style="color:#94A3B8;">📍 Available for On-Location &amp; International Weddings</span>
     </div>
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
@@ -22,9 +22,9 @@ const INITIAL_HTML_TEMPLATE = `
   </div>
 
   <!-- NAVBAR -->
-  <nav data-cuzmify-type="navbar" data-brand="{{BRAND_NAME}}" style="padding:16px 32px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.97);border-bottom:1px solid #E2E8F0;position:sticky;top:0;z-index:30;backdrop-filter:blur(12px);">
+  <nav data-cuzmify-type="navbar" data-brand="Gmakeup Studio" style="padding:16px 32px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.97);border-bottom:1px solid #E2E8F0;position:sticky;top:0;z-index:30;backdrop-filter:blur(12px);">
     <div style="display:flex;align-items:center;gap:12px;">
-      <span data-cuzmify-field="business-name" class="brand-name" style="font-size:1.25rem;font-weight:900;color:#0D5771;letter-spacing:0.04em;text-transform:uppercase;font-family:'Playfair Display',serif;">{{BRAND_NAME_UPPER}}</span>
+      <span data-cuzmify-field="business-name" class="brand-name" style="font-size:1.25rem;font-weight:900;color:#0D5771;letter-spacing:0.04em;text-transform:uppercase;font-family:'Playfair Display',serif;">GMAKEUP STUDIO</span>
       <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,0.12);color:#D97706;border:1px solid rgba(245,158,11,0.2);">PRO CERTIFIED</span>
     </div>
     <div class="nav-links" style="display:flex;align-items:center;gap:28px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748B;">
@@ -76,7 +76,7 @@ const INITIAL_HTML_TEMPLATE = `
       <div>
         <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#F59E0B;font-family:monospace;">About Our Studio</span>
         <h2 style="font-size:clamp(1.6rem,3.5vw,2.25rem);font-weight:800;color:#1A202C;margin:12px 0 16px;font-family:'Playfair Display',serif;">Mastering the Art of Flawless Transformation</h2>
-        <p style="font-size:0.9rem;color:#64748B;line-height:1.8;margin-bottom:28px;">At {{BRAND_NAME}}, we believe every face tells a unique story. With over a decade of experience in bridal, editorial runway, and celebrity glam, our certified artists combine high-end techniques with luxury skin prep.</p>
+        <p style="font-size:0.9rem;color:#64748B;line-height:1.8;margin-bottom:28px;">At Gmakeup Studio, we believe every face tells a unique story. With over a decade of experience in bridal, editorial runway, and celebrity glam, our certified artists combine high-end techniques with luxury skin prep.</p>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding-top:24px;border-top:1px solid #E2E8F0;">
           <div><span style="display:block;font-size:1.5rem;font-weight:900;color:#10B981;font-family:monospace;">12+</span><span style="font-size:11px;color:#94A3B8;">Years Experience</span></div>
           <div><span style="display:block;font-size:1.5rem;font-weight:900;color:#10B981;font-family:monospace;">1.5k+</span><span style="font-size:11px;color:#94A3B8;">Brides Transformed</span></div>
@@ -171,14 +171,6 @@ const INITIAL_HTML_TEMPLATE = `
     </div>
   </section>
 `;
-
-function getInitialHtml(businessName?: string): string {
-  const name = businessName?.trim() || 'Glory Beauty Studio';
-  const upper = name.toUpperCase();
-  return INITIAL_HTML_TEMPLATE
-    .replace(/{{BRAND_NAME_UPPER}}/g, upper)
-    .replace(/{{BRAND_NAME}}/g, name);
-}
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -333,42 +325,38 @@ export function Canvas() {
 
     // 1. Instant 0ms SWR Hydration: Hydrate from LocalStorage or Default Template immediately
     const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);
-    const hasLocal = localRes.loaded;
-    if (hasLocal) {
+    if (localRes.loaded) {
       if (localRes.theme) handleThemeChange(localRes.theme as any);
       if (localRes.name) {
         setBusinessName(localRes.name);
-        service.updateProfile({ name: localRes.name });
-      } else if (businessNameRef.current) {
-        service.updateProfile({ name: businessNameRef.current });
+        businessNameRef.current = localRes.name;
       }
       service.sanitizeCanvas();
       service.syncCanvasWithBlueprint();
-      service.setInitialized();
       setIsCanvasLoading(false);
     } else {
-      const initHtml = getInitialHtml(businessNameRef.current);
-      service.loadHtml(initHtml, 'Initial Template', 'initial');
-      if (businessNameRef.current) {
-        service.updateProfile({ name: businessNameRef.current });
-      }
+      const currentName = businessNameRef.current || 'My Business Studio';
+      const personalizedHtml = INITIAL_HTML
+        .replace(/GMAKEUP STUDIO/g, currentName.toUpperCase())
+        .replace(/Gmakeup Studio/g, currentName)
+        .replace(/✦ Gmakeup Luxury Artistry/g, `✦ ${currentName} Artistry`);
+      service.loadHtml(personalizedHtml, 'Initial Template', 'initial');
       service.sanitizeCanvas();
       service.syncCanvasWithBlueprint();
       setIsCanvasLoading(false);
     }
 
-    // 2. Background Cloud Database Sync (only hydrate cloud if local storage was empty)
+    // 2. Background Cloud Database Sync (reconcile if cloud has newer data)
     service.loadFromDatabase(projectId).then((cloudRes) => {
-      if (cloudRes.loaded && !hasLocal) {
+      if (cloudRes.loaded) {
         if (cloudRes.theme) handleThemeChange(cloudRes.theme as any);
         if (cloudRes.name) {
           setBusinessName(cloudRes.name);
-          service.updateProfile({ name: cloudRes.name });
+          businessNameRef.current = cloudRes.name;
         }
         service.sanitizeCanvas();
         service.syncCanvasWithBlueprint();
       }
-      service.setInitialized();
       setIsCanvasLoading(false);
     });
 

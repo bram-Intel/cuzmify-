@@ -28,7 +28,7 @@ import { useEditor } from '../engine/EditorContext';
 import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
 
 export function ModuleConfigModal() {
-  const { activeModuleModal, setActiveModuleModal, service, blueprint, setSaveToast, setBusinessName, projectId, theme, handleSave } = useEditor();
+  const { activeModuleModal, setActiveModuleModal, service, blueprint, setSaveToast } = useEditor();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -194,10 +194,7 @@ export function ModuleConfigModal() {
   const testWhatsAppUrl = service.generateWhatsAppLink({ type: 'booking' });
 
   return createPortal(
-    <div
-      onKeyDown={(e) => e.stopPropagation()}
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
-    >
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden relative z-50">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
@@ -207,16 +204,11 @@ export function ModuleConfigModal() {
             </div>
             <div>
               <h2 className="text-sm font-bold font-sans text-slate-900">Attached Business Infrastructure</h2>
-              <p className="text-[11px] text-slate-500 font-mono">Centralized data engine for WhatsApp, services, products &amp; checkout</p>
+              <p className="text-[11px] text-slate-500 font-mono">Centralized data engine for WhatsApp, services, products & checkout</p>
             </div>
           </div>
           <button
-            onClick={() => {
-              service?.syncCanvasWithBlueprint();
-              service?.saveToLocalStorage(projectId, theme);
-              handleSave(true);
-              setActiveModuleModal(null);
-            }}
+            onClick={() => setActiveModuleModal(null)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -754,14 +746,7 @@ export function ModuleConfigModal() {
                   <input
                     type="text"
                     value={profile.name}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      service.updateProfile({ name: val });
-                      setBusinessName(val);
-                      try {
-                        localStorage.setItem('cuzmify_last_business_name', val);
-                      } catch {}
-                    }}
+                    onChange={(e) => service.updateProfile({ name: e.target.value })}
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
                   />
                 </div>

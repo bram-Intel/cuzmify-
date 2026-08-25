@@ -93,15 +93,10 @@ export class EditorService {
   private isRestoringState = false;
   private isSyncingFromCanvas = false;
   private isRteActive = false;
-  private isInitialized = false;
-
-  public setInitialized(): void {
-    this.isInitialized = true;
-  }
 
   // ── Canvas ➔ Blueprint Upstream Sync (Bidirectional Engine) ───────────────
   public syncBlueprintFromCanvas(): void {
-    if (this.isRestoringState || this.isSyncingFromCanvas || this.isRteActive || !this.isInitialized) return;
+    if (this.isRestoringState || this.isSyncingFromCanvas || this.isRteActive) return;
 
     try {
       const doc = this.adapter.getDoc();
@@ -678,12 +673,14 @@ export class EditorService {
   saveToLocalStorage(projectId: string, theme?: string, userId?: string): void {
     try {
       const storageKey = `cuzmify_project_${userId || 'guest'}_${projectId}`;
+      const bp = this.blueprintManager.getBlueprint();
       const payload = {
         grapesData: this.adapter.getProjectData(),
         html: this.adapter.getHtml(),
         css: this.adapter.getCss(),
         theme: theme || this.currentTheme,
-        blueprint: this.blueprintManager.getBlueprint(),
+        blueprint: bp,
+        businessName: bp.profile.name,
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -701,12 +698,17 @@ export class EditorService {
       const html = this.adapter.getHtml();
       const grapesData = this.adapter.getProjectData();
       const blueprint = this.blueprintManager.getBlueprint();
+      const bpName = blueprint.profile?.name;
+      const finalName = bpName && bpName !== 'Gmakeup Studio' && bpName !== 'Glory Beauty Studio'
+        ? bpName
+        : (meta?.businessName || bpName || 'My Business');
+
       const res = await fetch('/api/sites/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           siteId: projectId,
-          name: blueprint.profile.name || meta?.businessName || 'Glory Beauty Studio',
+          name: finalName,
           template: meta?.template,
           category: meta?.category || blueprint.profile.category,
           htmlContent: html,
@@ -727,31 +729,37 @@ export class EditorService {
 
   async loadFromDatabase(projectId: string): Promise<{ loaded: boolean; theme?: string; name?: string }> {
     try {
-      this.isRestoringState = true;
       const res = await fetch('/api/sites');
-      if (!res.ok) {
-        this.isRestoringState = false;
-        return { loaded: false };
-      }
+      if (!res.ok) return { loaded: false };
       const data = await res.json();
       const site = data?.sites?.find((s: any) => s.id === projectId) || data?.sites?.[0];
-      if (!site) {
-        this.isRestoringState = false;
-        return { loaded: false };
-      }
+      if (!site) return { loaded: false };
 
       if (site.theme) {
         this.currentTheme = site.theme as ThemeName;
+      }
+
+      if (site.grapesData) {
+        try {
+          const parsed = typeof site.grapesData === 'string' ? JSON.parse(site.grapesData) : site.grapesData;
+          if (parsed?.blueprint) {
+            this.blueprintManager.hydrate(parsed.blueprint);
+          }
+        } catch {
+          // ignore
+        }
       }
 
       if (site.blueprintData) {
         this.blueprintManager.hydrate(site.blueprintData);
       }
 
-      const name = site.blueprintData?.profile?.name || site.name;
-      if (name) {
-        this.blueprintManager.updateProfile({ name });
+      // If site has a saved business name, ensure profile is in sync
+      if (site.name && site.name !== 'Gmakeup Studio' && site.name !== 'Glory Beauty Studio') {
+        this.blueprintManager.updateProfile({ name: site.name });
       }
+
+      const activeName = this.blueprintManager.getProfile().name || site.name;
 
       // 1. Try grapesData first
       if (site.grapesData) {
@@ -761,9 +769,7 @@ export class EditorService {
             this.adapter.loadProjectData(parsed);
             this.adapter.sanitizeCanvas();
             this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
-            this.isRestoringState = false;
-            this.isInitialized = true;
-            return { loaded: true, theme: site.theme, name };
+            return { loaded: true, theme: site.theme, name: activeName };
           }
         } catch {
           // Fall through to htmlContent
@@ -775,39 +781,20 @@ export class EditorService {
         this.adapter.setHtmlContent(site.htmlContent);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
-        this.isRestoringState = false;
-        this.isInitialized = true;
-        return { loaded: true, theme: site.theme, name };
+        return { loaded: true, theme: site.theme, name: activeName };
       }
 
-      this.isRestoringState = false;
       return { loaded: false };
     } catch {
-      this.isRestoringState = false;
       return { loaded: false };
     }
   }
 
   loadFromLocalStorage(projectId: string, userId?: string): { loaded: boolean; theme?: string; name?: string } {
     try {
-      this.isRestoringState = true;
-      const keys = [
-        `cuzmify_project_${userId || 'guest'}_${projectId}`,
-        `cuzmify_project_guest_${projectId}`,
-        `cuzmify_project_${projectId}`,
-      ];
-
-      let raw: string | null = null;
-      for (const k of keys) {
-        raw = localStorage.getItem(k);
-        if (raw) break;
-      }
-
-      if (!raw) {
-        this.isRestoringState = false;
-        return { loaded: false };
-      }
-
+      const storageKey = `cuzmify_project_${userId || 'guest'}_${projectId}`;
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return { loaded: false };
       const parsed = JSON.parse(raw);
 
       if (parsed.theme) {
@@ -818,33 +805,28 @@ export class EditorService {
         this.blueprintManager.hydrate(parsed.blueprint);
       }
 
-      const name = parsed.blueprint?.profile?.name;
-      if (name) {
-        this.blueprintManager.updateProfile({ name });
+      if (parsed.businessName && parsed.businessName !== 'Gmakeup Studio' && parsed.businessName !== 'Glory Beauty Studio') {
+        this.blueprintManager.updateProfile({ name: parsed.businessName });
       }
+
+      const activeName = this.blueprintManager.getProfile().name || parsed.businessName;
 
       if (parsed.grapesData) {
         this.adapter.loadProjectData(parsed.grapesData);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
-        this.isRestoringState = false;
-        this.isInitialized = true;
-        return { loaded: true, theme: parsed.theme, name };
+        return { loaded: true, theme: parsed.theme, name: activeName };
       }
 
       if (parsed.html && typeof parsed.html === 'string' && parsed.html.length > 50) {
         this.adapter.setHtmlContent(parsed.html);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
-        this.isRestoringState = false;
-        this.isInitialized = true;
-        return { loaded: true, theme: parsed.theme, name };
+        return { loaded: true, theme: parsed.theme, name: activeName };
       }
 
-      this.isRestoringState = false;
       return { loaded: false };
     } catch {
-      this.isRestoringState = false;
       return { loaded: false };
     }
   }

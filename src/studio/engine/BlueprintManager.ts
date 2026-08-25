@@ -19,7 +19,8 @@ export class BlueprintManager {
   private listeners: BlueprintChangeListener[] = [];
 
   constructor(initialName?: string, initialData?: Partial<BusinessBlueprint> | string) {
-    this.blueprint = createDefaultBlueprint(initialName || 'Gmakeup Studio');
+    const fallbackName = initialName && initialName !== 'Gmakeup Studio' ? initialName : 'My Business Studio';
+    this.blueprint = createDefaultBlueprint(fallbackName);
     if (initialData) {
       this.hydrate(initialData);
     }

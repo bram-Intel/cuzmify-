@@ -128,7 +128,11 @@ export function EditorProvider({
   // Synchronize reactive history state (Undo / Redo buttons) and Blueprint
   React.useEffect(() => {
     if (!service) return;
-    setBlueprint(service.getBlueprint());
+    const initialBp = service.getBlueprint();
+    setBlueprint(initialBp);
+    if (initialBp?.profile?.name && initialBp.profile.name !== 'Gmakeup Studio') {
+      setBusinessName(initialBp.profile.name);
+    }
 
     const unsubHistory = service.onHistoryChange((state) => {
       setCanUndo(state.canUndo);

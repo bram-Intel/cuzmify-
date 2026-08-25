@@ -24,6 +24,7 @@ const THEME_MAP: Record<string, ThemeName> = {
 export default function StudioContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
+  const nameParam = searchParams.get('name') || searchParams.get('importName');
   const templateName = searchParams.get('template');
   const categoryParam = searchParams.get('category');
   const currencyParam = searchParams.get('currency');
@@ -46,14 +47,10 @@ export default function StudioContent() {
     return <StudioAuthGate callbackUrl={`/studio?${searchParams.toString()}`} />;
   }
 
-  const sessionName =
-    session?.user?.name && session.user.name !== 'Cuzmify Creator' && session.user.name !== 'creator'
-      ? session.user.name
-      : null;
-  const nameParam = searchParams.get('name') || searchParams.get('importName') || sessionName;
   const blueprint = getBlueprintByNameOrCategory(templateName || categoryParam || 'beauty');
   const initialTheme: ThemeName = THEME_MAP[blueprint.themeConfig.style] ?? 'bram-light';
-  const initialBusinessName = nameParam || (templateName ? `${templateName} Studio` : 'Glory Beauty Studio');
+  const userAccountName = session?.user?.name ? `${session.user.name}'s Studio` : 'My Business Studio';
+  const initialBusinessName = nameParam || (templateName ? `${templateName} Studio` : userAccountName);
 
   return (
     <MobileGuard>

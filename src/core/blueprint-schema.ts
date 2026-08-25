@@ -191,7 +191,7 @@ export interface BlueprintInitOptions {
 // ── Initial Default Blueprint Factory ───────────────────────────────────────
 export function createDefaultBlueprint(optionsOrName?: string | BlueprintInitOptions, theme: string = 'bram-light'): BusinessBlueprint {
   const options: BlueprintInitOptions = typeof optionsOrName === 'string' ? { name: optionsOrName } : (optionsOrName || {});
-  const businessName = options.name || 'Gmakeup Studio';
+  const businessName = options.name || 'My Business Studio';
   const currency = options.currency || 'USD';
   const category = options.category || 'Makeup Artist';
   const whatsappNumber = options.whatsapp || '18005554526';
