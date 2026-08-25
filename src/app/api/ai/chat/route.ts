@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getGeminiClient } from '@/lib/gemini';
-import { AIEngine } from '@/studio/ai/AIEngine';
 import type { ThemeName } from '@/core/project-schema';
+
+export const maxDuration = 120; // Allow full AI visual synthesis on Vercel/Node
 
 // ── Intent Classifier ─────────────────────────────────────────────────────────
 type PromptIntent =
@@ -333,17 +334,21 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
 
     let lastError: any = null;
     for (const modelName of candidateModels) {
-      // Retry up to 2 times on transient Google 503/429 spikes
+      // Retry up to 2 times on transient Google 503/429 load spikes
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const model = genAI.getGenerativeModel({
             model: modelName,
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.15 },
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.2,
+              maxOutputTokens: 8192,
+            },
             systemInstruction,
           });
 
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout: ${modelName} over 25s`)), 25000)
+            setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 75s`)), 75000)
           );
 
           const result: any = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
@@ -392,8 +397,7 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
             candidateErr?.message?.includes('fetch failed');
 
           if (isTransient && attempt === 0) {
-            // Short backoff before retrying same model
-            await new Promise((r) => setTimeout(r, 1200));
+            await new Promise((r) => setTimeout(r, 1500));
             continue;
           }
           console.warn(`[AI Chat] Model ${modelName} (attempt ${attempt + 1}) failed:`, candidateErr?.message);
@@ -402,46 +406,8 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
       }
     }
 
-    // ── GRACEFUL AUTONOMOUS LOCAL FALLBACK ─────────────────────────────────────
-    // If Google's cloud API is experiencing a 503 outage, fall back to Cuzmify's
-    // built-in deterministic design engine so the user is NEVER blocked!
-    try {
-      console.warn('[AI Chat] Google Cloud API unavailable, invoking Cuzmify Autonomous Engine fallback...');
-      const localPlan = AIEngine.generateTransformation(message);
-      const fallbackTheme = localPlan.theme || newTheme || 'dark-obsidian';
-
-      return NextResponse.json({
-        success: true,
-        source: 'cuzmify-autonomous-engine',
-        intent: 'style-only',
-        aiReply: localPlan.summary || `Restyled website to a lush, modern aesthetic matching "${localPlan.nicheDetected}".`,
-        theme: fallbackTheme,
-        changesApplied: [
-          `Applied ${localPlan.toneDetected} theme tokens (${fallbackTheme})`,
-          `Niche tailored for ${localPlan.nicheDetected}`,
-          'Preserved 100% of live sections, WhatsApp hooks, and component hierarchy',
-        ],
-        updatedHtml: null, // Canvas will apply design tokens and preserve layout
-        updatedElementHtml: null,
-        blueprintUpdates: {
-          profile: {
-            name: profile.name || 'Studio',
-            tagline: localPlan.heroHeadline || profile.tagline || '',
-            currency,
-          },
-          services: localPlan.services?.map((s) => ({
-            name: s.name,
-            price: Number(s.price.replace(/[^0-9]/g, '')) || 150,
-            description: s.description,
-          })) || [],
-        },
-      });
-    } catch (fallbackErr: any) {
-      console.error('[AI Chat] Local fallback error:', fallbackErr);
-    }
-
     return NextResponse.json(
-      { error: `AI Service temporary load spike: ${lastError?.message || 'Please try again in a few seconds.'}` },
+      { error: `Gemini API failed: ${lastError?.message || 'Google AI is currently busy. Please try again in a few moments.'}` },
       { status: 503 }
     );
   } catch (err: any) {
