@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react';
 import { EditorProvider } from '@/studio/engine/EditorContext';
 import { EditorShell } from '@/studio/EditorShell';
 import { StudioAuthGate } from '@/studio/StudioAuthGate';
-import { MobileStudioNotice } from '@/studio/MobileStudioNotice';
 import { getBlueprintByNameOrCategory } from '@/core/blueprints';
 import type { ThemeName } from '@/core/project-schema';
 
@@ -38,9 +37,6 @@ export default function StudioContent() {
 
   return (
     <>
-      {/* Permanent Mobile Viewport Notice that never unmounts during session transitions */}
-      <MobileStudioNotice />
-
       {status === 'loading' ? (
         <div className="flex h-screen w-screen items-center justify-center bg-[#F1F5F9]">
           <div className="text-center space-y-3">
