@@ -216,30 +216,38 @@ export function AIPanel() {
       setBuildPhase('Syncing canvas & persisting to cloud DB…');
 
       const newTheme = data?.theme || theme;
-      if (data?.theme) {
+      if (data?.theme && data.theme !== theme) {
         handleThemeChange(data.theme);
       }
 
-      if (activeTarget && data?.updatedElementHtml) {
-        const replaced = service.replaceSelectedComponent(data.updatedElementHtml);
-        if (!replaced && data?.updatedHtml) {
+      // ── Apply canvas changes based on intent ────────────────────────────────
+      const isStyleOnly = data?.intent === 'style-only' || !data?.updatedHtml;
+
+      if (!isStyleOnly) {
+        if (activeTarget && data?.updatedElementHtml) {
+          // Surgical single-element replacement
+          const replaced = service.replaceSelectedComponent(data.updatedElementHtml);
+          if (!replaced && data?.updatedHtml) {
+            service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
+          }
+        } else if (data?.updatedHtml) {
+          // Full HTML replacement (add-section appended HTML or full-rebuild)
           service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
+
+          const pLow = cleanPrompt.toLowerCase();
+          let targetSec = 'hero';
+          if (pLow.includes('booking') || pLow.includes('whatsapp')) targetSec = 'booking';
+          else if (pLow.includes('service') || pLow.includes('pricing') || pLow.includes('package')) targetSec = 'services';
+          else if (pLow.includes('portfolio') || pLow.includes('gallery') || pLow.includes('photo')) targetSec = 'portfolio';
+          else if (pLow.includes('about') || pLow.includes('story')) targetSec = 'about';
+          else if (pLow.includes('testimonial') || pLow.includes('review')) targetSec = 'testimonials';
+
+          setTimeout(() => {
+            service.highlightSection(targetSec);
+          }, 150);
         }
-      } else if (data?.updatedHtml) {
-        service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
-
-        const pLow = cleanPrompt.toLowerCase();
-        let targetSec = 'hero';
-        if (pLow.includes('booking') || pLow.includes('whatsapp')) targetSec = 'booking';
-        else if (pLow.includes('service') || pLow.includes('pricing') || pLow.includes('package')) targetSec = 'services';
-        else if (pLow.includes('portfolio') || pLow.includes('gallery') || pLow.includes('photo')) targetSec = 'portfolio';
-        else if (pLow.includes('about') || pLow.includes('story')) targetSec = 'about';
-        else if (pLow.includes('testimonial') || pLow.includes('review')) targetSec = 'testimonials';
-
-        setTimeout(() => {
-          service.highlightSection(targetSec);
-        }, 150);
       }
+      // isStyleOnly: theme already applied above via handleThemeChange — canvas HTML untouched ✓
 
       if (data?.blueprintUpdates) {
         if (data.blueprintUpdates.profile) {
