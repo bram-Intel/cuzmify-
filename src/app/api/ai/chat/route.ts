@@ -329,11 +329,11 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
     }
 
     const candidateModels = [
-      'gemini-flash-lite-latest',
-      'gemini-3.5-flash-lite',
-      'gemini-3.1-flash-lite',
-      'gemini-3.5-flash',
-      'gemini-3-flash-preview',
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+      'gemini-2.5-flash-lite-preview-06-17',
+      'gemini-1.5-flash-latest',
     ];
 
     let lastError: any = null;
@@ -346,7 +346,7 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
         });
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout: ${modelName} over 12s`)), 12000)
+          setTimeout(() => reject(new Error(`Timeout: ${modelName} over 25s`)), 25000)
         );
 
         const result: any = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
@@ -401,3 +401,4 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
     return NextResponse.json({ error: err?.message || 'Failed to process AI chat request' }, { status: 500 });
   }
 }
+

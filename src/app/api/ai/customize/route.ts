@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { AIService } from '@/services/ai/ai-service';
 
 export async function POST(req: Request) {
@@ -14,3 +14,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to customize project' }, { status: 500 });
   }
 }
+

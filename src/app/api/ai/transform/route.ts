@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { getGeminiClient, GEMINI_MODEL } from '@/lib/gemini';
 import { AIEngine, type AITransformationPlan } from '@/studio/ai/AIEngine';
 
 const SYSTEM_PROMPT = `
-You are the Cuzmify AI Design Engine — a world-class website copywriter, brand director, and digital business architect for modern service businesses and luxury creators.
+You are the Cuzmify AI Design Engine â€” a world-class website copywriter, brand director, and digital business architect for modern service businesses and luxury creators.
 
 Given a user's prompt (which may describe an industry, aesthetic, bridal focus, medical spa, barbershop, high-fashion boutique, etc.), synthesize a complete, highly-converting, bespoke website transformation plan.
 
@@ -15,8 +15,8 @@ Return your response strictly as a JSON object matching this TypeScript structur
   "summary": string (1-2 sentences explaining what was transformed),
   "heroHeadline": string (High-converting, captivating 6-10 word headline),
   "heroSubheadline": string (Engaging 1-2 sentence subheadline),
-  "heroBadge": string (e.g. "✦ Master Artistry Studio"),
-  "heroCtaText": string (e.g. "✦ Book VIP Session →"),
+  "heroBadge": string (e.g. "âœ¦ Master Artistry Studio"),
+  "heroCtaText": string (e.g. "âœ¦ Book VIP Session â†’"),
   "aboutTitle": string (Compelling about section headline),
   "aboutDescription": string (2-3 sentences of brand storytelling and expertise),
   "aboutBadge": string,
@@ -58,10 +58,10 @@ export async function POST(req: Request) {
     const genAI = getGeminiClient();
     if (genAI) {
       const candidateModels = [
-        'gemini-flash-lite-latest',
-        'gemini-3.5-flash-lite',
-        'gemini-3.1-flash-lite',
-        'gemini-3.5-flash',
+        'gemini-2.0-flash',
+        'gemini-2.5-flash',
+        'gemini-1.5-flash',
+        'gemini-2.5-flash-lite-preview-06-17',
       ];
       for (const modelName of candidateModels) {
         try {
@@ -113,3 +113,4 @@ export async function POST(req: Request) {
     );
   }
 }
+
