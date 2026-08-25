@@ -9,7 +9,6 @@ import { RightPanel } from './RightPanel';
 import { BottomBar } from './BottomBar';
 import { PublishModal } from './publish/PublishModal';
 import { StudioInfrastructureHub } from './modules/StudioInfrastructureHub';
-import { MobileStudioNotice } from './MobileStudioNotice';
 import { useEditor } from './engine/EditorContext';
 
 // Canvas must be dynamically imported — GrapesJS requires window/document
@@ -125,9 +124,6 @@ function EditorShellInner() {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F1F5F9] text-[#1A202C]" suppressHydrationWarning>
-      {/* Mobile Device & Viewport Advisory Notice */}
-      <MobileStudioNotice />
-
       {/* Top Bar */}
       {!isPreviewMode && !activeModuleModal && (
         <TopBar
