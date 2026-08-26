@@ -207,7 +207,16 @@ export function AIPanel() {
         }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        if (!res.ok) {
+          throw new Error(`AI Service returned status ${res.status}. Please retry in a moment.`);
+        }
+        throw new Error(rawText?.slice(0, 120) || 'Unexpected server response format');
+      }
 
       if (!res.ok) {
         throw new Error(data.error || `AI generation failed with status ${res.status}`);

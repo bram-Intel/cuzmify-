@@ -255,7 +255,7 @@ ACTIVE data-cuzmify-* ATTRIBUTES (must ALL appear in your output HTML):
 
 EXISTING FULL HTML (transform the visuals, preserve the structure):
 \`\`\`html
-${currentHtml}
+${currentHtml.slice(0, 10000)}
 \`\`\`
 
 Transform this into a stunning ${newTheme} aesthetic. Keep all sections in order, all IDs, and all data-cuzmify-* attributes.

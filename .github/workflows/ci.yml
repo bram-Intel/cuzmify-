@@ -1,20 +1,28 @@
-name: CI Pipeline
+﻿name: Cuzmify CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   validate:
-    name: Typecheck & Build Validation
+    name: Typecheck, Unit Tests & Build Validation
     runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres?pgbouncer=true"
+      DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
+      NEXTAUTH_SECRET: "ci-secret-key-for-test-validation-32-chars-long"
+      NEXTAUTH_URL: "http://localhost:3000"
+      GEMINI_API_KEY: "dummy-key-for-build-validation"
+
     steps:
-      - name: Checkout Codebase
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js Environment (v20)
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -23,8 +31,14 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Generate Prisma Client
+      - name: Generate Prisma ORM Client
         run: npx prisma generate
 
-      - name: TypeScript Typecheck
-        run: npx tsc --noEmit
+      - name: TypeScript Strict Typecheck Gate
+        run: npm run typecheck
+
+      - name: Run Vitest Unit & Logic Test Suite
+        run: npm run test:run
+
+      - name: Next.js Production Build Gate
+        run: npm run build
