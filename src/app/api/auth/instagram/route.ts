@@ -25,10 +25,10 @@ export async function GET(req: Request) {
     JSON.stringify({ currency, category, name, timestamp: Date.now() })
   ).toString('base64');
 
-  // Dedicated Instagram Basic Display / Business OAuth Dialog
-  const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+  // Official Instagram Business Login Dialog
+  const authUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${clientId}&redirect_uri=${encodeURIComponent(
     redirectUri
-  )}&scope=user_profile,user_media&response_type=code&state=${state}`;
+  )}&response_type=code&scope=instagram_business_basic,instagram_business_manage_messages&state=${state}`;
 
   return NextResponse.redirect(authUrl);
 }
