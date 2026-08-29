@@ -6,6 +6,7 @@ export type BusinessCategory =
   | 'Fashion Designer'
   | 'Boutique Seller'
   | 'Jewelry & Accessories'
+  | 'Music & Audio Studio'
   | 'Caterer & Chef'
   | 'Consultant & Coach'
   | 'General Business';

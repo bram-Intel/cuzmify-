@@ -209,6 +209,45 @@ export const CATEGORY_BLUEPRINTS: Record<string, CategoryBlueprint> = {
       ],
     },
   },
+
+  music: {
+    id: 'prod_music',
+    category: 'Music & Audio Studio',
+    name: 'SoundStage & Beat Studio',
+    tagline: 'Audio portfolio, beat store & studio session booking',
+    description: 'Dark obsidian aesthetic engineered for music producers, recording studios, sound engineers, and DJs with track licensing and instant WhatsApp booking.',
+    imageUrl: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80',
+    isFeatured: true,
+    priceCents: 0,
+    developerName: 'Cuzmify Audio Core',
+    attachedModules: ['BOOKING', 'CATALOG', 'PAYMENTS'],
+    themeConfig: {
+      style: 'dark-obsidian',
+      primaryColor: '#090D16',
+      secondaryColor: '#38BDF8',
+      accentColor: '#A855F7',
+      fontFamily: 'Outfit',
+      heroHeadline: 'World-Class Music Production & Sound Architecture',
+      heroSubheadline: 'Grammy-grade mixing, custom beat production, vocal tracking, and audio mastering studio.',
+      featuredServices: [
+        {
+          title: 'Full Studio Recording Session (4 Hours)',
+          price: '$250',
+          description: 'High-end vocal chain recording with Neumann U87, Apollo interfaces, and live autotune tracking.',
+        },
+        {
+          title: 'Custom Beat Production & Stems',
+          price: '$350',
+          description: 'Exclusive custom instrumental with unlimited tracking rights, MIDI files, and full WAV stems.',
+        },
+        {
+          title: 'Analog Mixing & Mastering',
+          price: '$180',
+          description: 'Hybrid analog/digital stem mixing with dynamic mastering optimized for Spotify & Apple Music.',
+        },
+      ],
+    },
+  },
 };
 
 /**
@@ -217,6 +256,9 @@ export const CATEGORY_BLUEPRINTS: Record<string, CategoryBlueprint> = {
 export function getBlueprintByNameOrCategory(nameOrCategory: string): CategoryBlueprint {
   const query = nameOrCategory.toLowerCase();
 
+  if (query.includes('music') || query.includes('sound') || query.includes('audio') || query.includes('beat') || query.includes('dj') || query.includes('producer') || query.includes('track') || query.includes('record')) {
+    return CATEGORY_BLUEPRINTS.music;
+  }
   if (query.includes('fashion') || query.includes('vogue') || query.includes('boutique')) {
     return CATEGORY_BLUEPRINTS.fashion;
   }

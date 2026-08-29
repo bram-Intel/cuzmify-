@@ -330,7 +330,7 @@ ${currentHtml}
 Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "updatedHtml".`;
     }
 
-    const candidateModels = ['gemini-3.6-flash', 'gemini-3-flash-preview'];
+    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
     let lastError: any = null;
     for (const modelName of candidateModels) {
@@ -348,7 +348,7 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
           });
 
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 75s`)), 75000)
+            setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 30s`)), 30000)
           );
 
           const result: any = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);

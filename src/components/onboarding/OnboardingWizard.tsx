@@ -25,6 +25,7 @@ import {
   Loader2,
   Check,
   Globe,
+  Music,
 } from 'lucide-react';
 
 import { AuthGate, WizardSummaryData } from '@/components/auth/AuthGate';
@@ -48,6 +49,13 @@ const CATEGORIES: CategoryOption[] = [
     sub: 'Salons, bridal artists, spas, skincare',
     icon: Zap,
     recommendedTemplate: 'BeautyPro Studio Suite',
+  },
+  {
+    id: 'Music Producers & Sound Studios',
+    name: 'Music Producers & Sound Studios',
+    sub: 'Recording studios, beat catalogs, mixing engineers, DJs',
+    icon: Music,
+    recommendedTemplate: 'SoundStage & Beat Studio',
   },
   {
     id: 'Fashion & Retail',
@@ -282,6 +290,14 @@ function WizardContent() {
       tagline: 'Minimalist high-contrast gallery with booking inquiry',
       category: 'Photography',
       imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80',
+      type: 'marketplace',
+    },
+    {
+      id: 'prod_music',
+      name: 'SoundStage & Beat Studio',
+      tagline: 'Audio portfolio, beat store & studio session booking',
+      category: 'Music & Audio Studio',
+      imageUrl: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80',
       type: 'marketplace',
     },
     {

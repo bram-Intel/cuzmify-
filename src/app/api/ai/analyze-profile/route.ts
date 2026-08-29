@@ -22,12 +22,17 @@ export interface AnalyzeProfileResult {
 }
 
 export async function POST(req: Request) {
+  let handle = 'creator';
+  let businessName = 'Studio';
+  let category = 'Makeup Artists & Beauty';
+  let currency: CurrencyCode = 'USD';
+
   try {
     const body: AnalyzeProfileRequest = await req.json();
-    const handle = body.handle || 'creator';
-    const businessName = body.businessName || `${handle} Studio`;
-    const category = body.category || 'Makeup Artists & Beauty';
-    const currency: CurrencyCode = body.currency || 'USD';
+    handle = body.handle || 'creator';
+    businessName = body.businessName || `${handle} Studio`;
+    category = body.category || 'Makeup Artists & Beauty';
+    currency = body.currency || 'USD';
     const captions = body.captions || [];
 
     const gemini = getGeminiClient();
@@ -52,15 +57,16 @@ ${captions.length > 0 ? captions.slice(0, 8).map((c, i) => `${i + 1}. "${c}"`).j
 
 Available Starter Templates:
 - "BeautyPro Studio Suite" (for makeup, lashes, nails, aesthetics, spas, beauty studios)
+- "SoundStage & Beat Studio" (for music producers, recording studios, sound engineers, DJs, audio creators)
 - "Vogue Boutique & Catalog" (for fashion, apparel, hair bundles, custom wigs, accessories)
 - "Couture Events & Planning" (for event planners, bridal decor, catering, party coordination)
 - "Luxe Portrait & Studio Gallery" (for photographers, videographers, visual artists, studios)
 
 Return a STRICT JSON object (no markdown, no backticks, only valid JSON) matching this exact schema:
 {
-  "nicheDetected": string (e.g. "Luxury Bridal & Red Carpet Glamour", "High-Definition Lash & Brow Architecture", "Custom Couture Wigs & Hair Extensions"),
+  "nicheDetected": string (e.g. "World-Class Music Production & Sound Engineering", "Luxury Bridal & Red Carpet Glamour", "High-Definition Lash & Brow Architecture", "Custom Couture Wigs & Hair Extensions"),
   "confidenceScore": number (between 0.92 and 0.99),
-  "recommendedTemplate": string (must be one of the 4 template names above),
+  "recommendedTemplate": string (must be one of the 5 template names above),
   "customTagline": string (a punchy luxury one-sentence value proposition),
   "generatedServices": [
     {
@@ -68,9 +74,9 @@ Return a STRICT JSON object (no markdown, no backticks, only valid JSON) matchin
       "name": string,
       "price": number (realistic integer in ${currency}, e.g. if NGN 25000-150000, if USD 80-500, if GBP 60-400),
       "durationMinutes": number (30, 45, 60, 90, 120),
-      "locationType": "in_studio" | "on_location" | "both",
+      "locationType": "in_studio" | "on_location" | "flexible",
       "description": string,
-      "tag": string (e.g. "SIGNATURE", "BRIDAL", "VIP", "POPULAR"),
+      "tag": string (e.g. "SIGNATURE", "STUDIO", "VIP", "POPULAR"),
       "category": string,
       "enabled": true
     }
@@ -86,7 +92,7 @@ Return a STRICT JSON object (no markdown, no backticks, only valid JSON) matchin
     return NextResponse.json(parsed);
   } catch (error) {
     console.error('[AI Analyze Profile Error]:', error);
-    return NextResponse.json(getDefaultAnalysis('creator', 'Luxury Studio', 'Makeup Artists & Beauty', 'USD'));
+    return NextResponse.json(getDefaultAnalysis(handle, businessName, category, currency));
   }
 }
 
@@ -97,6 +103,57 @@ function getDefaultAnalysis(
   currency: CurrencyCode
 ): AnalyzeProfileResult {
   const isNGN = currency === 'NGN';
+  const isMusic =
+    category.toLowerCase().includes('music') ||
+    category.toLowerCase().includes('audio') ||
+    handle.toLowerCase().includes('music') ||
+    handle.toLowerCase().includes('beat') ||
+    handle.toLowerCase().includes('sound');
+
+  if (isMusic) {
+    return {
+      nicheDetected: 'World-Class Music Production & Sound Architecture',
+      confidenceScore: 0.98,
+      recommendedTemplate: 'SoundStage & Beat Studio',
+      customTagline: `Grammy-grade audio mixing, custom beat production, and studio recording by @${handle}.`,
+      generatedServices: [
+        {
+          id: 'srv-ai-1',
+          name: 'Studio Vocal Recording (4 Hours)',
+          price: isNGN ? 80000 : 250,
+          durationMinutes: 240,
+          locationType: 'in_studio',
+          description: 'High-end vocal chain with Neumann U87, Apollo interfaces, and autotune tracking.',
+          tag: 'STUDIO',
+          category: 'Recording',
+          enabled: true,
+        },
+        {
+          id: 'srv-ai-2',
+          name: 'Custom Beat Production & Full Stems',
+          price: isNGN ? 120000 : 350,
+          durationMinutes: 120,
+          locationType: 'flexible',
+          description: 'Exclusive custom instrumental with unlimited commercial rights and full WAV stems.',
+          tag: 'SIGNATURE',
+          category: 'Production',
+          enabled: true,
+        },
+        {
+          id: 'srv-ai-3',
+          name: 'Analog Stem Mixing & Mastering',
+          price: isNGN ? 60000 : 180,
+          durationMinutes: 90,
+          locationType: 'flexible',
+          description: 'Hybrid analog/digital stem mixing optimized for Spotify, Apple Music, and club sound systems.',
+          tag: 'POPULAR',
+          category: 'Mastering',
+          enabled: true,
+        },
+      ],
+      whatsappHook: `Hello ${businessName}! I checked out your tracks on Instagram and would love to book studio time / purchase beats.`,
+    };
+  }
   return {
     nicheDetected: 'Luxury Bridal & Red Carpet Glamour',
     confidenceScore: 0.96,
