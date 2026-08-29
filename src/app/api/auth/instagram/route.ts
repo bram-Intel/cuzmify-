@@ -25,10 +25,10 @@ export async function GET(req: Request) {
     JSON.stringify({ currency, category, name, timestamp: Date.now() })
   ).toString('base64');
 
-  // Meta Unified OAuth Dialog (supports Facebook & Instagram Login)
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+  // Modern Instagram Business OAuth Dialog
+  const authUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${clientId}&redirect_uri=${encodeURIComponent(
     redirectUri
-  )}&scope=public_profile,email,instagram_basic,pages_show_list&response_type=code&state=${state}`;
+  )}&response_type=code&scope=instagram_business_basic,instagram_business_manage_messages&state=${state}`;
 
   return NextResponse.redirect(authUrl);
 }
