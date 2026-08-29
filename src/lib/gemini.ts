@@ -6,4 +6,7 @@ export function getGeminiClient(): GoogleGenerativeAI | null {
   return new GoogleGenerativeAI(apiKey);
 }
 
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const rawModel = process.env.GEMINI_MODEL || '';
+export const GEMINI_MODEL = rawModel && !rawModel.includes('3.') && !rawModel.includes('preview')
+  ? rawModel
+  : 'gemini-2.0-flash';
