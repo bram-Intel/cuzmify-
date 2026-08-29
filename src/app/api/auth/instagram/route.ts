@@ -6,8 +6,9 @@ export async function GET(req: Request) {
   const category = searchParams.get('category') || 'Makeup Artists & Beauty';
   const name = searchParams.get('name') || '';
 
+  const origin = new URL(req.url).origin;
   const clientId = process.env.INSTAGRAM_CLIENT_ID;
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/instagram/callback`;
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${origin}/api/auth/instagram/callback`;
 
   // If credentials are not yet configured in .env, redirect to simulated sandbox callback with informative parameter
   if (!clientId || clientId === 'your_instagram_client_id') {

@@ -134,6 +134,28 @@ function WizardContent() {
     if (currencyFromUrl && CURRENCY_OPTIONS.includes(currencyFromUrl)) setSelectedCurrency(currencyFromUrl);
     if (instagramFromUrl) {
       setInstagramHandleInput(instagramFromUrl);
+      // Check for real Instagram photos cookie from OAuth callback
+      const cookies = document.cookie.split(';');
+      const igMediaCookie = cookies.find((c) => c.trim().startsWith('cuzmify_ig_media='));
+      if (igMediaCookie) {
+        try {
+          const raw = decodeURIComponent(igMediaCookie.split('=')[1]);
+          const realMedia = JSON.parse(raw);
+          if (Array.isArray(realMedia) && realMedia.length > 0) {
+            setInstagramResult({
+              handle: instagramFromUrl,
+              businessName: nameFromUrl || InstagramImporter.formatBusinessName(instagramFromUrl),
+              tagline: `Official Instagram portfolio of @${instagramFromUrl}`,
+              category: categoryFromUrl || 'Makeup Artists & Beauty',
+              whatsapp: '',
+              mediaVault: realMedia,
+              services: [],
+              suggestedTemplate: templateFromUrl || 'BeautyPro Studio Suite',
+            });
+            return;
+          }
+        } catch {}
+      }
       InstagramImporter.ingestProfile(instagramFromUrl, currencyFromUrl || 'USD').then((data: InstagramImportResult) => {
         setInstagramResult(data);
       });
@@ -458,14 +480,14 @@ function WizardContent() {
                         type="text"
                         value={instagramHandleInput}
                         onChange={(e) => setInstagramHandleInput(e.target.value)}
-                        placeholder="yourbrand (e.g. glorybeautystudio)"
+                        placeholder="yourbrand (e.g. official_bram_)"
                         className="w-full bg-[#F8FAFC] border border-[#CBD5E1] focus:border-pink-500 rounded-xl pl-8 pr-3 py-2 text-xs text-[#1A202C] focus:outline-none"
                       />
                     </div>
                     <button
                       type="submit"
                       disabled={isIngestingInstagram || !instagramHandleInput.trim()}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-all cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-all cursor-pointer"
                     >
                       {isIngestingInstagram ? (
                         <>
@@ -475,11 +497,24 @@ function WizardContent() {
                       ) : (
                         <>
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span>Pull Assets</span>
+                          <span>Simulate</span>
                         </>
                       )}
                     </button>
                   </form>
+
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = `/api/auth/instagram?name=${encodeURIComponent(businessName)}&category=${encodeURIComponent(selectedCategory)}&currency=${encodeURIComponent(selectedCurrency)}`;
+                      }}
+                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:opacity-95 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Instagram className="w-4 h-4" />
+                      <span>Authorize &amp; Import Real Instagram Posts (Meta OAuth)</span>
+                    </button>
+                  </div>
 
                   {/* Ingestion Results Preview */}
                   {instagramResult && (

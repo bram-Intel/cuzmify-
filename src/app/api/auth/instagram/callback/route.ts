@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { InstagramImporter } from '@/services/importer/instagram-importer';
-import { CurrencyCode } from '@/core/blueprint-schema';
+import { CurrencyCode, type MediaVaultAsset } from '@/core/blueprint-schema';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -30,9 +30,10 @@ export async function GET(req: Request) {
     };
   }
 
+  const origin = new URL(req.url).origin;
   const clientId = process.env.INSTAGRAM_CLIENT_ID;
   const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/instagram/callback`;
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${origin}/api/auth/instagram/callback`;
 
   // Sandbox / Demo Mode Fallback
   if (code === 'sandbox_demo_code' || !clientId || !clientSecret) {
@@ -86,18 +87,40 @@ export async function GET(req: Request) {
     );
     const mediaData = mediaRes.ok ? await mediaRes.json() : { data: [] };
 
+    // Map real Instagram photos into Cuzmify Media Vault assets
+    const realMediaVault: MediaVaultAsset[] = (mediaData.data || [])
+      .map((item: any, idx: number) => ({
+        id: `ig-live-${item.id || Date.now()}-${idx}`,
+        url: item.media_url || item.thumbnail_url || '',
+        name: item.caption ? item.caption.slice(0, 40) : `Instagram Post #${idx + 1}`,
+        type: idx === 0 ? ('hero' as const) : ('gallery' as const),
+        source: 'instagram' as const,
+        caption: item.caption || `Post from @${handle}`,
+        instagramPostUrl: item.permalink || `https://instagram.com/${handle}`,
+        addedAt: item.timestamp || new Date().toISOString(),
+      }))
+      .filter((m: MediaVaultAsset) => Boolean(m.url));
+
     // Format business name and suggestions
     const formattedName = stateData.name || InstagramImporter.formatBusinessName(handle);
 
     const redirectUrl = new URL('/onboarding', req.url);
-    redirectUrl.searchParams.set('step', '3');
+    redirectUrl.searchParams.set('step', '2');
     redirectUrl.searchParams.set('instagram', handle);
     redirectUrl.searchParams.set('name', formattedName);
     redirectUrl.searchParams.set('category', stateData.category || 'Makeup Artists & Beauty');
     redirectUrl.searchParams.set('currency', stateData.currency || 'USD');
-    redirectUrl.searchParams.set('mediaCount', String(mediaData.data?.length || 0));
+    redirectUrl.searchParams.set('mediaCount', String(realMediaVault.length));
 
-    return NextResponse.redirect(redirectUrl.toString());
+    const response = NextResponse.redirect(redirectUrl.toString());
+    if (realMediaVault.length > 0) {
+      response.cookies.set('cuzmify_ig_media', JSON.stringify(realMediaVault), {
+        path: '/',
+        maxAge: 3600,
+        sameSite: 'lax',
+      });
+    }
+    return response;
   } catch (error) {
     console.error('[Instagram OAuth Callback Exception]:', error);
     const redirectUrl = new URL('/onboarding', req.url);
