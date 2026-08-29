@@ -58,6 +58,11 @@ export default function StudioContent() {
         initialBusinessName={initialBusinessName}
         initialTheme={initialTheme}
         projectId={projectId}
+        initialCurrency={(currencyParam as any) || 'USD'}
+        initialCategory={categoryParam || undefined}
+        initialWhatsapp={whatsappParam || undefined}
+        initialInstagram={instagramParam || undefined}
+        initialTemplate={templateName || undefined}
       >
         <EditorShell
           initialBusinessName={initialBusinessName}

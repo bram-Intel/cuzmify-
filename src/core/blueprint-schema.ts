@@ -138,6 +138,28 @@ export interface MediaVaultAsset {
   addedAt: string;
 }
 
+// ── 7b. Instagram Live Sync Module ─────────────────────────────────────────
+export interface InstagramSyncModuleConfig {
+  enabled: boolean;
+  autoSyncFeed: boolean;
+  lastSyncedAt: string;
+  mediaCount: number;
+}
+
+// ── 7c. Instagram DM Booking Bot Module ───────────────────────────────────
+export interface DmBookingBotModuleConfig {
+  enabled: boolean;
+  triggerKeyword: string;
+  autoReplyMessage: string;
+}
+
+// ── 7d. WhatsApp Appointment Reminders Module ──────────────────────────────
+export interface AppointmentRemindersModuleConfig {
+  enabled: boolean;
+  leadTimeHours: number;
+  messageTemplate: string;
+}
+
 // ── 9. Master Business Blueprint ────────────────────────────────────────────
 export interface BusinessBlueprint {
   version: '1.0';
@@ -149,6 +171,9 @@ export interface BusinessBlueprint {
     cart: CartModuleConfig;
     payments: PaymentModuleConfig;
     booking: BookingModuleConfig;
+    instagramSync?: InstagramSyncModuleConfig;
+    dmBookingBot?: DmBookingBotModuleConfig;
+    appointmentReminders?: AppointmentRemindersModuleConfig;
   };
   mediaVault: MediaVaultAsset[];
   updatedAt: string;
@@ -322,6 +347,22 @@ export function createDefaultBlueprint(optionsOrName?: string | BlueprintInitOpt
         mode: 'whatsapp',
         requireDeposit: false,
         defaultDepositAmount: currency === 'NGN' ? 50000 : 50,
+      },
+      instagramSync: {
+        enabled: Boolean(instagramHandle),
+        autoSyncFeed: true,
+        lastSyncedAt: new Date().toISOString(),
+        mediaCount: options.mediaVault?.length || 0,
+      },
+      dmBookingBot: {
+        enabled: false,
+        triggerKeyword: 'book',
+        autoReplyMessage: `Hey there! ✨ You can explore our packages and book instantly here: https://cuzmify.com/site/${instagramHandle || 'studio'}`,
+      },
+      appointmentReminders: {
+        enabled: false,
+        leadTimeHours: 24,
+        messageTemplate: `Hi {clientName}! Reminding you of your upcoming appointment with ${businessName} tomorrow at {appointmentTime}.`,
       },
     },
     mediaVault: options.mediaVault && options.mediaVault.length > 0 ? options.mediaVault : [

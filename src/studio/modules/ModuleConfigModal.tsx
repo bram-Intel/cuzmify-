@@ -318,12 +318,53 @@ export function ModuleConfigModal() {
               {/* Media Vault Gallery Grid */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase font-mono tracking-wider">
-                    Project Media Assets ({mediaVault.length})
-                  </h3>
-                  <span className="text-[11px] text-slate-400">
-                    Hover card to apply or copy
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase font-mono tracking-wider">
+                      Project Media Assets ({mediaVault.length})
+                    </h3>
+                    {profile.instagramHandle && (
+                      <span className="px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 text-[10px] font-bold">
+                        @{profile.instagramHandle}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {profile.instagramHandle && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            setSaveToast('🔄 Syncing latest Instagram posts...');
+                            const res = await fetch('/api/auth/instagram/sync', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ handle: profile.instagramHandle }),
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              if (data.mediaVault && data.mediaVault.length > 0) {
+                                service.injectInstagramMediaToCanvas(data.mediaVault);
+                                setSaveToast(`✓ Synced ${data.mediaCount} Instagram posts!`);
+                              } else {
+                                setSaveToast('✓ Instagram feed is up to date.');
+                              }
+                            }
+                          } catch {
+                            setSaveToast('Could not sync Instagram feed.');
+                          }
+                          setTimeout(() => setSaveToast(null), 3000);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:opacity-95 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>Sync Instagram Posts</span>
+                      </button>
+                    )}
+                    <span className="text-[11px] text-slate-400">
+                      Hover card to apply
+                    </span>
+                  </div>
                 </div>
 
                 {mediaVault.length === 0 ? (

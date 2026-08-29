@@ -343,6 +343,28 @@ export function Canvas() {
       service.loadHtml(personalizedHtml, 'Initial Template', 'initial');
       service.sanitizeCanvas();
       service.syncCanvasWithBlueprint();
+
+      // 3. Auto-inject real Instagram photos if connected
+      if (typeof window !== 'undefined') {
+        const igHandle = new URLSearchParams(window.location.search).get('instagram');
+        if (igHandle) {
+          fetch('/api/auth/instagram/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ handle: igHandle }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data?.mediaVault && data.mediaVault.length > 0) {
+                service.injectInstagramMediaToCanvas(data.mediaVault);
+              }
+            })
+            .catch(() => {});
+        } else {
+          service.injectInstagramMediaToCanvas();
+        }
+      }
+
       setIsCanvasLoading(false);
     }
 

@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import type { EditorService } from './EditorService';
 import type { ThemeName } from '@/core/project-schema';
 
-import type { BusinessBlueprint } from '@/core/blueprint-schema';
+import type { BusinessBlueprint, CurrencyCode } from '@/core/blueprint-schema';
 
 export type Breakpoint = 'desktop' | 'tablet' | 'mobile';
 export type SaveState = 'saved' | 'saving' | 'unsaved' | 'error';
@@ -97,11 +97,21 @@ export function EditorProvider({
   initialBusinessName,
   initialTheme,
   projectId,
+  initialCurrency,
+  initialCategory,
+  initialWhatsapp,
+  initialInstagram,
+  initialTemplate,
 }: {
   children: React.ReactNode;
   initialBusinessName: string;
   initialTheme: ThemeName;
   projectId: string;
+  initialCurrency?: CurrencyCode;
+  initialCategory?: string;
+  initialWhatsapp?: string;
+  initialInstagram?: string;
+  initialTemplate?: string;
 }) {
   const [service, setService] = useState<EditorService | null>(null);
   const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
@@ -128,6 +138,19 @@ export function EditorProvider({
   // Synchronize reactive history state (Undo / Redo buttons) and Blueprint
   React.useEffect(() => {
     if (!service) return;
+
+    if (initialInstagram || initialCurrency || initialWhatsapp || initialCategory) {
+      service.updateProfile({
+        ...(initialInstagram ? { instagramHandle: initialInstagram } : {}),
+        ...(initialCurrency ? { currency: initialCurrency } : {}),
+        ...(initialWhatsapp ? { whatsapp: initialWhatsapp } : {}),
+        ...(initialCategory ? { category: initialCategory } : {}),
+      });
+      if (initialWhatsapp) {
+        service.updateWhatsAppConfig({ phoneNumber: initialWhatsapp });
+      }
+    }
+
     const initialBp = service.getBlueprint();
     setBlueprint(initialBp);
     if (initialBp?.profile?.name && initialBp.profile.name !== 'Gmakeup Studio') {

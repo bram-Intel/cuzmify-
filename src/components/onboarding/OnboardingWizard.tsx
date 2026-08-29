@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SpotlightCard } from '@/components/ui/SpotlightCard';
 import { BorderBeam } from '@/components/ui/BorderBeam';
@@ -110,7 +110,49 @@ function WizardContent() {
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // AI Business Intelligence state
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    nicheDetected: string;
+    confidenceScore: number;
+    recommendedTemplate: string;
+    customTagline: string;
+    generatedServices: any[];
+    whatsappHook: string;
+  } | null>(null);
+  const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
+
   const hasInitializedRef = useRef(false);
+
+  const triggerAiAnalysis = useCallback(
+    async (handle: string, bName: string, cat: string, cur: CurrencyCode, caps: string[]) => {
+      setIsAnalyzingAi(true);
+      try {
+        const res = await fetch('/api/ai/analyze-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            handle,
+            businessName: bName,
+            category: cat,
+            currency: cur,
+            captions: caps,
+          }),
+        });
+        if (res.ok) {
+          const analysis = await res.json();
+          setAiAnalysis(analysis);
+          if (analysis.recommendedTemplate) {
+            setSelectedTemplate(analysis.recommendedTemplate);
+          }
+        }
+      } catch (e) {
+        console.error('[AI Analysis Error]:', e);
+      } finally {
+        setIsAnalyzingAi(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -134,30 +176,10 @@ function WizardContent() {
     if (currencyFromUrl && CURRENCY_OPTIONS.includes(currencyFromUrl)) setSelectedCurrency(currencyFromUrl);
     if (instagramFromUrl) {
       setInstagramHandleInput(instagramFromUrl);
-      // Check for real Instagram photos cookie from OAuth callback
-      const cookies = document.cookie.split(';');
-      const igMediaCookie = cookies.find((c) => c.trim().startsWith('cuzmify_ig_media='));
-      if (igMediaCookie) {
-        try {
-          const raw = decodeURIComponent(igMediaCookie.split('=')[1]);
-          const realMedia = JSON.parse(raw);
-          if (Array.isArray(realMedia) && realMedia.length > 0) {
-            setInstagramResult({
-              handle: instagramFromUrl,
-              businessName: nameFromUrl || InstagramImporter.formatBusinessName(instagramFromUrl),
-              tagline: `Official Instagram portfolio of @${instagramFromUrl}`,
-              category: categoryFromUrl || 'Makeup Artists & Beauty',
-              whatsapp: '',
-              mediaVault: realMedia,
-              services: [],
-              suggestedTemplate: templateFromUrl || 'BeautyPro Studio Suite',
-            });
-            return;
-          }
-        } catch {}
-      }
       InstagramImporter.ingestProfile(instagramFromUrl, currencyFromUrl || 'USD').then((data: InstagramImportResult) => {
         setInstagramResult(data);
+        const caps = data.mediaVault.map((m) => m.caption || '').filter(Boolean);
+        triggerAiAnalysis(instagramFromUrl, data.businessName, categoryFromUrl || 'Makeup Artists & Beauty', currencyFromUrl || 'USD', caps);
       });
     }
     if (stepFromUrl) {
@@ -166,7 +188,7 @@ function WizardContent() {
         setStep(parsedStep as 1 | 2 | 3 | 4);
       }
     }
-  }, [searchParams]);
+  }, [searchParams, triggerAiAnalysis]);
 
   // When category changes, auto-suggest the best matching template
   const handleCategorySelect = (cat: CategoryOption) => {
@@ -201,6 +223,8 @@ function WizardContent() {
           setWhatsappPhone(data.whatsapp);
           setWhatsappConnected(true);
         }
+        const caps = data.mediaVault.map((m) => m.caption || '').filter(Boolean);
+        triggerAiAnalysis(data.handle, data.businessName, selectedCategory, selectedCurrency, caps);
       }
     } catch (err) {
       console.error('[Onboarding] Instagram Ingestion Error:', err);
@@ -596,6 +620,37 @@ function WizardContent() {
                     Pick an AI-tailored starter, browse marketplace templates, or start with a blank canvas.
                   </p>
                 </div>
+
+                {/* AI Niche Breakdown & Strategy Card */}
+                {aiAnalysis && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-[#0D5771]/10 via-[#3498E3]/10 to-transparent border border-[#0D5771]/30 shadow-sm space-y-2 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-lg bg-[#0D5771] text-white">
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0D5771]">
+                          AI Niche Match ({Math.round(aiAnalysis.confidenceScore * 100)}% Confidence)
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-bold">
+                        Tailored for @{instagramResult?.handle || instagramHandleInput || 'creator'}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-[#1A202C] font-display">
+                        {aiAnalysis.nicheDetected}
+                      </h3>
+                      <p className="text-xs text-[#64748B] mt-0.5 italic">
+                        "{aiAnalysis.customTagline}"
+                      </p>
+                    </div>
+                    <div className="pt-2 border-t border-[#0D5771]/10 flex items-center justify-between text-[11px] text-[#0D5771] font-medium">
+                      <span>✨ Pre-configured {aiAnalysis.generatedServices.length} custom service packages ({selectedCurrency})</span>
+                      <span className="font-bold">Recommended: {aiAnalysis.recommendedTemplate}</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="max-h-[360px] overflow-y-auto custom-scrollbar pr-1 space-y-2.5">
                   {marketplaceTemplates.map((tpl) => {

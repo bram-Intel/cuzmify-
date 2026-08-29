@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { BlueprintManager } from '@/studio/engine/BlueprintManager';
 import { createDefaultBlueprint } from '@/core/blueprint-schema';
 
@@ -94,5 +94,32 @@ describe('BlueprintManager & Business Blueprint Engine', () => {
 
     expect(manager.getProfile().name).toBe('Hydrated Salon');
     expect(manager.getServices().length).toBeGreaterThan(0);
+  });
+
+  it('hydrates and updates MediaVault assets with setMediaVault', () => {
+    const testAssets = [
+      {
+        id: 'ig-test-1',
+        url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e',
+        name: 'Bridal Post',
+        type: 'hero' as const,
+        source: 'instagram' as const,
+        addedAt: new Date().toISOString(),
+      },
+    ];
+
+    manager.setMediaVault(testAssets);
+    const vault = manager.getMediaVault();
+    expect(vault.length).toBe(1);
+    expect(vault[0].source).toBe('instagram');
+    expect(vault[0].name).toBe('Bridal Post');
+  });
+
+  it('initializes pro automation modules (instagramSync, dmBookingBot, appointmentReminders)', () => {
+    const bp = createDefaultBlueprint({ name: 'Auto Studio', instagramHandle: 'autobram' });
+    expect(bp.modules.instagramSync).toBeDefined();
+    expect(bp.modules.instagramSync?.enabled).toBe(true);
+    expect(bp.modules.dmBookingBot).toBeDefined();
+    expect(bp.modules.appointmentReminders).toBeDefined();
   });
 });

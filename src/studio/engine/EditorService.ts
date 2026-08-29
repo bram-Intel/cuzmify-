@@ -214,6 +214,53 @@ export class EditorService {
     }
   }
 
+  // ── Instagram Media Ingestion Auto-Injector ────────────────────────────────
+  public injectInstagramMediaToCanvas(mediaVault?: MediaVaultAsset[]): void {
+    const assets = (mediaVault && mediaVault.length > 0) ? mediaVault : this.blueprintManager.getMediaVault();
+    const instagramAssets = assets.filter((m) => m.url && (m.source === 'instagram' || m.type === 'hero' || m.type === 'gallery'));
+
+    if (instagramAssets.length === 0) return;
+
+    try {
+      const doc = this.adapter.getDoc();
+      if (!doc) return;
+
+      // 1. Replace Hero Image
+      const heroAsset = instagramAssets[0];
+      const heroImgs = doc.querySelectorAll('section#hero img, [data-cuzmify-type="hero"] img, header img');
+      if (heroImgs.length > 0 && heroAsset?.url) {
+        (heroImgs[0] as HTMLImageElement).src = heroAsset.url;
+        if (heroAsset.name) (heroImgs[0] as HTMLImageElement).alt = heroAsset.name;
+      }
+
+      // 2. Replace About Section Image
+      const aboutAsset = instagramAssets[1] || heroAsset;
+      const aboutImgs = doc.querySelectorAll('section#about img, [data-cuzmify-type="about"] img');
+      if (aboutImgs.length > 0 && aboutAsset?.url) {
+        (aboutImgs[0] as HTMLImageElement).src = aboutAsset.url;
+      }
+
+      // 3. Replace Portfolio / Gallery Grid Images
+      const galleryImgs = doc.querySelectorAll('section#portfolio img, [data-cuzmify-type="gallery"] img, .gallery-grid img');
+      if (galleryImgs.length > 0) {
+        const pool = instagramAssets.length > 1 ? instagramAssets.slice(1) : instagramAssets;
+        galleryImgs.forEach((img, idx) => {
+          const item = pool[idx % pool.length];
+          if (item?.url) {
+            (img as HTMLImageElement).src = item.url;
+            if (item.name) (img as HTMLImageElement).alt = item.name;
+          }
+        });
+      }
+
+      // Update blueprint's media vault
+      this.blueprintManager.setMediaVault(assets);
+      this.notifyChange();
+    } catch (err) {
+      console.warn('[EditorService] Error in injectInstagramMediaToCanvas:', err);
+    }
+  }
+
   // ── Snapshot Capture Engine ───────────────────────────────────────────────
   public recordSnapshot(description: string, source: HistorySnapshot['source'], themeOverride?: ThemeName): void {
     if (this.isRestoringState || this.historyManager.isPerformingRestore) return;

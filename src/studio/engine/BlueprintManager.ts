@@ -147,6 +147,11 @@ export class BlueprintManager {
     this.touch();
   }
 
+  public setMediaVault(assets: MediaVaultAsset[]): void {
+    this.blueprint.mediaVault = assets;
+    this.touch();
+  }
+
   public updateMediaAsset(id: string, updates: Partial<MediaVaultAsset>): void {
     this.blueprint.mediaVault = this.blueprint.mediaVault.map((m) =>
       m.id === id ? { ...m, ...updates } : m
