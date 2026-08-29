@@ -12,6 +12,18 @@ export interface InstagramImportResult {
 }
 
 export class InstagramImporter {
+  private static mediaCache = new Map<string, MediaVaultAsset[]>();
+
+  static setCachedMedia(handle: string, assets: MediaVaultAsset[]) {
+    if (assets && assets.length > 0) {
+      this.mediaCache.set(this.cleanHandle(handle), assets);
+    }
+  }
+
+  static getCachedMedia(handle: string): MediaVaultAsset[] | null {
+    return this.mediaCache.get(this.cleanHandle(handle)) || null;
+  }
+
   /**
    * Cleans an Instagram username, handle, or URL into a raw handle.
    */
@@ -53,7 +65,45 @@ export class InstagramImporter {
     const handle = this.cleanHandle(handleOrUrl);
     const businessName = this.formatBusinessName(handle);
 
-    // Curated high-aesthetic Instagram media library for rich visual starter
+    // If real media assets were cached from live OAuth, use them directly!
+    const cachedRealMedia = this.getCachedMedia(handle);
+    if (cachedRealMedia && cachedRealMedia.length > 0) {
+      return {
+        handle,
+        businessName,
+        tagline: `Official luxury artistry & portfolio by @${handle}.`,
+        category: 'Makeup Artists & Beauty',
+        whatsapp: '+1 (800) 555-4526',
+        mediaVault: cachedRealMedia,
+        services: [
+          {
+            id: `srv-real-${Date.now()}-1`,
+            name: 'Signature Bespoke Glam',
+            price: selectedCurrency === 'NGN' ? 45000 : 150,
+            durationMinutes: 60,
+            locationType: 'in_studio',
+            description: `Full custom makeup artistry session tailored by @${handle}.`,
+            tag: 'SIGNATURE',
+            category: 'Glamour',
+            enabled: true,
+          },
+          {
+            id: `srv-real-${Date.now()}-2`,
+            name: 'Bridal & Red Carpet Artistry',
+            price: selectedCurrency === 'NGN' ? 120000 : 350,
+            durationMinutes: 120,
+            locationType: 'on_location',
+            description: 'Luxury bridal styling with 24-hour HD longevity and trial session.',
+            tag: 'BRIDAL',
+            category: 'Bridal',
+            enabled: true,
+          },
+        ],
+        suggestedTemplate: 'BeautyPro Studio Suite',
+      };
+    }
+
+    // Curated high-aesthetic Instagram media library for rich visual starter fallback
     const now = new Date().toISOString();
     const mediaVault: MediaVaultAsset[] = [
       {

@@ -146,6 +146,11 @@ export async function GET(req: Request) {
       }
     }
 
+    // Cache real extracted photos in memory for instant onboarding display
+    if (realMediaVault.length > 0) {
+      InstagramImporter.setCachedMedia(handle, realMediaVault);
+    }
+
     // Format business name and suggestions
     const formattedName = stateData.name || InstagramImporter.formatBusinessName(handle);
 
@@ -157,15 +162,7 @@ export async function GET(req: Request) {
     redirectUrl.searchParams.set('currency', stateData.currency || 'USD');
     redirectUrl.searchParams.set('mediaCount', String(realMediaVault.length));
 
-    const response = NextResponse.redirect(redirectUrl.toString());
-    if (realMediaVault.length > 0) {
-      response.cookies.set('cuzmify_ig_media', JSON.stringify(realMediaVault), {
-        path: '/',
-        maxAge: 3600,
-        sameSite: 'lax',
-      });
-    }
-    return response;
+    return NextResponse.redirect(redirectUrl.toString());
   } catch (error) {
     console.error('[Instagram OAuth Callback Exception]:', error);
     const redirectUrl = new URL('/onboarding', req.url);
