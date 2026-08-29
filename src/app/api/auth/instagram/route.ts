@@ -25,9 +25,10 @@ export async function GET(req: Request) {
     JSON.stringify({ currency, category, name, timestamp: Date.now() })
   ).toString('base64');
 
-  const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+  // Meta Unified OAuth Dialog (supports Facebook & Instagram Login)
+  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
     redirectUri
-  )}&scope=user_profile,user_media&response_type=code&state=${state}`;
+  )}&scope=public_profile,email,instagram_basic,pages_show_list&response_type=code&state=${state}`;
 
   return NextResponse.redirect(authUrl);
 }

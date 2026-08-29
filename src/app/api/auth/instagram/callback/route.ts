@@ -51,55 +51,101 @@ export async function GET(req: Request) {
   }
 
   try {
-    // 1. Exchange authorization code for short-lived access token
-    const tokenFormData = new FormData();
-    tokenFormData.append('client_id', clientId);
-    tokenFormData.append('client_secret', clientSecret);
-    tokenFormData.append('grant_type', 'authorization_code');
-    tokenFormData.append('redirect_uri', redirectUri);
-    tokenFormData.append('code', code);
+    // 1. Exchange authorization code for access token via Meta Graph API
+    let accessToken = '';
+    const tokenRes = await fetch(
+      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`
+    );
 
-    const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
-      method: 'POST',
-      body: tokenFormData,
-    });
+    if (tokenRes.ok) {
+      const tokenData = await tokenRes.json();
+      accessToken = tokenData.access_token;
+    } else {
+      // Fallback to legacy Instagram endpoint
+      const tokenFormData = new FormData();
+      tokenFormData.append('client_id', clientId);
+      tokenFormData.append('client_secret', clientSecret);
+      tokenFormData.append('grant_type', 'authorization_code');
+      tokenFormData.append('redirect_uri', redirectUri);
+      tokenFormData.append('code', code);
 
-    if (!tokenRes.ok) {
-      const errBody = await tokenRes.text();
-      console.error('[Instagram Token Exchange Failed]:', errBody);
-      throw new Error('Failed to exchange Instagram authorization code');
+      const igRes = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        body: tokenFormData,
+      });
+      if (igRes.ok) {
+        const igData = await igRes.json();
+        accessToken = igData.access_token;
+      }
     }
 
-    const tokenData = await tokenRes.json();
-    const accessToken = tokenData.access_token;
-    const userId = tokenData.user_id;
+    if (!accessToken) {
+      throw new Error('Failed to exchange authorization code for access token with Meta API');
+    }
 
-    // 2. Fetch User Profile
-    const userRes = await fetch(
-      `https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${accessToken}`
+    // 2. Fetch User Profile & Instagram Accounts
+    let handle = 'instagram_creator';
+    let realMediaVault: MediaVaultAsset[] = [];
+
+    // Query connected Instagram Business accounts on Meta Graph
+    const accountsRes = await fetch(
+      `https://graph.facebook.com/v21.0/me/accounts?fields=name,instagram_business_account{id,username,profile_picture_url,media{id,caption,media_type,media_url,thumbnail_url,permalink,timestamp}}&access_token=${accessToken}`
     );
-    const userData = userRes.ok ? await userRes.json() : { username: 'instagram_creator' };
-    const handle = userData.username || 'instagram_creator';
 
-    // 3. Fetch User Media (Photos & Videos)
-    const mediaRes = await fetch(
-      `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&access_token=${accessToken}&limit=12`
-    );
-    const mediaData = mediaRes.ok ? await mediaRes.json() : { data: [] };
+    if (accountsRes.ok) {
+      const accountsData = await accountsRes.json();
+      for (const page of accountsData.data || []) {
+        const ig = page.instagram_business_account;
+        if (ig) {
+          if (ig.username) handle = ig.username;
+          if (Array.isArray(ig.media?.data)) {
+            realMediaVault = ig.media.data
+              .map((m: any, idx: number) => ({
+                id: `ig-live-${m.id || Date.now()}-${idx}`,
+                url: m.media_url || m.thumbnail_url || '',
+                name: m.caption ? m.caption.slice(0, 40) : `Instagram Post #${idx + 1}`,
+                type: idx === 0 ? ('hero' as const) : ('gallery' as const),
+                source: 'instagram' as const,
+                caption: m.caption || `Post from @${handle}`,
+                instagramPostUrl: m.permalink || `https://instagram.com/${handle}`,
+                addedAt: m.timestamp || new Date().toISOString(),
+              }))
+              .filter((m: MediaVaultAsset) => Boolean(m.url));
+            break;
+          }
+        }
+      }
+    }
 
-    // Map real Instagram photos into Cuzmify Media Vault assets
-    const realMediaVault: MediaVaultAsset[] = (mediaData.data || [])
-      .map((item: any, idx: number) => ({
-        id: `ig-live-${item.id || Date.now()}-${idx}`,
-        url: item.media_url || item.thumbnail_url || '',
-        name: item.caption ? item.caption.slice(0, 40) : `Instagram Post #${idx + 1}`,
-        type: idx === 0 ? ('hero' as const) : ('gallery' as const),
-        source: 'instagram' as const,
-        caption: item.caption || `Post from @${handle}`,
-        instagramPostUrl: item.permalink || `https://instagram.com/${handle}`,
-        addedAt: item.timestamp || new Date().toISOString(),
-      }))
-      .filter((m: MediaVaultAsset) => Boolean(m.url));
+    // Direct /me query fallback
+    if (realMediaVault.length === 0) {
+      const userRes = await fetch(
+        `https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${accessToken}`
+      );
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        if (userData.username) handle = userData.username;
+
+        const mediaRes = await fetch(
+          `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&access_token=${accessToken}&limit=12`
+        );
+        if (mediaRes.ok) {
+          const mediaData = await mediaRes.json();
+          realMediaVault = (mediaData.data || [])
+            .map((m: any, idx: number) => ({
+              id: `ig-live-${m.id || Date.now()}-${idx}`,
+              url: m.media_url || m.thumbnail_url || '',
+              name: m.caption ? m.caption.slice(0, 40) : `Instagram Post #${idx + 1}`,
+              type: idx === 0 ? ('hero' as const) : ('gallery' as const),
+              source: 'instagram' as const,
+              caption: m.caption || `Post from @${handle}`,
+              instagramPostUrl: m.permalink || `https://instagram.com/${handle}`,
+              addedAt: m.timestamp || new Date().toISOString(),
+            }))
+            .filter((m: MediaVaultAsset) => Boolean(m.url));
+        }
+      }
+    }
 
     // Format business name and suggestions
     const formattedName = stateData.name || InstagramImporter.formatBusinessName(handle);
