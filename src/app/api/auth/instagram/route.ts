@@ -25,10 +25,10 @@ export async function GET(req: Request) {
     JSON.stringify({ currency, category, name, timestamp: Date.now() })
   ).toString('base64');
 
-  // Meta Unified OAuth Dialog with standard public_profile scope
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+  // Dedicated Instagram Basic Display / Business OAuth Dialog
+  const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
     redirectUri
-  )}&scope=public_profile&response_type=code&state=${state}`;
+  )}&scope=user_profile,user_media&response_type=code&state=${state}`;
 
   return NextResponse.redirect(authUrl);
 }

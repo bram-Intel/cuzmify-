@@ -51,31 +51,30 @@ export async function GET(req: Request) {
   }
 
   try {
-    // 1. Exchange authorization code for access token via Meta Graph API
+    // 1. Exchange authorization code for access token with Instagram API
     let accessToken = '';
-    const tokenRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`
-    );
+    const tokenFormData = new FormData();
+    tokenFormData.append('client_id', clientId);
+    tokenFormData.append('client_secret', clientSecret);
+    tokenFormData.append('grant_type', 'authorization_code');
+    tokenFormData.append('redirect_uri', redirectUri);
+    tokenFormData.append('code', code);
 
-    if (tokenRes.ok) {
-      const tokenData = await tokenRes.json();
-      accessToken = tokenData.access_token;
+    const igRes = await fetch('https://api.instagram.com/oauth/access_token', {
+      method: 'POST',
+      body: tokenFormData,
+    });
+
+    if (igRes.ok) {
+      const igData = await igRes.json();
+      accessToken = igData.access_token;
     } else {
-      // Fallback to legacy Instagram endpoint
-      const tokenFormData = new FormData();
-      tokenFormData.append('client_id', clientId);
-      tokenFormData.append('client_secret', clientSecret);
-      tokenFormData.append('grant_type', 'authorization_code');
-      tokenFormData.append('redirect_uri', redirectUri);
-      tokenFormData.append('code', code);
-
-      const igRes = await fetch('https://api.instagram.com/oauth/access_token', {
-        method: 'POST',
-        body: tokenFormData,
-      });
-      if (igRes.ok) {
-        const igData = await igRes.json();
-        accessToken = igData.access_token;
+      const fbTokenRes = await fetch(
+        `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`
+      );
+      if (fbTokenRes.ok) {
+        const fbData = await fbTokenRes.json();
+        accessToken = fbData.access_token;
       }
     }
 
