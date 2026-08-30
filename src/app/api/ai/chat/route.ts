@@ -330,7 +330,7 @@ ${currentHtml}
 Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "updatedHtml".`;
     }
 
-    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash'];
 
     let lastError: any = null;
     for (const modelName of candidateModels) {
