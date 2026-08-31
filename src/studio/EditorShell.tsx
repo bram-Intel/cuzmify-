@@ -133,7 +133,7 @@ function EditorShellInner() {
       )}
 
       {/* Main 3-column layout */}
-      <div className={`flex flex-1 overflow-hidden min-h-0 relative ${activeModuleModal ? 'hidden' : ''}`}>
+      <div className={`flex flex-1 overflow-hidden min-h-0 relative transition-all duration-200 ${activeModuleModal ? 'hidden' : ''} ${showPublish ? 'pointer-events-none select-none opacity-25 filter blur-[1px]' : ''}`}>
         {!isPreviewMode && isLeftPanelOpen && <LeftPanel />}
 
         {/* GrapesJS Canvas — always mounted */}

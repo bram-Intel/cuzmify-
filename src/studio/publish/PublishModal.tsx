@@ -32,16 +32,6 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
-    // Prevent iframe bleeding & hardware-accelerated overlay
-    const iframes = document.querySelectorAll('iframe');
-    iframes.forEach((f) => {
-      f.style.pointerEvents = 'none';
-    });
-    return () => {
-      iframes.forEach((f) => {
-        f.style.pointerEvents = 'auto';
-      });
-    };
   }, []);
 
   const { businessName, projectId } = useEditor();
@@ -90,15 +80,10 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
       style={{ isolation: 'isolate' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget && state !== 'publishing') {
-          onClose();
-        }
-      }}
     >
-      <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E2E8F0] rounded-3xl shadow-2xl overflow-hidden text-[#1A202C] animate-in zoom-in-95 duration-200 relative z-10">
+      <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E2E8F0] rounded-3xl shadow-2xl overflow-hidden text-[#1A202C] animate-in zoom-in-95 duration-200 relative z-[10000000]">
 
         {/* Studio-Matched Clean Header */}
         <div className="px-6 py-4 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between">
