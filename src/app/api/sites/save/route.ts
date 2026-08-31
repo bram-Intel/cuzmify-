@@ -34,6 +34,9 @@ export async function POST(req: Request) {
     // 2. Strict IDOR / BOLA Validation & Persistence
     const targetId = siteId && siteId !== 'proj_default' ? siteId : undefined;
 
+    const rawName = name || 'Glory Beauty Studio';
+    const computedSubdomain = body.subdomain || (rawName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30) || 'studio');
+
     let savedSite;
     if (targetId) {
       // Check if site already exists in database
@@ -50,18 +53,22 @@ export async function POST(req: Request) {
           );
         }
 
+        const activeSubdomain = existing.subdomain || computedSubdomain;
+
         savedSite = await prisma.site.update({
           where: { id: targetId },
           data: {
             name: name || existing.name,
+            subdomain: body.subdomain || existing.subdomain || computedSubdomain,
+            customDomain: body.customDomain !== undefined ? body.customDomain : existing.customDomain,
             template: template || existing.template,
             category: category || existing.category,
             htmlContent: htmlContent !== undefined ? htmlContent : existing.htmlContent,
             grapesData: grapesData !== undefined ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : existing.grapesData,
             theme: theme || existing.theme,
-            domain: domain !== undefined ? domain : existing.domain,
+            domain: domain !== undefined ? domain : (existing.domain || `${activeSubdomain}.cuzmify.com`),
             status: status || existing.status,
-            liveUrl: liveUrl !== undefined ? liveUrl : existing.liveUrl,
+            liveUrl: liveUrl !== undefined ? liveUrl : (existing.liveUrl || `/s/${activeSubdomain}`),
             updatedAt: new Date(),
           },
         });
@@ -71,15 +78,17 @@ export async function POST(req: Request) {
           data: {
             id: targetId,
             userId,
-            name: name || 'Glory Beauty Studio',
+            name: rawName,
+            subdomain: computedSubdomain,
+            customDomain: body.customDomain || undefined,
             template: template || 'Modern Business Template',
             category: category || 'Beauty & Wellness',
             htmlContent: htmlContent || undefined,
             grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
             theme: theme || 'bram-light',
-            domain: domain || undefined,
+            domain: domain || `${computedSubdomain}.cuzmify.com`,
             status: status || 'draft',
-            liveUrl: liveUrl || undefined,
+            liveUrl: liveUrl || `/s/${computedSubdomain}`,
           },
         });
       }
@@ -91,15 +100,19 @@ export async function POST(req: Request) {
       });
 
       if (existing) {
+        const activeSubdomain = existing.subdomain || computedSubdomain;
         savedSite = await prisma.site.update({
           where: { id: existing.id },
           data: {
             name: name || existing.name,
+            subdomain: body.subdomain || existing.subdomain || computedSubdomain,
+            customDomain: body.customDomain !== undefined ? body.customDomain : existing.customDomain,
             htmlContent: htmlContent !== undefined ? htmlContent : existing.htmlContent,
             grapesData: grapesData !== undefined ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : existing.grapesData,
             theme: theme || existing.theme,
+            domain: domain !== undefined ? domain : (existing.domain || `${activeSubdomain}.cuzmify.com`),
             status: status || existing.status,
-            liveUrl: liveUrl !== undefined ? liveUrl : existing.liveUrl,
+            liveUrl: liveUrl !== undefined ? liveUrl : (existing.liveUrl || `/s/${activeSubdomain}`),
             updatedAt: new Date(),
           },
         });
@@ -107,14 +120,17 @@ export async function POST(req: Request) {
         savedSite = await prisma.site.create({
           data: {
             userId,
-            name: name || 'Glory Beauty Studio',
+            name: rawName,
+            subdomain: computedSubdomain,
+            customDomain: body.customDomain || undefined,
             template: template || 'Modern Business Template',
             category: category || 'Beauty & Wellness',
             htmlContent: htmlContent || undefined,
             grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
             theme: theme || 'bram-light',
+            domain: domain || `${computedSubdomain}.cuzmify.com`,
             status: status || 'draft',
-            liveUrl: liveUrl || undefined,
+            liveUrl: liveUrl || `/s/${computedSubdomain}`,
           },
         });
       }
