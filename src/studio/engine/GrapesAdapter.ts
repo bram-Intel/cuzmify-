@@ -544,16 +544,24 @@ export class GrapesAdapter implements EditorAdapter {
       const type = (child.get?.('type') || '').toLowerCase();
       const attrs = child.get?.('attributes') || {};
       const cuzType = attrs['data-cuzmify-type'];
-      const id = attrs['id'];
+      const id = attrs['id'] || '';
+      const text = (child.getEl?.()?.textContent || child.get?.('content') || '').toLowerCase();
 
-      // Include all top-level semantic sections, nav, header, footer, or styled containers
+      const isAnnouncement =
+        cuzType === 'announcement' ||
+        id === 'announcement' ||
+        id.includes('announce') ||
+        text.includes('whatsapp active') ||
+        text.includes('available for') ||
+        tag === 'aside';
+
       const isSection =
         tag === 'section' ||
         tag === 'nav' ||
         tag === 'header' ||
         tag === 'footer' ||
         tag === 'main' ||
-        tag === 'div' ||
+        isAnnouncement ||
         type.startsWith('cuzmify-') ||
         Boolean(cuzType) ||
         Boolean(id);
@@ -570,52 +578,32 @@ export class GrapesAdapter implements EditorAdapter {
     const sectionComps = this.getSectionComponents();
     return sectionComps.map((comp: any, index: number) => {
       const type = comp.get?.('type') || comp.get?.('tagName') || 'section';
-      const tag = (comp.get?.('tagName') || '').toLowerCase();
       const attrs = comp.get?.('attributes') || {};
       const cuzType = attrs['data-cuzmify-type'];
       const id = attrs['id'] || '';
       
       const rawName = cuzType || id || comp.get?.('name') || type;
       let cleanName = rawName.replace(/^cuzmify-/, '').replace(/[-_]/g, ' ').toLowerCase();
-      const text = comp.getEl?.()?.textContent?.trim() || '';
-
-      if (
-        cleanName.includes('announce') ||
-        id.includes('announce') ||
-        text.includes('Available for') ||
-        text.includes('📍') ||
-        (text.includes('✦') && (text.includes('WhatsApp') || text.includes('GLAM') || text.includes('Phone') || text.includes('Active')))
-      ) {
+      const text = (comp.getEl?.()?.textContent || comp.get?.('content') || '').toLowerCase();
+      
+      if (cleanName.includes('announce') || cuzType === 'announcement' || id === 'announcement' || text.includes('whatsapp active') || text.includes('available for')) {
         cleanName = 'Announcement Bar';
-      } else if (cleanName.includes('navbar') || cleanName === 'nav' || tag === 'nav') {
-        cleanName = 'Navigation Bar';
-      } else if (cleanName.includes('header') || cleanName.includes('banner')) {
-        cleanName = 'Header Banner';
-      } else if (cleanName.includes('hero')) {
-        cleanName = 'Hero Suite';
-      } else if (cleanName.includes('about') || cleanName.includes('story')) {
-        cleanName = 'About Story';
-      } else if (cleanName.includes('service') || cleanName.includes('pricing') || cleanName.includes('catalog')) {
-        cleanName = 'Services & Pricing';
-      } else if (cleanName.includes('gallery') || cleanName.includes('portfolio') || cleanName.includes('work')) {
-        cleanName = 'Portfolio Gallery';
-      } else if (cleanName.includes('testimonial') || cleanName.includes('review')) {
-        cleanName = 'Client Reviews';
-      } else if (cleanName.includes('booking') || cleanName.includes('reserve')) {
-        cleanName = 'WhatsApp Booking';
-      } else if (cleanName.includes('product') || cleanName.includes('store') || cleanName.includes('shop')) {
-        cleanName = 'Products & Store';
-      } else if (cleanName.includes('cta') || cleanName.includes('action')) {
-        cleanName = 'Call To Action';
-      } else if (cleanName.includes('faq') || cleanName.includes('question')) {
-        cleanName = 'FAQ & Inquiries';
-      } else if (cleanName.includes('contact') || cleanName.includes('location') || cleanName.includes('map')) {
-        cleanName = 'Contact & Location';
-      } else if (cleanName.includes('team') || cleanName.includes('staff') || cleanName.includes('artist')) {
-        cleanName = 'Artists & Team';
-      } else if (cleanName.includes('footer') || tag === 'footer') {
-        cleanName = 'Footer';
-      } else {
+      }
+      else if (cleanName.includes('navbar') || cleanName === 'nav') cleanName = 'Navigation Bar';
+      else if (cleanName.includes('header') || cleanName.includes('banner')) cleanName = 'Header Banner';
+      else if (cleanName.includes('hero')) cleanName = 'Hero Suite';
+      else if (cleanName.includes('about') || cleanName.includes('story')) cleanName = 'About Story';
+      else if (cleanName.includes('service') || cleanName.includes('pricing') || cleanName.includes('catalog')) cleanName = 'Services & Pricing';
+      else if (cleanName.includes('gallery') || cleanName.includes('portfolio') || cleanName.includes('work')) cleanName = 'Portfolio Gallery';
+      else if (cleanName.includes('testimonial') || cleanName.includes('review')) cleanName = 'Client Reviews';
+      else if (cleanName.includes('booking') || cleanName.includes('reserve')) cleanName = 'WhatsApp Booking';
+      else if (cleanName.includes('product') || cleanName.includes('store') || cleanName.includes('shop')) cleanName = 'Products & Store';
+      else if (cleanName.includes('cta') || cleanName.includes('action')) cleanName = 'Call To Action';
+      else if (cleanName.includes('faq') || cleanName.includes('question')) cleanName = 'FAQ & Inquiries';
+      else if (cleanName.includes('contact') || cleanName.includes('location') || cleanName.includes('map')) cleanName = 'Contact & Location';
+      else if (cleanName.includes('team') || cleanName.includes('staff') || cleanName.includes('artist')) cleanName = 'Artists & Team';
+      else if (cleanName.includes('footer')) cleanName = 'Footer';
+      else {
         cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
       }
 
