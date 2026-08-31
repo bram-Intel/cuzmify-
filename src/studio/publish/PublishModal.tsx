@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Rocket, CheckCircle2, ExternalLink, X, Globe, ShieldCheck, Loader2, Copy, Check, QrCode, Smartphone } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
+import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
 
 interface PublishModalProps {
   onClose: () => void;
@@ -88,13 +89,7 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
         {/* Studio-Matched Clean Header */}
         <div className="px-6 py-4 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0D5771] to-[#3498E3] flex items-center justify-center shadow-sm">
-              {state === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-white" />
-              ) : (
-                <Rocket className="w-5 h-5 text-white" />
-              )}
-            </div>
+            <CuzmifyLogo className="w-9 h-9 shrink-0 rounded-xl shadow-xs" />
             <div>
               <h2 className="text-sm font-bold text-[#1A202C] font-display">
                 {state === 'success' ? '🎉 Website is Live!' : state === 'publishing' ? 'Launching to Edge…' : 'Ready to Launch?'}
