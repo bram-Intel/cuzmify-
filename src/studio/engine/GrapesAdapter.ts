@@ -519,17 +519,27 @@ export class GrapesAdapter implements EditorAdapter {
   // ── Section Re-ordering APIs (FIXED) ──────────────────────────────────────
 
   /**
-   * Returns ONLY direct children of the wrapper that qualify as sections.
-   * No recursive scanning — prevents index misalignment from nested components.
+   * Returns direct children of the wrapper that qualify as sections.
+   * If the canvas was wrapped inside a single root tag (e.g. <main> or <header> or <div>),
+   * traverses down to find all top-level sections.
    */
   private getSectionComponents(): any[] {
     const wrapper = this.editor.getWrapper();
     if (!wrapper) return [];
 
-    const sections: any[] = [];
-    const directChildren: any[] = wrapper.components()?.models || [];
+    let candidateChildren: any[] = wrapper.components()?.models || [];
 
-    for (const child of directChildren) {
+    // If the entire page was wrapped inside a single root container, unwrap to find child sections
+    if (candidateChildren.length === 1) {
+      const singleChild = candidateChildren[0];
+      const nestedChildren = singleChild.components?.()?.models || [];
+      if (nestedChildren.length > 1) {
+        candidateChildren = nestedChildren;
+      }
+    }
+
+    const sections: any[] = [];
+    for (const child of candidateChildren) {
       const tag = (child.get?.('tagName') || '').toLowerCase();
       const type = (child.get?.('type') || '').toLowerCase();
       const attrs = child.get?.('attributes') || {};
@@ -541,6 +551,7 @@ export class GrapesAdapter implements EditorAdapter {
         tag === 'nav' ||
         tag === 'header' ||
         tag === 'footer' ||
+        tag === 'main' ||
         type.startsWith('cuzmify-') ||
         Boolean(cuzType) ||
         Boolean(id);
@@ -550,7 +561,7 @@ export class GrapesAdapter implements EditorAdapter {
       }
     }
 
-    return sections;
+    return sections.length > 0 ? sections : candidateChildren;
   }
 
   getSectionsList(): { id: string; type: string; name: string; index: number }[] {
@@ -562,16 +573,19 @@ export class GrapesAdapter implements EditorAdapter {
       const id = attrs['id'] || '';
       
       const rawName = cuzType || id || comp.get?.('name') || type;
-      let cleanName = rawName.replace(/^cuzmify-/, '').replace(/[-_]/g, ' ');
+      let cleanName = rawName.replace(/^cuzmify-/, '').replace(/[-_]/g, ' ').toLowerCase();
       
-      if (cleanName === 'navbar' || cleanName === 'nav') cleanName = 'Navigation Bar';
-      else if (cleanName === 'hero') cleanName = 'Hero Suite';
-      else if (cleanName === 'about') cleanName = 'About Story';
-      else if (cleanName === 'services') cleanName = 'Services & Pricing';
-      else if (cleanName === 'gallery' || cleanName === 'portfolio') cleanName = 'Portfolio Gallery';
-      else if (cleanName === 'testimonials') cleanName = 'Client Reviews';
-      else if (cleanName === 'booking') cleanName = 'WhatsApp Booking';
-      else if (cleanName === 'cta') cleanName = 'Call To Action';
+      if (cleanName.includes('navbar') || cleanName === 'nav') cleanName = 'Navigation Bar';
+      else if (cleanName.includes('header')) cleanName = 'Header Banner';
+      else if (cleanName.includes('hero')) cleanName = 'Hero Suite';
+      else if (cleanName.includes('about') || cleanName.includes('story')) cleanName = 'About Story';
+      else if (cleanName.includes('service') || cleanName.includes('pricing') || cleanName.includes('catalog')) cleanName = 'Services & Pricing';
+      else if (cleanName.includes('gallery') || cleanName.includes('portfolio') || cleanName.includes('work')) cleanName = 'Portfolio Gallery';
+      else if (cleanName.includes('testimonial') || cleanName.includes('review')) cleanName = 'Client Reviews';
+      else if (cleanName.includes('booking') || cleanName.includes('reserve')) cleanName = 'WhatsApp Booking';
+      else if (cleanName.includes('product') || cleanName.includes('store') || cleanName.includes('shop')) cleanName = 'Products & Store';
+      else if (cleanName.includes('cta') || cleanName.includes('action')) cleanName = 'Call To Action';
+      else if (cleanName.includes('footer')) cleanName = 'Footer';
       else {
         cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
       }

@@ -270,6 +270,7 @@ STRUCTURAL INTEGRITY RULES (NON-NEGOTIABLE):
 2. SECTION IDs ARE SACRED. Every section that had an id attribute must keep the exact same id in your output.
 3. DATA ATTRIBUTES ARE SACRED. Every data-cuzmify-* attribute (data-cuzmify-action, data-cuzmify-type, etc.) must be copied exactly into your output — these power live WhatsApp, cart, booking, and payment integrations.
 4. COMPOSABLE MODULE SLOTS: Existing product grids (data-cuzmify-type="products"), service selectors (data-cuzmify-type="service-select"), cart pills (data-cuzmify-type="cart-pill"), and booking forms must remain in place and keep their attributes.
+5. ROOT-LEVEL SIBLINGS ONLY: Return direct sibling <nav> and <section> elements. NEVER wrap the whole page in a single <main>, <header>, or <div> container. Every section must be an independent top-level sibling so the visual editor can reorder them.
 
 ═══════════════════════════════════════════════════
 CREATIVE FREEDOMS (go all out here):
