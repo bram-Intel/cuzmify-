@@ -541,13 +541,27 @@ export class GrapesAdapter implements EditorAdapter {
     const sections: any[] = [];
     for (const child of candidateChildren) {
       const tag = (child.get?.('tagName') || '').toLowerCase();
-      // Exclude non-layout head/style/script tags
-      if (tag === 'style' || tag === 'script' || tag === 'link' || tag === 'meta') continue;
+      const type = (child.get?.('type') || '').toLowerCase();
+      const attrs = child.get?.('attributes') || {};
+      const cuzType = attrs['data-cuzmify-type'];
+      const id = attrs['id'];
 
-      sections.push(child);
+      const isSection =
+        tag === 'section' ||
+        tag === 'nav' ||
+        tag === 'header' ||
+        tag === 'footer' ||
+        tag === 'main' ||
+        type.startsWith('cuzmify-') ||
+        Boolean(cuzType) ||
+        Boolean(id);
+
+      if (isSection) {
+        sections.push(child);
+      }
     }
 
-    return sections;
+    return sections.length > 0 ? sections : candidateChildren;
   }
 
   getSectionsList(): { id: string; type: string; name: string; index: number }[] {
@@ -555,24 +569,15 @@ export class GrapesAdapter implements EditorAdapter {
     return sectionComps.map((comp: any, index: number) => {
       const type = comp.get?.('type') || comp.get?.('tagName') || 'section';
       const attrs = comp.get?.('attributes') || {};
-      const cuzType = attrs['data-cuzmify-type'] || '';
+      const cuzType = attrs['data-cuzmify-type'];
       const id = attrs['id'] || '';
-      const text = (comp.getEl?.()?.textContent || '').slice(0, 60).toLowerCase();
       
       const rawName = cuzType || id || comp.get?.('name') || type;
       let cleanName = rawName.replace(/^cuzmify-/, '').replace(/[-_]/g, ' ').toLowerCase();
       
-      if (
-        cleanName.includes('header') ||
-        cleanName.includes('announcement') ||
-        text.includes('available for') ||
-        text.includes('artistry') ||
-        text.includes('whatsapp active') ||
-        (index === 0 && (cleanName === 'div' || cleanName === 'header' || cleanName === 'section'))
-      ) {
-        cleanName = 'Header Banner';
-      }
+      if (cleanName.includes('announce')) cleanName = 'Announcement Bar';
       else if (cleanName.includes('navbar') || cleanName === 'nav') cleanName = 'Navigation Bar';
+      else if (cleanName.includes('header') || cleanName.includes('banner')) cleanName = 'Header Banner';
       else if (cleanName.includes('hero')) cleanName = 'Hero Suite';
       else if (cleanName.includes('about') || cleanName.includes('story')) cleanName = 'About Story';
       else if (cleanName.includes('service') || cleanName.includes('pricing') || cleanName.includes('catalog')) cleanName = 'Services & Pricing';
@@ -581,6 +586,9 @@ export class GrapesAdapter implements EditorAdapter {
       else if (cleanName.includes('booking') || cleanName.includes('reserve')) cleanName = 'WhatsApp Booking';
       else if (cleanName.includes('product') || cleanName.includes('store') || cleanName.includes('shop')) cleanName = 'Products & Store';
       else if (cleanName.includes('cta') || cleanName.includes('action')) cleanName = 'Call To Action';
+      else if (cleanName.includes('faq') || cleanName.includes('question')) cleanName = 'FAQ & Inquiries';
+      else if (cleanName.includes('contact') || cleanName.includes('location') || cleanName.includes('map')) cleanName = 'Contact & Location';
+      else if (cleanName.includes('team') || cleanName.includes('staff') || cleanName.includes('artist')) cleanName = 'Artists & Team';
       else if (cleanName.includes('footer')) cleanName = 'Footer';
       else {
         cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
@@ -639,14 +647,14 @@ export class GrapesAdapter implements EditorAdapter {
         }
       }
 
-      // 2. Re-order collection.models array in place using exact arrayMove
+      // 2. Re-order collection.models array in place
       const models = [...(collection.models || [])];
       const fromIdx = models.indexOf(sourceComp);
       const toIdx = models.indexOf(destComp);
 
       if (fromIdx !== -1 && toIdx !== -1) {
-        const [movedItem] = models.splice(fromIdx, 1);
-        models.splice(toIdx, 0, movedItem);
+        models.splice(fromIdx, 1);
+        models.splice(toIdx, 0, sourceComp);
         collection.models = models;
       }
 
