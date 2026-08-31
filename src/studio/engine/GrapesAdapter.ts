@@ -541,27 +541,13 @@ export class GrapesAdapter implements EditorAdapter {
     const sections: any[] = [];
     for (const child of candidateChildren) {
       const tag = (child.get?.('tagName') || '').toLowerCase();
-      const type = (child.get?.('type') || '').toLowerCase();
-      const attrs = child.get?.('attributes') || {};
-      const cuzType = attrs['data-cuzmify-type'];
-      const id = attrs['id'];
+      // Exclude non-layout head/style/script tags
+      if (tag === 'style' || tag === 'script' || tag === 'link' || tag === 'meta') continue;
 
-      const isSection =
-        tag === 'section' ||
-        tag === 'nav' ||
-        tag === 'header' ||
-        tag === 'footer' ||
-        tag === 'main' ||
-        type.startsWith('cuzmify-') ||
-        Boolean(cuzType) ||
-        Boolean(id);
-
-      if (isSection) {
-        sections.push(child);
-      }
+      sections.push(child);
     }
 
-    return sections.length > 0 ? sections : candidateChildren;
+    return sections;
   }
 
   getSectionsList(): { id: string; type: string; name: string; index: number }[] {
@@ -569,14 +555,24 @@ export class GrapesAdapter implements EditorAdapter {
     return sectionComps.map((comp: any, index: number) => {
       const type = comp.get?.('type') || comp.get?.('tagName') || 'section';
       const attrs = comp.get?.('attributes') || {};
-      const cuzType = attrs['data-cuzmify-type'];
+      const cuzType = attrs['data-cuzmify-type'] || '';
       const id = attrs['id'] || '';
+      const text = (comp.getEl?.()?.textContent || '').slice(0, 60).toLowerCase();
       
       const rawName = cuzType || id || comp.get?.('name') || type;
       let cleanName = rawName.replace(/^cuzmify-/, '').replace(/[-_]/g, ' ').toLowerCase();
       
-      if (cleanName.includes('navbar') || cleanName === 'nav') cleanName = 'Navigation Bar';
-      else if (cleanName.includes('header')) cleanName = 'Header Banner';
+      if (
+        cleanName.includes('header') ||
+        cleanName.includes('announcement') ||
+        text.includes('available for') ||
+        text.includes('artistry') ||
+        text.includes('whatsapp active') ||
+        (index === 0 && (cleanName === 'div' || cleanName === 'header' || cleanName === 'section'))
+      ) {
+        cleanName = 'Header Banner';
+      }
+      else if (cleanName.includes('navbar') || cleanName === 'nav') cleanName = 'Navigation Bar';
       else if (cleanName.includes('hero')) cleanName = 'Hero Suite';
       else if (cleanName.includes('about') || cleanName.includes('story')) cleanName = 'About Story';
       else if (cleanName.includes('service') || cleanName.includes('pricing') || cleanName.includes('catalog')) cleanName = 'Services & Pricing';
