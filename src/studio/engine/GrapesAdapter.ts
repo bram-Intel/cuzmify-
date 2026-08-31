@@ -639,14 +639,14 @@ export class GrapesAdapter implements EditorAdapter {
         }
       }
 
-      // 2. Re-order collection.models array in place
+      // 2. Re-order collection.models array in place using exact arrayMove
       const models = [...(collection.models || [])];
       const fromIdx = models.indexOf(sourceComp);
       const toIdx = models.indexOf(destComp);
 
       if (fromIdx !== -1 && toIdx !== -1) {
-        models.splice(fromIdx, 1);
-        models.splice(toIdx, 0, sourceComp);
+        const [movedItem] = models.splice(fromIdx, 1);
+        models.splice(toIdx, 0, movedItem);
         collection.models = models;
       }
 

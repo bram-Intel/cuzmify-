@@ -9,7 +9,6 @@ import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 
 // Initial HTML loaded into GrapesJS canvas on first load
 const INITIAL_HTML = `
-  <!-- HEADER BANNER / ANNOUNCEMENT BAR -->
   <header id="header-banner" data-cuzmify-type="header-banner" style="background:#083D50;color:#fff;padding:10px 24px;font-size:11px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:monospace;">
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <span style="color:#FCD34D;font-weight:700;">✦ Gmakeup Luxury Artistry</span>
@@ -21,8 +20,7 @@ const INITIAL_HTML = `
     </div>
   </header>
 
-  <!-- NAVBAR -->
-  <nav data-cuzmify-type="navbar" data-brand="Gmakeup Studio" style="padding:16px 32px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.97);border-bottom:1px solid #E2E8F0;position:sticky;top:0;z-index:30;backdrop-filter:blur(12px);">
+  <nav id="navbar" data-cuzmify-type="navbar" data-brand="Gmakeup Studio" style="padding:16px 32px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.97);border-bottom:1px solid #E2E8F0;position:sticky;top:0;z-index:30;backdrop-filter:blur(12px);">
     <div style="display:flex;align-items:center;gap:12px;">
       <span data-cuzmify-field="business-name" class="brand-name" style="font-size:1.25rem;font-weight:900;color:#0D5771;letter-spacing:0.04em;text-transform:uppercase;font-family:'Playfair Display',serif;">GMAKEUP STUDIO</span>
       <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,0.12);color:#D97706;border:1px solid rgba(245,158,11,0.2);">PRO CERTIFIED</span>
@@ -36,8 +34,7 @@ const INITIAL_HTML = `
     <a data-cuzmify-action="whatsapp:booking" data-cuzmify-target-id="srv-bridal-suite" href="#booking" class="nav-cta" style="padding:10px 20px;border-radius:10px;background:#0D5771;color:#fff;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap;">Book Session</a>
   </nav>
 
-  <!-- HERO -->
-  <section data-cuzmify-type="hero" style="padding:80px 48px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:48px;align-items:center;background:#fff;max-width:1200px;margin:0 auto;box-sizing:border-box;">
+  <section id="hero" data-cuzmify-type="hero" style="padding:80px 48px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:48px;align-items:center;background:#fff;max-width:1200px;margin:0 auto;box-sizing:border-box;">
     <div>
       <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);margin-bottom:24px;">
         <span style="color:#F59E0B;font-size:11px;">★★★★★</span>
@@ -67,7 +64,6 @@ const INITIAL_HTML = `
     </div>
   </section>
 
-  <!-- ABOUT -->
   <section id="about" data-cuzmify-type="about" style="padding:80px 48px;background:#F7FAFC;max-width:1200px;margin:0 auto;box-sizing:border-box;">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:48px;align-items:center;">
       <div style="border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.1);">
@@ -86,7 +82,6 @@ const INITIAL_HTML = `
     </div>
   </section>
 
-  <!-- SERVICES -->
   <section id="services" data-cuzmify-type="services" style="padding:80px 48px;background:#fff;max-width:1200px;margin:0 auto;box-sizing:border-box;">
     <div style="max-width:1100px;margin:0 auto;">
       <div style="text-align:center;margin-bottom:56px;">
@@ -130,7 +125,6 @@ const INITIAL_HTML = `
     </div>
   </section>
 
-  <!-- GALLERY -->
   <section id="portfolio" data-cuzmify-type="gallery" style="padding:80px 48px;background:#0F172A;box-sizing:border-box;">
     <div style="max-width:1100px;margin:0 auto;">
       <div style="text-align:center;margin-bottom:48px;">
@@ -148,7 +142,6 @@ const INITIAL_HTML = `
     </div>
   </section>
 
-  <!-- BOOKING -->
   <section id="booking" data-cuzmify-type="booking" style="padding:80px 48px;background:#F7FAFC;box-sizing:border-box;">
     <div style="max-width:560px;margin:0 auto;background:#fff;padding:48px 36px;border-radius:28px;border:1px solid #E2E8F0;box-shadow:0 20px 60px rgba(0,0,0,0.08);box-sizing:border-box;">
       <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#25D366;letter-spacing:0.1em;font-family:monospace;">WhatsApp Booking</span>
