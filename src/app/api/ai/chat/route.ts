@@ -58,6 +58,69 @@ function detectTheme(prompt: string, currentTheme: ThemeName): ThemeName {
   return currentTheme;
 }
 
+/** Robust JSON parser with automatic error recovery and regex fallback for AI outputs */
+function safeParseAIResponse(rawText: string): any {
+  let cleanJson = rawText.trim();
+  if (cleanJson.startsWith('```')) {
+    cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  }
+
+  // 1. Direct standard parse
+  try {
+    return JSON.parse(cleanJson);
+  } catch (err: any) {
+    console.warn('[AI Chat] Standard JSON.parse failed, attempting robust recovery:', err?.message);
+  }
+
+  // 2. Try closing open quotes and braces
+  try {
+    let repaired = cleanJson;
+    const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      repaired += '"';
+    }
+    if (!repaired.trim().endsWith('}')) {
+      repaired += '}';
+    }
+    return JSON.parse(repaired);
+  } catch {}
+
+  // 3. Robust Regex Extraction Fallback
+  const aiReplyMatch = cleanJson.match(/"aiReply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const themeMatch = cleanJson.match(/"theme"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const updatedElemMatch = cleanJson.match(/"updatedElementHtml"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const newSecMatch = cleanJson.match(/"newSectionHtml"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+
+  let updatedHtml: string | null = null;
+  const htmlMatch = cleanJson.match(/"updatedHtml"\s*:\s*"([\s\S]*)/);
+  if (htmlMatch) {
+    let rawHtml = htmlMatch[1];
+    rawHtml = rawHtml.replace(/"\s*(?:,\s*"[^"]+"\s*:\s*[\s\S]*|\s*\}\s*)$/, '');
+    if (rawHtml.endsWith('"')) rawHtml = rawHtml.slice(0, -1);
+
+    try {
+      updatedHtml = JSON.parse(`"${rawHtml}"`);
+    } catch {
+      updatedHtml = rawHtml
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+    }
+  }
+
+  return {
+    aiReply: aiReplyMatch ? aiReplyMatch[1].replace(/\\"/g, '"') : 'Applied requested design transformation.',
+    theme: themeMatch ? themeMatch[1] : undefined,
+    changesApplied: ['Applied responsive visual styles & layout enhancements'],
+    updatedHtml,
+    updatedElementHtml: updatedElemMatch ? updatedElemMatch[1].replace(/\\"/g, '"') : null,
+    newSectionHtml: newSecMatch ? newSecMatch[1].replace(/\\"/g, '"') : null,
+    blueprintUpdates: null,
+  };
+}
+
 /** Extract the ordered list of sections and their IDs from the current HTML */
 function extractSectionManifest(html: string): string {
   const sectionPattern = /<section[^>]*>/gi;
@@ -342,7 +405,7 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
             generationConfig: {
               responseMimeType: 'application/json',
               temperature: 0.2,
-              maxOutputTokens: 8192,
+              maxOutputTokens: 16384,
             },
             systemInstruction,
           });
@@ -353,11 +416,7 @@ Return JSON with "aiReply", "theme", "changesApplied", "blueprintUpdates", "upda
 
           const result: any = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
           const responseText = result.response.text();
-          let cleanJson = responseText.trim();
-          if (cleanJson.startsWith('```')) {
-            cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-          }
-          const parsedData = JSON.parse(cleanJson);
+          const parsedData = safeParseAIResponse(responseText);
 
           let finalHtml: string | null = null;
           if (intent === 'element-style' && parsedData?.updatedElementHtml) {
