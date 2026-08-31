@@ -9,8 +9,8 @@ import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 
 // Initial HTML loaded into GrapesJS canvas on first load
 const INITIAL_HTML = `
-  <!-- ANNOUNCEMENT BAR -->
-  <div style="background:#083D50;color:#fff;padding:10px 24px;font-size:11px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:monospace;">
+  <!-- HEADER BANNER / ANNOUNCEMENT BAR -->
+  <header id="header-banner" data-cuzmify-type="header-banner" style="background:#083D50;color:#fff;padding:10px 24px;font-size:11px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:monospace;">
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <span style="color:#FCD34D;font-weight:700;">✦ Gmakeup Luxury Artistry</span>
       <span style="color:#94A3B8;">📍 Available for On-Location &amp; International Weddings</span>
@@ -19,7 +19,7 @@ const INITIAL_HTML = `
       <span>📞 +1 (800) 555-GLAM</span>
       <span style="color:#4ADE80;font-weight:700;">💬 WhatsApp Active</span>
     </div>
-  </div>
+  </header>
 
   <!-- NAVBAR -->
   <nav data-cuzmify-type="navbar" data-brand="Gmakeup Studio" style="padding:16px 32px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.97);border-bottom:1px solid #E2E8F0;position:sticky;top:0;z-index:30;backdrop-filter:blur(12px);">
