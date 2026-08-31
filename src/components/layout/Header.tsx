@@ -24,7 +24,19 @@ export const Header: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  if (pathname === '/studio' || pathname === '/editor') {
+  // Do not render Cuzmify platform navigation on studio, standalone sites, or subdomains
+  const isSubdomain = typeof window !== 'undefined' && (
+    (window.location.hostname.includes('.localhost') && !window.location.hostname.startsWith('localhost')) ||
+    (window.location.hostname.includes('.cuzmify.') && !window.location.hostname.startsWith('www.') && !window.location.hostname.startsWith('app.'))
+  );
+
+  if (
+    pathname === '/studio' ||
+    pathname === '/editor' ||
+    pathname?.startsWith('/s/') ||
+    pathname?.startsWith('/site/') ||
+    isSubdomain
+  ) {
     return null;
   }
 

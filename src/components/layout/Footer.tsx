@@ -30,7 +30,19 @@ export const Footer: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  if (pathname === '/studio' || pathname === '/editor') {
+  // Do not render Cuzmify platform footer on studio, standalone sites, or subdomains
+  const isSubdomain = typeof window !== 'undefined' && (
+    (window.location.hostname.includes('.localhost') && !window.location.hostname.startsWith('localhost')) ||
+    (window.location.hostname.includes('.cuzmify.') && !window.location.hostname.startsWith('www.') && !window.location.hostname.startsWith('app.'))
+  );
+
+  if (
+    pathname === '/studio' ||
+    pathname === '/editor' ||
+    pathname?.startsWith('/s/') ||
+    pathname?.startsWith('/site/') ||
+    isSubdomain
+  ) {
     return null;
   }
 

@@ -137,6 +137,7 @@ export default async function SubdomainSitePage({ params }: SubdomainPageProps) 
       
       {/* Live Site Canvas */}
       <main
+        suppressHydrationWarning
         className="min-h-screen w-full bg-white text-[#1A202C] antialiased"
         dangerouslySetInnerHTML={{ __html: site.htmlContent }}
       />
