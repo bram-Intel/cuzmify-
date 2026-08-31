@@ -125,7 +125,7 @@ function EditorShellInner() {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F1F5F9] text-[#1A202C]" suppressHydrationWarning>
       {/* Top Bar */}
-      {!isPreviewMode && !activeModuleModal && (
+      {!isPreviewMode && !activeModuleModal && !showPublish && (
         <TopBar
           onPublish={() => setShowPublish(true)}
           isPublishing={isPublishing}
@@ -133,10 +133,10 @@ function EditorShellInner() {
       )}
 
       {/* Main 3-column layout */}
-      <div className={`flex flex-1 overflow-hidden min-h-0 relative transition-all duration-200 ${activeModuleModal ? 'hidden' : ''} ${showPublish ? 'pointer-events-none select-none opacity-25 filter blur-[1px]' : ''}`}>
+      <div className={`flex flex-1 overflow-hidden min-h-0 relative ${activeModuleModal || showPublish ? 'hidden' : ''}`}>
         {!isPreviewMode && isLeftPanelOpen && <LeftPanel />}
 
-        {/* GrapesJS Canvas — always mounted */}
+        {/* GrapesJS Canvas — always mounted in memory */}
         <Canvas />
 
         {!isPreviewMode && selectedComponent.type && <RightPanel />}
@@ -170,7 +170,7 @@ function EditorShellInner() {
       )}
 
       {/* Bottom Status Bar */}
-      {!isPreviewMode && !activeModuleModal && <BottomBar />}
+      {!isPreviewMode && !activeModuleModal && !showPublish && <BottomBar />}
 
       {/* Full-Screen Studio Infrastructure Hub */}
       {activeModuleModal && (
