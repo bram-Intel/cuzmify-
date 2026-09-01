@@ -7,11 +7,14 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
+import { ProjectManagerSection } from '@/components/dashboard/ProjectManagerSection';
 
 export interface SiteRecord {
   id: string;
   userId: string;
   name: string;
+  subdomain?: string | null;
+  customDomain?: string | null;
   domain?: string | null;
   template: string;
   category: string;
@@ -153,72 +156,8 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* All Projects / Sites List */}
-        {sites.length > 1 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#1A202C] font-display flex items-center gap-2">
-                <Globe className="w-4 h-4 text-[#0D5771]" />
-                <span>Your Websites ({sites.length})</span>
-              </h2>
-              <Link
-                href="/studio"
-                className="flex items-center gap-1 text-xs font-bold text-[#0D5771] hover:underline"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New Project</span>
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sites.map((site) => (
-                <div
-                  key={site.id}
-                  className="bg-white p-5 rounded-2xl border border-[#E2E8F0] shadow-sm hover:border-[#0D5771]/30 transition-all space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold text-[#64748B] uppercase">
-                      {site.category}
-                    </span>
-                    <span
-                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                        site.status === 'live'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {site.status === 'live' ? 'LIVE' : 'DRAFT'}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-sm text-[#1A202C]">{site.name}</h3>
-
-                  <div className="flex items-center gap-1.5 text-[10px] text-[#94A3B8] font-mono">
-                    <Clock className="w-3 h-3" />
-                    <span>Updated {new Date(site.updatedAt).toLocaleDateString()}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-2 border-t border-[#F1F5F9]">
-                    <Link
-                      href={`/studio?projectId=${site.id}`}
-                      className="flex-1 py-1.5 rounded-lg bg-[#F8FAFC] hover:bg-[#0D5771]/10 text-[#0D5771] font-bold text-xs text-center border border-[#E2E8F0] transition-colors"
-                    >
-                      Edit
-                    </Link>
-                    <Link
-                      href={`/site/${site.id}`}
-                      target="_blank"
-                      className="p-1.5 rounded-lg hover:bg-slate-100 text-[#64748B] transition-colors"
-                      title="Preview"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* All Projects / Sites Manager */}
+        <ProjectManagerSection sites={sites} />
 
         {/* Quick Launch Starter Blueprints */}
         <div className="space-y-4">

@@ -74,22 +74,26 @@ model VerificationToken {
 // ─── Cuzmify Domain Models ────────────────────────────────────────────────────
 
 model Site {
-  id           String   @id @default(cuid())
-  userId       String
-  name         String
-  subdomain    String?  @unique
-  customDomain String?  @unique
-  domain       String?
-  template     String   @default("Modern Business Template")
-  category     String   @default("General")
-  status       String   @default("draft") // draft | live | building
-  liveUrl      String?
-  htmlContent  String?
-  grapesData   String?
-  blueprintData String?
-  theme        String?  @default("bram-light")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  subdomain       String?  @unique
+  customDomain    String?  @unique
+  domain          String?
+  template        String   @default("Modern Business Template")
+  category        String   @default("General")
+  status          String   @default("draft") // draft | live | building
+  liveUrl         String?
+  htmlContent     String?
+  grapesData      String?
+  blueprintData   String?
+  theme           String?  @default("bram-light")
+  instagramHandle String?
+  instagramToken  String?
+  whatsappPhone   String?
+  currency        String?  @default("USD")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
