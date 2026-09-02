@@ -95,7 +95,8 @@ function EditorShellInner() {
 
   const handlePublish = async (): Promise<string> => {
     setIsPublishing(true);
-    const publicUrl = `/site/${projectId}`;
+    const cleanSubdomain = (businessName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'studio';
+    const publicUrl = `/s/${cleanSubdomain}`;
 
     // Save final state with live status to database and localStorage
     if (service) {
@@ -107,8 +108,10 @@ function EditorShellInner() {
           body: JSON.stringify({
             siteId: projectId,
             name: businessName,
+            subdomain: cleanSubdomain,
             htmlContent: service.getHtml(),
             grapesData: service.getProjectData(),
+            blueprintData: service.getBlueprint(),
             status: 'live',
             liveUrl: publicUrl,
           }),

@@ -13,7 +13,7 @@ interface SubdomainPageProps {
 async function getSiteByDomain(domainSlug: string) {
   const normalized = decodeURIComponent(domainSlug).toLowerCase().trim();
 
-  // 1. Direct subdomain match
+  // 1. Direct subdomain match (prioritize latest updated site)
   let site = await prisma.site.findFirst({
     where: {
       OR: [
@@ -23,6 +23,7 @@ async function getSiteByDomain(domainSlug: string) {
         { id: normalized },
       ],
     },
+    orderBy: { updatedAt: 'desc' },
   });
 
   // 2. If not found, try matching by business name slug
@@ -39,6 +40,7 @@ async function getSiteByDomain(domainSlug: string) {
         status: true,
         liveUrl: true,
       },
+      orderBy: { updatedAt: 'desc' },
       take: 100,
     });
 

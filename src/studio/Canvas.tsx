@@ -135,7 +135,7 @@ const INITIAL_HTML = `
     <div style="max-width:1100px;margin:0 auto;">
       <div style="text-align:center;margin-bottom:48px;">
         <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#F59E0B;font-family:monospace;">Live Work Portfolio</span>
-        <h2 style="font-size:clamp(1.75rem,3.5vw,2rem);font-weight:800;color:#fff;margin:12px 0;font-family:'Playfair Display',serif;">Recent Makeup Artistry</h2>
+        <h2 data-cuzmify-field="portfolio-headline" style="font-size:clamp(1.75rem,3.5vw,2rem);font-weight:800;color:#fff;margin:12px 0;font-family:'Playfair Display',serif;">Featured Portfolio &amp; Visuals</h2>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
         <div style="border-radius:16px;overflow:hidden;aspect-ratio:4/5;position:relative;"><img src="https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&auto=format&fit=crop&q=80" alt="Bridal" style="width:100%;height:100%;object-fit:cover;"/></div>

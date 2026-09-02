@@ -217,40 +217,74 @@ export class EditorService {
   // ── Instagram Media Ingestion Auto-Injector ────────────────────────────────
   public injectInstagramMediaToCanvas(mediaVault?: MediaVaultAsset[]): void {
     const assets = (mediaVault && mediaVault.length > 0) ? mediaVault : this.blueprintManager.getMediaVault();
-    const instagramAssets = assets.filter((m) => m.url && (m.source === 'instagram' || m.type === 'hero' || m.type === 'gallery'));
+    // Filter to valid assets with image URLs or video poster thumbnails
+    const validMedia = assets.filter((m) => Boolean(m.thumbnailUrl || m.url));
 
-    if (instagramAssets.length === 0) return;
+    if (validMedia.length === 0) return;
 
     try {
+      const heroAsset = validMedia[0];
+      const aboutAsset = validMedia[1] || heroAsset;
+      const galleryPool = validMedia.length > 2 ? validMedia.slice(2) : validMedia;
+
+      // 1. Update GrapesJS Component Tree (critical for editor.getHtml() and live site serialization)
+      const editor = (this.adapter as any).editor;
+      const wrapper = editor?.getWrapper?.();
+      if (wrapper) {
+        // Hero
+        const heroComps = wrapper.find('section#hero img, [data-cuzmify-type="hero"] img, header img');
+        if (heroComps.length > 0 && heroAsset) {
+          const u = heroAsset.thumbnailUrl || heroAsset.url;
+          heroComps[0].addAttributes({ src: u, ...(heroAsset.name ? { alt: heroAsset.name } : {}) });
+        }
+
+        // About
+        const aboutComps = wrapper.find('section#about img, [data-cuzmify-type="about"] img');
+        if (aboutComps.length > 0 && aboutAsset) {
+          const u = aboutAsset.thumbnailUrl || aboutAsset.url;
+          aboutComps[0].addAttributes({ src: u, ...(aboutAsset.name ? { alt: aboutAsset.name } : {}) });
+        }
+
+        // Gallery Grid - replace all items with available pool
+        const galleryComps = wrapper.find('section#portfolio img, [data-cuzmify-type="gallery"] img, .gallery-grid img');
+        if (galleryComps.length > 0) {
+          galleryComps.forEach((comp: any, idx: number) => {
+            const item = galleryPool[idx % galleryPool.length];
+            const u = item?.thumbnailUrl || item?.url;
+            if (u) {
+              comp.addAttributes({ src: u, ...(item.name ? { alt: item.name } : {}) });
+            }
+          });
+        }
+      }
+
+      // 2. Mutate active iframe DOM directly for instant visual feedback
       const doc = this.adapter.getDoc();
-      if (!doc) return;
+      if (doc) {
+        const heroImgs = doc.querySelectorAll('section#hero img, [data-cuzmify-type="hero"] img, header img');
+        if (heroImgs.length > 0 && heroAsset) {
+          const u = heroAsset.thumbnailUrl || heroAsset.url;
+          (heroImgs[0] as HTMLImageElement).src = u;
+          if (heroAsset.name) (heroImgs[0] as HTMLImageElement).alt = heroAsset.name;
+        }
 
-      // 1. Replace Hero Image
-      const heroAsset = instagramAssets[0];
-      const heroImgs = doc.querySelectorAll('section#hero img, [data-cuzmify-type="hero"] img, header img');
-      if (heroImgs.length > 0 && heroAsset?.url) {
-        (heroImgs[0] as HTMLImageElement).src = heroAsset.url;
-        if (heroAsset.name) (heroImgs[0] as HTMLImageElement).alt = heroAsset.name;
-      }
+        const aboutImgs = doc.querySelectorAll('section#about img, [data-cuzmify-type="about"] img');
+        if (aboutImgs.length > 0 && aboutAsset) {
+          const u = aboutAsset.thumbnailUrl || aboutAsset.url;
+          (aboutImgs[0] as HTMLImageElement).src = u;
+        }
 
-      // 2. Replace About Section Image
-      const aboutAsset = instagramAssets[1] || heroAsset;
-      const aboutImgs = doc.querySelectorAll('section#about img, [data-cuzmify-type="about"] img');
-      if (aboutImgs.length > 0 && aboutAsset?.url) {
-        (aboutImgs[0] as HTMLImageElement).src = aboutAsset.url;
-      }
-
-      // 3. Replace Portfolio / Gallery Grid Images
-      const galleryImgs = doc.querySelectorAll('section#portfolio img, [data-cuzmify-type="gallery"] img, .gallery-grid img');
-      if (galleryImgs.length > 0) {
-        const pool = instagramAssets.length > 1 ? instagramAssets.slice(1) : instagramAssets;
-        galleryImgs.forEach((img, idx) => {
-          const item = pool[idx % pool.length];
-          if (item?.url) {
-            (img as HTMLImageElement).src = item.url;
-            if (item.name) (img as HTMLImageElement).alt = item.name;
-          }
-        });
+        const galleryImgs = doc.querySelectorAll('section#portfolio img, [data-cuzmify-type="gallery"] img, .gallery-grid img');
+        if (galleryImgs.length > 0) {
+          galleryImgs.forEach((img, idx) => {
+            const item = galleryPool[idx % galleryPool.length];
+            const u = item?.thumbnailUrl || item?.url;
+            if (u) {
+              (img as HTMLImageElement).src = u;
+              if (item.name) (img as HTMLImageElement).alt = item.name;
+            }
+          });
+        }
       }
 
       // Update blueprint's media vault
@@ -756,12 +790,14 @@ export class EditorService {
         ? bpName
         : (meta?.businessName || bpName || 'My Business');
 
+      const cleanSub = (finalName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'studio';
       const res = await fetch('/api/sites/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           siteId: projectId,
           name: finalName,
+          subdomain: cleanSub,
           template: meta?.template,
           category: meta?.category || blueprint.profile.category,
           htmlContent: html,
@@ -771,6 +807,7 @@ export class EditorService {
           },
           theme: meta?.theme || this.currentTheme,
           blueprintData: blueprint,
+          liveUrl: `/s/${cleanSub}`,
         }),
       });
       return res.ok;
