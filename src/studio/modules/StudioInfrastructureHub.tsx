@@ -25,6 +25,8 @@ import {
   Instagram,
   UploadCloud,
   Copy,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
@@ -36,13 +38,16 @@ export function StudioInfrastructureHub({
   onClose: () => void;
   initialTab?: 'whatsapp' | 'services' | 'products' | 'media' | 'profile' | 'payments';
 }) {
-  const { service, setSaveToast, handleSave } = useEditor();
+  const { service, setSaveToast, handleSave, projectId, blueprint } = useEditor();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'services' | 'products' | 'media' | 'profile' | 'payments'>(initialTab);
+  const [isSyncingIg, setIsSyncingIg] = useState(false);
+  const [igHandleInput, setIgHandleInput] = useState(blueprint?.profile?.instagram || '');
+  const [showIgConnect, setShowIgConnect] = useState(false);
 
   useEffect(() => {
     if (initialTab) {
@@ -175,6 +180,44 @@ export function StudioInfrastructureHub({
     setShowAddMedia(false);
     setSaveToast(`✦ Added Media: ${newMediaName || 'Asset'}`);
     setTimeout(() => setSaveToast(null), 2500);
+  };
+
+  const handleSyncInstagram = async (targetHandle?: string) => {
+    const handleToSync = (targetHandle || igHandleInput || profile.instagram || '').trim().replace(/^@/, '');
+    if (!handleToSync) return;
+    setIsSyncingIg(true);
+    try {
+      const res = await fetch('/api/sites/sync-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          siteId: projectId,
+          handle: handleToSync,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.mediaVault) {
+        service.setMediaVault(data.mediaVault);
+        if (data.handle) {
+          service.updateProfile({ instagram: data.handle, instagramHandle: data.handle });
+          setIgHandleInput(data.handle);
+        }
+        setShowIgConnect(false);
+        setSaveToast(`✨ Synced ${data.syncedCount} Instagram assets!`);
+        setTimeout(() => setSaveToast(null), 3000);
+      } else {
+        alert(data.error || 'Failed to sync Instagram assets');
+      }
+    } catch (err) {
+      console.error('Failed to sync Instagram assets:', err);
+    } finally {
+      setIsSyncingIg(false);
+    }
+  };
+
+  const handleAuthorizeInstagramOAuth = () => {
+    const handle = (igHandleInput || profile.instagram || '').trim().replace(/^@/, '');
+    window.location.href = `/api/auth/instagram?siteId=${encodeURIComponent(projectId)}&handle=${encodeURIComponent(handle)}`;
   };
 
   const testWhatsAppUrl = service.generateWhatsAppLink({ type: 'booking' });
@@ -643,6 +686,105 @@ export function StudioInfrastructureHub({
                   <Plus className="w-4 h-4" />
                   <span>Add New Media</span>
                 </button>
+              </div>
+
+              {/* Instagram Live Connection & Auto-Sync Card */}
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] flex items-center justify-center text-white shadow-md shrink-0">
+                      <Instagram className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-900 font-display">
+                          {profile.instagram ? `Connected: @${profile.instagram.replace(/^@/, '')}` : 'Connect Instagram Media'}
+                        </h3>
+                        {profile.instagram && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Synced
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 font-sans mt-0.5">
+                        {profile.instagram
+                          ? 'Continuous sync of your latest high-resolution portfolio posts and media.'
+                          : 'Pull live photos, reels, and portfolio visuals directly into your website.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* If connected and not editing: Show single Refresh button + Change link */}
+                  {profile.instagram && !showIgConnect && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleSyncInstagram()}
+                        disabled={isSyncingIg}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                      >
+                        {isSyncingIg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                        <span>{isSyncingIg ? 'Syncing…' : '↻ Refresh Latest Posts'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIgHandleInput(profile.instagram || '');
+                          setShowIgConnect(true);
+                        }}
+                        className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* If not connected OR user clicked Change: Single clean form */}
+                {(!profile.instagram || showIgConnect) && (
+                  <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+                    <div className="relative flex-1 w-full">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">@</span>
+                      <input
+                        type="text"
+                        placeholder="your_instagram_handle (e.g. official_bram_)"
+                        value={igHandleInput}
+                        onChange={(e) => setIgHandleInput(e.target.value)}
+                        className="w-full pl-8 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771] focus:bg-white text-slate-900 font-mono"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={handleAuthorizeInstagramOAuth}
+                        className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:opacity-95 text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Instagram className="w-3.5 h-3.5" />
+                        <span>Authorize &amp; Import Real Posts (OAuth)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSyncInstagram()}
+                        disabled={isSyncingIg || !igHandleInput.trim()}
+                        className="px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                        title="Simulate starter assets without logging in"
+                      >
+                        {isSyncingIg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        <span className="hidden md:inline ml-1">Simulate</span>
+                      </button>
+                      {showIgConnect && profile.instagram && (
+                        <button
+                          type="button"
+                          onClick={() => setShowIgConnect(false)}
+                          className="px-2.5 py-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Context Banner */}

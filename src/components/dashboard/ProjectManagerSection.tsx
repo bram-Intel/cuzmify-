@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Globe, Plus, Clock, ExternalLink, Trash2, Loader2, Sparkles, X, Check } from 'lucide-react';
+import { Globe, Plus, Clock, ExternalLink, Trash2, Loader2, Sparkles, X, Check, Instagram, RefreshCw } from 'lucide-react';
 import type { SiteRecord } from '@/app/dashboard/page';
 
 interface ProjectManagerSectionProps {
@@ -16,8 +16,11 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
   const [showNewModal, setShowNewModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newCategory, setNewCategory] = useState('Beauty & Wellness');
+  const [newIgHandle, setNewIgHandle] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +34,7 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
         body: JSON.stringify({
           name: newProjectName.trim(),
           category: newCategory,
+          instagramHandle: newIgHandle.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -42,6 +46,28 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
       console.error('Failed to create project:', err);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleSyncProjectAssets = async (siteId: string, handle?: string) => {
+    setSyncingId(siteId);
+    try {
+      const res = await fetch('/api/sites/sync-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteId, handle: handle || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSyncToast(`✨ Synced ${data.syncedCount} assets for @${data.handle}!`);
+        setTimeout(() => setSyncToast(null), 3000);
+      } else if (data.requiresAuth) {
+        window.location.href = `/api/auth/instagram?siteId=${siteId}&handle=${encodeURIComponent(handle || '')}`;
+      }
+    } catch (err) {
+      console.error('Failed to sync assets:', err);
+    } finally {
+      setSyncingId(null);
     }
   };
 
@@ -64,6 +90,14 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
 
   return (
     <div className="space-y-4">
+      {/* Toast Notification */}
+      {syncToast && (
+        <div className="fixed bottom-6 right-6 z-[100000] flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#0D5771] text-white shadow-2xl border border-white/20 backdrop-blur-md animate-in slide-in-from-bottom-3 duration-300 font-sans text-xs font-bold">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span>{syncToast}</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-[#1A202C] font-display flex items-center gap-2">
           <Globe className="w-4 h-4 text-[#0D5771]" />
@@ -83,6 +117,7 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
           const cleanSubdomain = (site.subdomain || site.name.toLowerCase().replace(/[^a-z0-9]/g, '')).slice(0, 30);
           const isLive = site.status === 'live';
           const displayUrl = `${cleanSubdomain}.cuzmify.com`;
+          const isSyncing = syncingId === site.id;
 
           return (
             <div
@@ -125,9 +160,21 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 text-[10px] text-[#94A3B8] font-mono">
-                <Clock className="w-3 h-3" />
-                <span>Updated {new Date(site.updatedAt).toLocaleDateString()}</span>
+              <div className="flex items-center justify-between text-[10px] text-[#94A3B8] font-mono pt-1">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  <span>Updated {new Date(site.updatedAt).toLocaleDateString()}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSyncProjectAssets(site.id)}
+                  disabled={isSyncing}
+                  className="flex items-center gap-1 text-[10px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Sync latest Instagram posts & assets"
+                >
+                  {isSyncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  <span>{isSyncing ? 'Syncing…' : 'Sync Assets'}</span>
+                </button>
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t border-[#F1F5F9]">
@@ -203,6 +250,23 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
                   <option value="Creative Agency">Creative Agency</option>
                   <option value="General">General Business</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-[#1A202C] flex items-center justify-between mb-1">
+                  <span>Connect Instagram Handle (Optional)</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Connect anytime later</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">@</span>
+                  <input
+                    type="text"
+                    placeholder="yourbrand_handle"
+                    value={newIgHandle}
+                    onChange={(e) => setNewIgHandle(e.target.value)}
+                    className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-xs focus:outline-none focus:border-purple-500 font-mono"
+                  />
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">

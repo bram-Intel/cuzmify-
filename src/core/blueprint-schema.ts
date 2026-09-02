@@ -37,6 +37,7 @@ export interface BusinessProfile {
   currency: CurrencyCode;
   logoUrl?: string;
   instagramHandle?: string;
+  instagram?: string;
 }
 
 // ── 2. Services Catalog Module ──────────────────────────────────────────────

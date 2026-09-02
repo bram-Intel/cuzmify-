@@ -5,6 +5,8 @@ export async function GET(req: Request) {
   const currency = searchParams.get('currency') || 'USD';
   const category = searchParams.get('category') || 'Makeup Artists & Beauty';
   const name = searchParams.get('name') || '';
+  const siteId = searchParams.get('siteId') || '';
+  const handle = searchParams.get('handle') || '';
 
   const origin = new URL(req.url).origin;
   const clientId = process.env.INSTAGRAM_CLIENT_ID;
@@ -17,12 +19,14 @@ export async function GET(req: Request) {
     sandboxUrl.searchParams.set('currency', currency);
     sandboxUrl.searchParams.set('category', category);
     sandboxUrl.searchParams.set('name', name);
+    if (siteId) sandboxUrl.searchParams.set('siteId', siteId);
+    if (handle) sandboxUrl.searchParams.set('handle', handle);
     return NextResponse.redirect(sandboxUrl.toString());
   }
 
-  // State encodes user's onboarding preferences
+  // State encodes user's onboarding preferences and project siteId
   const state = Buffer.from(
-    JSON.stringify({ currency, category, name, timestamp: Date.now() })
+    JSON.stringify({ currency, category, name, siteId, handle, timestamp: Date.now() })
   ).toString('base64');
 
   // Official Instagram Business Login Dialog

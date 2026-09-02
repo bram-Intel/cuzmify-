@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     return NextResponse.redirect(redirectUrl.toString());
   }
 
-  let stateData: { currency?: CurrencyCode; category?: string; name?: string } = {};
+  let stateData: { currency?: CurrencyCode; category?: string; name?: string; siteId?: string; handle?: string } = {};
   const rawState = searchParams.get('state');
   if (rawState) {
     try {
@@ -27,6 +27,8 @@ export async function GET(req: Request) {
       currency: (searchParams.get('currency') as CurrencyCode) || 'USD',
       category: searchParams.get('category') || 'Makeup Artists & Beauty',
       name: searchParams.get('name') || '',
+      siteId: searchParams.get('siteId') || undefined,
+      handle: searchParams.get('handle') || undefined,
     };
   }
 
@@ -37,8 +39,34 @@ export async function GET(req: Request) {
 
   // Sandbox / Demo Mode Fallback
   if (code === 'sandbox_demo_code' || !clientId || !clientSecret) {
-    const handle = stateData.name ? stateData.name.toLowerCase().replace(/\s+/g, '_') : 'glory_artistry';
+    const handle = stateData.handle || (stateData.name ? stateData.name.toLowerCase().replace(/\s+/g, '_') : 'glory_artistry');
     const importResult = await InstagramImporter.ingestProfile(handle, stateData.currency || 'USD');
+
+    if (stateData.siteId) {
+      try {
+        const { prisma } = await import('@/lib/prisma');
+        const existingSite = await prisma.site.findUnique({ where: { id: stateData.siteId } });
+        if (existingSite) {
+          let bp: any = {};
+          if (existingSite.blueprintData) {
+            try { bp = JSON.parse(existingSite.blueprintData); } catch {}
+          }
+          bp.mediaVault = importResult.mediaVault;
+          await prisma.site.update({
+            where: { id: stateData.siteId },
+            data: {
+              instagramHandle: handle,
+              instagramToken: 'demo_token_authenticated',
+              blueprintData: JSON.stringify(bp),
+              updatedAt: new Date(),
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('[Demo Instagram Sync DB Error]:', err);
+      }
+      return NextResponse.redirect(new URL(`/studio?projectId=${stateData.siteId}&synced=instagram`, req.url).toString());
+    }
 
     const redirectUrl = new URL('/onboarding', req.url);
     redirectUrl.searchParams.set('step', '3');
@@ -146,9 +174,37 @@ export async function GET(req: Request) {
       }
     }
 
-    // Cache real extracted photos in memory for instant onboarding display
+    // Cache real extracted photos in memory for instant display
     if (realMediaVault.length > 0) {
       InstagramImporter.setCachedMedia(handle, realMediaVault);
+    }
+
+    if (stateData.siteId) {
+      try {
+        const { prisma } = await import('@/lib/prisma');
+        const existingSite = await prisma.site.findUnique({ where: { id: stateData.siteId } });
+        if (existingSite) {
+          let bp: any = {};
+          if (existingSite.blueprintData) {
+            try { bp = JSON.parse(existingSite.blueprintData); } catch {}
+          }
+          if (realMediaVault.length > 0) {
+            bp.mediaVault = realMediaVault;
+          }
+          await prisma.site.update({
+            where: { id: stateData.siteId },
+            data: {
+              instagramHandle: handle,
+              instagramToken: accessToken,
+              blueprintData: JSON.stringify(bp),
+              updatedAt: new Date(),
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('[Real Instagram Sync DB Error]:', err);
+      }
+      return NextResponse.redirect(new URL(`/studio?projectId=${stateData.siteId}&synced=instagram`, req.url).toString());
     }
 
     // Format business name and suggestions

@@ -474,6 +474,12 @@ export class EditorService {
     return res;
   }
 
+  setMediaVault(assets: MediaVaultAsset[]): void {
+    this.blueprintManager.setMediaVault(assets);
+    this.recordSnapshot('Synced Media Vault Assets', 'manual_edit');
+    this.notifyChange();
+  }
+
   deleteMediaAsset(id: string): void {
     this.blueprintManager.deleteMediaAsset(id);
     this.recordSnapshot('Deleted Media Asset', 'manual_edit');

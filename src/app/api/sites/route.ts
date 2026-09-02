@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
+import { InstagramImporter } from '@/services/importer/instagram-importer';
 
 export async function GET() {
   try {
@@ -61,6 +62,33 @@ export async function POST(req: Request) {
     const category = body.category || 'Beauty & Wellness';
     const template = body.template || 'Modern Business Template';
     const theme = body.theme || 'bram-light';
+    const rawIg = body.instagramHandle ? InstagramImporter.cleanHandle(body.instagramHandle) : undefined;
+
+    let blueprintData: string | undefined = undefined;
+    if (rawIg) {
+      const importResult = await InstagramImporter.ingestProfile(rawIg, 'USD');
+      blueprintData = JSON.stringify({
+        profile: {
+          name: siteName,
+          category,
+          instagram: rawIg,
+          tagline: importResult.tagline,
+          currency: 'USD',
+          currencySymbol: '$',
+        },
+        modules: {
+          services: {
+            enabled: true,
+            items: importResult.services,
+          },
+          whatsapp: {
+            enabled: true,
+            phoneNumber: importResult.whatsapp,
+          },
+        },
+        mediaVault: importResult.mediaVault,
+      });
+    }
 
     // Generate unique subdomain slug
     let baseSlug = siteName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24) || 'studio';
@@ -82,6 +110,8 @@ export async function POST(req: Request) {
         domain: `${uniqueSubdomain}.cuzmify.com`,
         status: 'draft',
         liveUrl: `/s/${uniqueSubdomain}`,
+        instagramHandle: rawIg || undefined,
+        blueprintData,
       },
     });
 
