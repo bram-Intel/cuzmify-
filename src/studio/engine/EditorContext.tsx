@@ -169,6 +169,15 @@ export function EditorProvider({
       }
     });
 
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isSynced = urlParams.get('synced') === 'instagram';
+      if (isSynced) {
+        setSaveToast('✨ Instagram Connected & Assets Synced to Studio!');
+        setTimeout(() => setSaveToast(null), 4000);
+      }
+    }
+
     return () => {
       unsubHistory();
       unsubBlueprint();

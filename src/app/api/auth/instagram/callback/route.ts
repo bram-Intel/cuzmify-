@@ -174,25 +174,75 @@ export async function GET(req: Request) {
       }
     }
 
-    // Cache real extracted photos in memory for instant display
+    // If real posts could not be pulled from Graph API, guarantee non-empty vault with profile ingestion
+    if (realMediaVault.length === 0) {
+      const fallbackResult = await InstagramImporter.ingestProfile(handle, stateData.currency || 'USD');
+      realMediaVault = fallbackResult.mediaVault || [];
+    }
+
+    // Cache extracted photos in memory for instant display
     if (realMediaVault.length > 0) {
       InstagramImporter.setCachedMedia(handle, realMediaVault);
     }
 
+    // Format business name and suggestions
+    const formattedName = stateData.name || InstagramImporter.formatBusinessName(handle);
+
     if (stateData.siteId) {
+      let targetSiteId = stateData.siteId;
       try {
         const { prisma } = await import('@/lib/prisma');
-        const existingSite = await prisma.site.findUnique({ where: { id: stateData.siteId } });
-        if (existingSite) {
+        const { auth } = await import('@/auth');
+        const session = await auth();
+        let userId = session?.user?.id;
+        if (!userId && session?.user?.email) {
+          const u = await prisma.user.findUnique({ where: { email: session.user.email } });
+          userId = u?.id;
+        }
+
+        let targetSite = stateData.siteId && stateData.siteId !== 'proj_default'
+          ? await prisma.site.findUnique({ where: { id: stateData.siteId } })
+          : null;
+
+        if (!targetSite && userId) {
+          targetSite = await prisma.site.findFirst({
+            where: { userId },
+            orderBy: { updatedAt: 'desc' },
+          });
+        }
+
+        if (!targetSite) {
+          const initialSubdomain = `${handle.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20) || 'studio'}-${Date.now().toString().slice(-4)}`;
+          targetSite = await prisma.site.create({
+            data: {
+              id: stateData.siteId && stateData.siteId !== 'proj_default' ? stateData.siteId : undefined,
+              userId: userId || undefined,
+              name: formattedName || 'My Business Studio',
+              subdomain: initialSubdomain,
+              domain: `${initialSubdomain}.cuzmify.com`,
+              status: 'draft',
+              liveUrl: `/s/${initialSubdomain}`,
+              instagramHandle: handle,
+              instagramToken: accessToken,
+            },
+          });
+        }
+
+        if (targetSite) {
+          targetSiteId = targetSite.id;
           let bp: any = {};
-          if (existingSite.blueprintData) {
-            try { bp = JSON.parse(existingSite.blueprintData); } catch {}
+          if (targetSite.blueprintData) {
+            try { bp = JSON.parse(targetSite.blueprintData); } catch {}
           }
           if (realMediaVault.length > 0) {
             bp.mediaVault = realMediaVault;
           }
+          if (!bp.profile) bp.profile = {};
+          bp.profile.instagram = handle;
+          bp.profile.instagramHandle = handle;
+
           await prisma.site.update({
-            where: { id: stateData.siteId },
+            where: { id: targetSite.id },
             data: {
               instagramHandle: handle,
               instagramToken: accessToken,
@@ -204,11 +254,26 @@ export async function GET(req: Request) {
       } catch (err) {
         console.warn('[Real Instagram Sync DB Error]:', err);
       }
-      return NextResponse.redirect(new URL(`/studio?projectId=${stateData.siteId}&synced=instagram`, req.url).toString());
-    }
 
-    // Format business name and suggestions
-    const formattedName = stateData.name || InstagramImporter.formatBusinessName(handle);
+      const redirectUrl = new URL(
+        `/studio?projectId=${encodeURIComponent(targetSiteId || 'proj_default')}&instagram=${encodeURIComponent(handle)}&synced=instagram`,
+        req.url
+      );
+      const response = NextResponse.redirect(redirectUrl.toString());
+      if (realMediaVault.length > 0) {
+        response.cookies.set('cuzmify_ig_media', JSON.stringify(realMediaVault), {
+          path: '/',
+          maxAge: 3600,
+          sameSite: 'lax',
+        });
+        response.cookies.set('cuzmify_ig_handle', handle, {
+          path: '/',
+          maxAge: 3600,
+          sameSite: 'lax',
+        });
+      }
+      return response;
+    }
 
     const redirectUrl = new URL('/onboarding', req.url);
     redirectUrl.searchParams.set('step', '2');

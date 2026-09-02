@@ -342,30 +342,63 @@ export function Canvas() {
         .replace(/✦ Gmakeup Luxury Artistry/g, `✦ ${currentName} Artistry`);
       service.loadHtml(personalizedHtml, 'Initial Template', 'initial');
       service.sanitizeCanvas();
-      service.syncCanvasWithBlueprint();
+      setIsCanvasLoading(false);
+    }
 
-      // 3. Auto-inject real Instagram photos if connected
-      if (typeof window !== 'undefined') {
-        const igHandle = new URLSearchParams(window.location.search).get('instagram');
-        if (igHandle) {
+    // 3. Instagram Media Hydration (Cookie / URL Params / OAuth Returning)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const igHandle = urlParams.get('instagram');
+      const isSynced = urlParams.get('synced') === 'instagram';
+
+      let cookieMedia: any[] | null = null;
+      let cookieHandle: string | null = null;
+      try {
+        const cookies = document.cookie.split(';');
+        const mCookie = cookies.find((c) => c.trim().startsWith('cuzmify_ig_media='));
+        if (mCookie) {
+          const raw = decodeURIComponent(mCookie.split('=')[1]);
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            cookieMedia = parsed;
+          }
+        }
+        const hCookie = cookies.find((c) => c.trim().startsWith('cuzmify_ig_handle='));
+        if (hCookie) {
+          cookieHandle = decodeURIComponent(hCookie.split('=')[1]);
+        }
+      } catch {}
+
+      if (cookieMedia && cookieMedia.length > 0) {
+        service.setMediaVault(cookieMedia);
+        service.injectInstagramMediaToCanvas(cookieMedia);
+        const activeHandle = cookieHandle || igHandle;
+        if (activeHandle) {
+          service.updateProfile({ instagram: activeHandle, instagramHandle: activeHandle });
+        }
+      } else if (igHandle || isSynced) {
+        const targetHandle = igHandle || service.getBlueprint()?.profile?.instagram;
+        if (targetHandle) {
           fetch('/api/auth/instagram/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ handle: igHandle }),
+            body: JSON.stringify({ handle: targetHandle }),
           })
             .then((res) => res.json())
             .then((data) => {
               if (data?.mediaVault && data.mediaVault.length > 0) {
+                service.setMediaVault(data.mediaVault);
                 service.injectInstagramMediaToCanvas(data.mediaVault);
+                service.updateProfile({ instagram: targetHandle, instagramHandle: targetHandle });
               }
             })
             .catch(() => {});
         } else {
           service.injectInstagramMediaToCanvas();
         }
+      } else {
+        service.injectInstagramMediaToCanvas();
       }
-
-      setIsCanvasLoading(false);
     }
 
     // 2. Background Cloud Database Sync (reconcile if cloud has newer data)
@@ -378,6 +411,10 @@ export function Canvas() {
         }
         service.sanitizeCanvas();
         service.syncCanvasWithBlueprint();
+        const bp = service.getBlueprint();
+        if (bp?.mediaVault && bp.mediaVault.length > 0) {
+          service.injectInstagramMediaToCanvas(bp.mediaVault);
+        }
       }
       setIsCanvasLoading(false);
     });
