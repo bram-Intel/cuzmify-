@@ -75,22 +75,11 @@ export async function POST(req: Request) {
     if (site.instagramToken && site.instagramToken !== 'demo_token_authenticated') {
       try {
         const mediaRes = await fetch(
-          `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&access_token=${site.instagramToken}&limit=16`
+          `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{id,media_type,media_url,thumbnail_url}&access_token=${site.instagramToken}&limit=30`
         );
         if (mediaRes.ok) {
           const mediaData = await mediaRes.json();
-          freshAssets = (mediaData.data || [])
-            .map((m: any, idx: number) => ({
-              id: `ig-live-${m.id || Date.now()}-${idx}`,
-              url: m.media_url || m.thumbnail_url || '',
-              name: m.caption ? m.caption.slice(0, 40) : `Instagram Post #${idx + 1}`,
-              type: idx === 0 ? ('hero' as const) : ('gallery' as const),
-              source: 'instagram' as const,
-              caption: m.caption || `Post from @${targetHandle}`,
-              instagramPostUrl: m.permalink || `https://instagram.com/${targetHandle}`,
-              addedAt: m.timestamp || new Date().toISOString(),
-            }))
-            .filter((m: MediaVaultAsset) => Boolean(m.url));
+          freshAssets = InstagramImporter.parseInstagramGraphMedia(mediaData.data || [], targetHandle);
         }
       } catch (metaErr) {
         console.warn('[Sync Assets Meta Graph Warning]:', metaErr);

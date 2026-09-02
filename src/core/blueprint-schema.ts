@@ -129,6 +129,7 @@ export interface BookingModuleConfig {
 export interface MediaVaultAsset {
   id: string;
   url: string;
+  thumbnailUrl?: string;
   name: string;
   type: 'logo' | 'hero' | 'gallery' | 'service' | 'product' | 'general' | 'video' | 'testimonial';
   source: 'upload' | 'instagram' | 'unsplash' | 'template' | 'ai_generated';

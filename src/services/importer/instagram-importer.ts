@@ -25,6 +25,66 @@ export class InstagramImporter {
   }
 
   /**
+   * Transforms raw Instagram Graph API media objects into rich Cuzmify MediaVaultAssets,
+   * unrolling CAROUSEL_ALBUMs and supporting high-res VIDEO / REEL mp4s.
+   */
+  static parseInstagramGraphMedia(dataItems: any[], handle: string): MediaVaultAsset[] {
+    const assets: MediaVaultAsset[] = [];
+
+    for (const m of dataItems || []) {
+      const isCarousel = m.media_type === 'CAROUSEL_ALBUM';
+      const isTopLevelVideo = m.media_type === 'VIDEO';
+
+      // 1. Unroll Carousel Albums into individual child assets
+      if (isCarousel && Array.isArray(m.children?.data) && m.children.data.length > 0) {
+        m.children.data.forEach((child: any, cIdx: number) => {
+          const childIsVideo = child.media_type === 'VIDEO';
+          const childUrl = child.media_url || child.thumbnail_url;
+          const childThumb = child.thumbnail_url || child.media_url;
+
+          if (childUrl) {
+            assets.push({
+              id: `ig-live-${m.id}-${child.id || cIdx}`,
+              url: childUrl,
+              thumbnailUrl: childThumb,
+              name: m.caption
+                ? `${m.caption.slice(0, 30)} (Slide ${cIdx + 1}/${m.children.data.length})`
+                : `Carousel Slide #${cIdx + 1}`,
+              type: childIsVideo ? 'video' : 'gallery',
+              source: 'instagram',
+              caption: m.caption || `Post from @${handle}`,
+              instagramPostUrl: m.permalink || `https://instagram.com/${handle}`,
+              addedAt: m.timestamp || new Date().toISOString(),
+            });
+          }
+        });
+      } else {
+        // 2. Single Image or Reel/Video Post
+        const displayUrl = m.media_url || m.thumbnail_url;
+        const thumbUrl = m.thumbnail_url || m.media_url;
+
+        if (displayUrl) {
+          assets.push({
+            id: `ig-live-${m.id || Date.now()}-${assets.length}`,
+            url: displayUrl,
+            thumbnailUrl: thumbUrl,
+            name: m.caption
+              ? m.caption.slice(0, 40)
+              : (isTopLevelVideo ? `Instagram Reel #${assets.length + 1}` : `Instagram Photo #${assets.length + 1}`),
+            type: isTopLevelVideo ? 'video' : (assets.length === 0 ? 'hero' : 'gallery'),
+            source: 'instagram',
+            caption: m.caption || `Post from @${handle}`,
+            instagramPostUrl: m.permalink || `https://instagram.com/${handle}`,
+            addedAt: m.timestamp || new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    return assets;
+  }
+
+  /**
    * Cleans an Instagram username, handle, or URL into a raw handle.
    */
   static cleanHandle(input: string): string {

@@ -27,6 +27,7 @@ import {
   Copy,
   RefreshCw,
   Loader2,
+  Play,
 } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
@@ -1010,16 +1011,37 @@ export function StudioInfrastructureHub({
                       {/* Media Preview */}
                       <div className="relative aspect-video bg-slate-100 overflow-hidden">
                         {asset.type === 'video' ? (
-                          <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white">
-                            <Film className="w-8 h-8 text-white/80" />
+                          <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white relative group/vid">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={asset.thumbnailUrl || asset.url}
+                              alt={asset.name}
+                              className="w-full h-full object-cover opacity-80 group-hover/vid:opacity-60 transition-opacity"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-xs flex items-center justify-center shadow-md group-hover/vid:scale-110 transition-transform">
+                                <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                              </div>
+                            </div>
+                            <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 text-white font-mono text-[8px] font-bold tracking-wider">
+                              REEL / VIDEO
+                            </span>
                           </div>
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={asset.url}
+                            src={asset.thumbnailUrl || asset.url}
                             alt={asset.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
+                            onError={(e) => {
+                              if (asset.thumbnailUrl && (e.currentTarget as HTMLImageElement).src !== asset.thumbnailUrl) {
+                                (e.currentTarget as HTMLImageElement).src = asset.thumbnailUrl;
+                              }
+                            }}
                           />
                         )}
                         <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-black/60 text-white backdrop-blur-xs">
@@ -1044,7 +1066,7 @@ export function StudioInfrastructureHub({
                         <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                           <button
                             onClick={() => {
-                              service.applyMediaToSelected(asset.url, asset.name);
+                              service.applyMediaToSelected(asset.type === 'video' ? (asset.thumbnailUrl || asset.url) : asset.url, asset.name);
                               setSaveToast(`✦ Applied "${asset.name}" to canvas`);
                               setTimeout(() => setSaveToast(null), 2500);
                             }}
@@ -1052,6 +1074,17 @@ export function StudioInfrastructureHub({
                           >
                             Apply to Canvas
                           </button>
+                          {asset.instagramPostUrl && (
+                            <a
+                              href={asset.instagramPostUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 transition-all cursor-pointer"
+                              title="View on Instagram"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(asset.url);
