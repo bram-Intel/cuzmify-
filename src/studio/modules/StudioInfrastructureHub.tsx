@@ -71,6 +71,12 @@ export function StudioInfrastructureHub({
   const [newProductDesc, setNewProductDesc] = useState('');
   const [showAddProduct, setShowAddProduct] = useState(false);
 
+  // 1-Tap Instagram Media -> Product / Service Conversion State
+  const [convertingAssetId, setConvertingAssetId] = useState<string | null>(null);
+  const [convertMode, setConvertMode] = useState<'product' | 'service'>('product');
+  const [convertTitle, setConvertTitle] = useState('');
+  const [convertPrice, setConvertPrice] = useState('');
+
   // Media Vault State
   const [newMediaUrl, setNewMediaUrl] = useState('');
   const [newMediaName, setNewMediaName] = useState('');
@@ -128,6 +134,70 @@ export function StudioInfrastructureHub({
   const currency = profile.currency || 'USD';
   const currencySymbol = SUPPORTED_CURRENCIES[currency]?.symbol || '$';
 
+  const openConvertAsset = (asset: MediaVaultAsset, mode: 'product' | 'service') => {
+    const rawCaption = (asset.caption || asset.name || '').replace(/#[a-zA-Z0-9_]+/g, '').trim();
+    const firstLine = rawCaption.split('\n')[0]?.trim() || asset.name || 'Featured Item';
+    const cleanTitle = firstLine.replace(/\(Slide \d+\/\d+\)/i, '').trim().slice(0, 48) || asset.name;
+
+    // Smart price extraction from Instagram caption (e.g., "₦25,000", "25k", "$120")
+    let detectedPrice = currency === 'NGN' ? '15000' : '65';
+    const priceMatch = (asset.caption || '').match(/(?:₦|NGN|\$|£|€)\s*(\d{1,3}(?:,\d{3})+|\d+)(k)?/i) ||
+                       (asset.caption || '').match(/\b(\d+)\s*k\b/i);
+    if (priceMatch) {
+      let num = parseFloat(priceMatch[1].replace(/,/g, ''));
+      if (priceMatch[2]?.toLowerCase() === 'k' || (asset.caption || '').toLowerCase().includes(`${priceMatch[1]}k`)) {
+        num *= 1000;
+      }
+      if (!isNaN(num) && num > 0) {
+        detectedPrice = String(num);
+      }
+    }
+
+    setConvertingAssetId(asset.id);
+    setConvertMode(mode);
+    setConvertTitle(cleanTitle);
+    setConvertPrice(detectedPrice);
+  };
+
+  const handleConfirmConvert = (asset: MediaVaultAsset) => {
+    const finalName = convertTitle.trim() || asset.name || 'Featured Item';
+    const finalPrice = parseFloat(convertPrice) || (currency === 'NGN' ? 15000 : 50);
+    const displayImg = asset.thumbnailUrl || asset.url;
+    const cleanDesc = (asset.caption || '').replace(/#[a-zA-Z0-9_]+/g, '').trim().slice(0, 140) || `Authentic ${finalName} from @${profile.instagram || 'studio'}.`;
+
+    if (convertMode === 'product') {
+      service.addProductItem({
+        name: finalName,
+        price: finalPrice,
+        category: 'Featured',
+        description: cleanDesc,
+        imageUrl: displayImg,
+        inStock: true,
+        enabled: true,
+      });
+      service.syncCanvasWithBlueprint();
+      handleSave(true);
+      setSaveToast(`🛍️ Added "${finalName}" (${currencySymbol}${finalPrice.toLocaleString()}) to Products & Live Site!`);
+    } else {
+      service.addServiceItem({
+        name: finalName,
+        price: finalPrice,
+        durationMinutes: 60,
+        locationType: 'in_studio',
+        description: cleanDesc,
+        tag: 'POPULAR',
+        imageUrl: displayImg,
+        enabled: true,
+      });
+      service.syncCanvasWithBlueprint();
+      handleSave(true);
+      setSaveToast(`✨ Added "${finalName}" (${currencySymbol}${finalPrice.toLocaleString()}) to Services & Live Site!`);
+    }
+
+    setConvertingAssetId(null);
+    setTimeout(() => setSaveToast(null), 3200);
+  };
+
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newServiceName.trim()) return;
@@ -140,6 +210,7 @@ export function StudioInfrastructureHub({
       tag: newServiceTag,
       enabled: true,
     });
+    service.syncCanvasWithBlueprint();
     setNewServiceName('');
     setNewServiceDesc('');
     setShowAddService(false);
@@ -154,10 +225,11 @@ export function StudioInfrastructureHub({
       name: newProductName.trim(),
       price: parseFloat(newProductPrice) || 20,
       category: newProductCategory,
-      description: newProductDesc.trim() || 'Premium beauty care product.',
+      description: newProductDesc.trim() || 'Premium quality item.',
       inStock: true,
       enabled: true,
     });
+    service.syncCanvasWithBlueprint();
     setNewProductName('');
     setNewProductDesc('');
     setShowAddProduct(false);
@@ -229,62 +301,88 @@ export function StudioInfrastructureHub({
     onClose();
   };
 
+  const MODULE_TABS = [
+    { id: 'media' as const, shortLabel: `📷 IG Vault (${mediaVault.length})`, label: `Media Vault (${mediaVault.length})`, desc: 'Instagram imports, 1-tap products & videos', icon: <ImageIcon className="w-4 h-4" /> },
+    { id: 'products' as const, shortLabel: `🛍️ Products (${products.length})`, label: `Products Catalog (${products.length})`, desc: 'E-commerce items & stock tracking', icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: 'services' as const, shortLabel: `✨ Services (${services.length})`, label: `Services Catalog (${services.length})`, desc: 'Durations, pricing & booking tiers', icon: <Scissors className="w-4 h-4" /> },
+    { id: 'whatsapp' as const, shortLabel: '💬 WhatsApp', label: 'WhatsApp Booking Engine', desc: 'Pre-filled format & phone routing', icon: <Phone className="w-4 h-4" /> },
+    { id: 'profile' as const, shortLabel: `🏪 Profile (${currencySymbol})`, label: 'Business Profile & Currency', desc: 'Identity, contacts & currency symbol', icon: <Store className="w-4 h-4" /> },
+    { id: 'payments' as const, shortLabel: '💳 Payments', label: 'Online Payments & Checkout', desc: 'Paystack, Flutterwave & Stripe', icon: <CreditCard className="w-4 h-4" /> },
+  ];
+
   return createPortal(
     <div className="fixed inset-0 z-[100000] bg-[#F8FAFC] flex flex-col text-slate-900 font-sans animate-in fade-in duration-200">
       {/* ── Top Bar ── */}
-      <header className="h-16 px-6 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
-        <div className="flex items-center gap-4">
+      <header className="h-14 sm:h-16 px-3 sm:px-6 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <button
             onClick={handleCloseAndSync}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0"
           >
             <ArrowLeft className="w-4 h-4 text-[#0D5771]" />
-            <span>Back to Visual Canvas</span>
+            <span className="hidden sm:inline">Back to Visual Canvas</span>
+            <span className="sm:hidden">Canvas</span>
           </button>
 
-          <div className="h-5 w-px bg-slate-200" />
+          <div className="h-5 w-px bg-slate-200 hidden sm:block" />
 
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-slate-900 uppercase tracking-wider">{profile.name || 'Studio'}</span>
-              <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="text-xs font-mono font-bold text-slate-900 uppercase tracking-wider truncate max-w-[130px] sm:max-w-none">
+                {profile.name || 'Studio'}
+              </span>
+              <span className="hidden md:flex items-center gap-1 text-[10px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 <ShieldCheck className="w-3 h-3" />
                 Live Edge Infrastructure
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 font-mono">Centralized Commerce, Booking &amp; Business Blueprint Core</p>
+            <p className="hidden sm:block text-[11px] text-slate-500 font-mono">Centralized Commerce, Booking &amp; Business Blueprint Core</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             onClick={handleCloseAndSync}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-xs font-bold transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-xs font-bold transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
           >
             <Check className="w-4 h-4" />
-            <span>Done &amp; Return to Studio</span>
+            <span className="hidden sm:inline">Done &amp; Return to Studio</span>
+            <span className="sm:hidden">Apply &amp; View</span>
           </button>
         </div>
       </header>
 
+      {/* ── Mobile Horizontal Pill Tab Bar (<768px) ── */}
+      <div className="flex md:hidden items-center gap-2 overflow-x-auto px-3 py-2.5 bg-white border-b border-slate-200 shrink-0 no-scrollbar">
+        {MODULE_TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                isActive
+                  ? 'bg-[#0D5771] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {tab.shortLabel}
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── Main Workspace ── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Navigation */}
-        <aside className="w-64 bg-white border-r border-slate-200 p-4 space-y-1 shrink-0 overflow-y-auto">
+        {/* Desktop Sidebar Navigation */}
+        <aside className="hidden md:block w-64 bg-white border-r border-slate-200 p-4 space-y-1 shrink-0 overflow-y-auto">
           <div className="px-3 py-2">
             <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">
               Business Modules
             </span>
           </div>
 
-          {[
-            { id: 'whatsapp' as const, label: 'WhatsApp Booking Engine', desc: 'Pre-filled format & phone routing', icon: <Phone className="w-4 h-4" /> },
-            { id: 'services' as const, label: `Services Catalog (${services.length})`, desc: 'Durations, pricing & booking tiers', icon: <Scissors className="w-4 h-4" /> },
-            { id: 'products' as const, label: `Products Catalog (${products.length})`, desc: 'E-commerce items & stock tracking', icon: <ShoppingBag className="w-4 h-4" /> },
-            { id: 'media' as const, label: `Media Vault (${mediaVault.length})`, desc: 'Instagram imports, uploads & videos', icon: <ImageIcon className="w-4 h-4" /> },
-            { id: 'profile' as const, label: 'Business Profile & Currency', desc: 'Identity, contacts & currency symbol', icon: <Store className="w-4 h-4" /> },
-            { id: 'payments' as const, label: 'Online Payments & Checkout', desc: 'Paystack, Flutterwave & Stripe', icon: <CreditCard className="w-4 h-4" /> },
-          ].map((tab) => {
+          {MODULE_TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -309,7 +407,7 @@ export function StudioInfrastructureHub({
         </aside>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-8 max-w-5xl">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-5xl pb-24">
           {/* ── 1. WHATSAPP TAB ── */}
           {activeTab === 'whatsapp' && (
             <div className="space-y-6">
@@ -510,35 +608,61 @@ export function StudioInfrastructureHub({
               {/* Service Cards Grid */}
               <div className="grid grid-cols-1 gap-3">
                 {services.map((srv) => (
-                  <div key={srv.id} className="p-5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs hover:shadow-sm transition-all">
-                    <div className="space-y-1.5 max-w-2xl">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-sm font-bold text-slate-900 font-display">{srv.name}</span>
-                        {srv.tag && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            {srv.tag}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 leading-relaxed">{srv.description}</p>
-                      <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400">
-                        {srv.durationMinutes && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>{srv.durationMinutes} mins</span>
-                          </span>
-                        )}
-                        <span>•</span>
-                        <span className="capitalize">{srv.locationType.replace('_', ' ')}</span>
+                  <div key={srv.id} className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs hover:shadow-sm transition-all">
+                    <div className="flex items-start gap-3.5 max-w-2xl">
+                      {srv.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={srv.imageUrl}
+                          alt={srv.name}
+                          className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                      )}
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center flex-wrap gap-2">
+                          <span className="text-sm font-bold text-slate-900 font-display">{srv.name}</span>
+                          {srv.tag && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              {srv.tag}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{srv.description}</p>
+                        <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400">
+                          {srv.durationMinutes && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>{srv.durationMinutes} mins</span>
+                            </span>
+                          )}
+                          <span>•</span>
+                          <span className="capitalize">{srv.locationType.replace('_', ' ')}</span>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                      <span className="text-base font-mono font-extrabold text-[#0D5771]">
-                        {currencySymbol}{srv.price}
-                      </span>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                      <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+                        <span className="text-xs font-mono font-bold text-slate-500">{currencySymbol}</span>
+                        <input
+                          type="number"
+                          value={srv.price}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              service.updateServiceItem(srv.id, { price: val });
+                              service.syncCanvasWithBlueprint();
+                            }
+                          }}
+                          className="w-20 text-sm font-mono font-extrabold text-[#0D5771] bg-transparent focus:outline-none"
+                          title="Tap to edit price"
+                        />
+                      </div>
                       <button
-                        onClick={() => service.deleteServiceItem(srv.id)}
+                        onClick={() => {
+                          service.deleteServiceItem(srv.id);
+                          service.syncCanvasWithBlueprint();
+                        }}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                         title="Delete Service"
                       >
@@ -554,23 +678,32 @@ export function StudioInfrastructureHub({
           {/* ── 3. PRODUCTS TAB ── */}
           {activeTab === 'products' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-extrabold text-slate-900 font-display">Physical &amp; Digital Products</h2>
-                  <p className="text-xs text-slate-500 font-mono">Manage beauty products, inventory, prices, and e-commerce goods</p>
+                  <p className="text-xs text-slate-500 font-mono">Manage store items, inventory, prices, and 1-tap Instagram products</p>
                 </div>
-                <button
-                  onClick={() => setShowAddProduct(!showAddProduct)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Product</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab('media')}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-pink-50 border border-pink-200 text-pink-700 text-xs font-bold hover:bg-pink-100 transition-all cursor-pointer"
+                  >
+                    <Instagram className="w-3.5 h-3.5" />
+                    <span>Pick from IG Vault</span>
+                  </button>
+                  <button
+                    onClick={() => setShowAddProduct(!showAddProduct)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Product</span>
+                  </button>
+                </div>
               </div>
 
               {/* Add Product Form */}
               {showAddProduct && (
-                <form onSubmit={handleAddProduct} className="p-6 rounded-2xl bg-white border border-[#0D5771]/30 shadow-md space-y-4 animate-in fade-in">
+                <form onSubmit={handleAddProduct} className="p-5 sm:p-6 rounded-2xl bg-white border border-[#0D5771]/30 shadow-md space-y-4 animate-in fade-in">
                   <h3 className="text-xs font-bold font-mono text-[#0D5771] uppercase tracking-wider">Create New Product</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
@@ -600,7 +733,7 @@ export function StudioInfrastructureHub({
                         type="text"
                         value={newProductCategory}
                         onChange={(e) => setNewProductCategory(e.target.value)}
-                        placeholder="e.g. Lashes, Skincare"
+                        placeholder="e.g. Lashes, Skincare, Apparel"
                         className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
                       />
                     </div>
@@ -638,28 +771,54 @@ export function StudioInfrastructureHub({
               {/* Product Cards List */}
               <div className="grid grid-cols-1 gap-3">
                 {products.map((prd) => (
-                  <div key={prd.id} className="p-5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs hover:shadow-sm transition-all">
-                    <div className="space-y-1.5 max-w-2xl">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-sm font-bold text-slate-900 font-display">{prd.name}</span>
-                        {prd.category && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-slate-100 text-slate-700">
-                            {prd.category}
+                  <div key={prd.id} className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs hover:shadow-sm transition-all">
+                    <div className="flex items-start gap-3.5 max-w-2xl">
+                      {prd.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={prd.imageUrl}
+                          alt={prd.name}
+                          className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                      )}
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center flex-wrap gap-2">
+                          <span className="text-sm font-bold text-slate-900 font-display">{prd.name}</span>
+                          {prd.category && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-slate-100 text-slate-700">
+                              {prd.category}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
+                            In Stock
                           </span>
-                        )}
-                        <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
-                          In Stock
-                        </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{prd.description}</p>
                       </div>
-                      <p className="text-xs text-slate-600 leading-relaxed">{prd.description}</p>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                      <span className="text-base font-mono font-extrabold text-[#0D5771]">
-                        {currencySymbol}{prd.price}
-                      </span>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                      <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+                        <span className="text-xs font-mono font-bold text-slate-500">{currencySymbol}</span>
+                        <input
+                          type="number"
+                          value={prd.price}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              service.updateProductItem(prd.id, { price: val });
+                              service.syncCanvasWithBlueprint();
+                            }
+                          }}
+                          className="w-20 text-sm font-mono font-extrabold text-[#0D5771] bg-transparent focus:outline-none"
+                          title="Tap to edit price"
+                        />
+                      </div>
                       <button
-                        onClick={() => service.deleteProductItem(prd.id)}
+                        onClick={() => {
+                          service.deleteProductItem(prd.id);
+                          service.syncCanvasWithBlueprint();
+                        }}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                         title="Delete Product"
                       >
@@ -1053,7 +1212,7 @@ export function StudioInfrastructureHub({
                       </div>
 
                       {/* Content Info */}
-                      <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                      <div className="p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
                         <div className="space-y-1">
                           <h4 className="text-xs font-bold text-slate-900 truncate font-display">{asset.name}</h4>
                           {asset.caption && (
@@ -1062,6 +1221,71 @@ export function StudioInfrastructureHub({
                             </p>
                           )}
                         </div>
+
+                        {/* 1-Tap Convert to Product / Service Bar */}
+                        {convertingAssetId === asset.id ? (
+                          <div className="p-2.5 rounded-xl bg-slate-50 border border-[#0D5771]/30 space-y-2 animate-in fade-in duration-150">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-mono font-bold text-[#0D5771] uppercase">
+                                {convertMode === 'product' ? '🛍️ Turn into Product' : '✨ Turn into Service'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setConvertingAssetId(null)}
+                                className="text-[10px] font-bold text-slate-400 hover:text-slate-700 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={convertTitle}
+                              onChange={(e) => setConvertTitle(e.target.value)}
+                              placeholder="Item Name"
+                              className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0D5771] font-medium"
+                            />
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                                <span className="text-xs font-mono font-bold text-slate-500">{currencySymbol}</span>
+                                <input
+                                  type="number"
+                                  value={convertPrice}
+                                  onChange={(e) => setConvertPrice(e.target.value)}
+                                  placeholder="Price"
+                                  className="w-full text-xs font-mono font-bold text-slate-900 focus:outline-none"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmConvert(asset)}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all cursor-pointer shrink-0 shadow-xs"
+                              >
+                                ✓ Add to Site
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => openConvertAsset(asset, 'product')}
+                              className="py-1.5 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-200 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                              title="Turn this post into a buyable Product in 1 tap"
+                            >
+                              <ShoppingBag className="w-3 h-3" />
+                              <span>+ Product</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openConvertAsset(asset, 'service')}
+                              className="py-1.5 px-2 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-200 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                              title="Turn this post into a bookable Service in 1 tap"
+                            >
+                              <Scissors className="w-3 h-3" />
+                              <span>+ Service</span>
+                            </button>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                           <button
@@ -1072,7 +1296,7 @@ export function StudioInfrastructureHub({
                             }}
                             className="flex-1 py-1.5 px-2 rounded-lg bg-[#0D5771]/10 hover:bg-[#0D5771] text-[#0D5771] hover:text-white text-[10px] font-bold transition-all cursor-pointer text-center"
                           >
-                            Apply to Canvas
+                            Apply to Selected
                           </button>
                           {asset.instagramPostUrl && (
                             <a

@@ -668,6 +668,137 @@ export class EditorService {
       });
     }
 
+    // ── 1f. Dynamic Services & Products Cards Sync (DOM + GrapesJS Component Model) ──
+    const activeServices = services.filter((s) => s.enabled !== false);
+    const activeProducts = products.filter((p) => p.enabled !== false);
+
+    const buildServicesGridHtml = () =>
+      activeServices
+        .map((srv) => {
+          const waUrl = this.blueprintManager.generateWhatsAppLink({ type: 'booking', targetId: srv.id });
+          const imgHtml = srv.imageUrl
+            ? `<div style="border-radius:14px;overflow:hidden;height:180px;margin-bottom:16px;"><img src="${srv.imageUrl}" alt="${srv.name}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>`
+            : '';
+          return `<div data-cuzmify-target-id="${srv.id}" style="padding:24px;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 4px 24px rgba(0,0,0,0.05);background:#fff;display:flex;flex-direction:column;justify-content:space-between;">
+            <div>
+              ${imgHtml}
+              <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px;">
+                <div>
+                  <span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#D97706;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);">${srv.tag || 'SIGNATURE'}</span>
+                  <h3 data-cuzmify-field="service-name" style="font-size:1.05rem;font-weight:700;color:#1A202C;margin:10px 0 0;">${srv.name}</h3>
+                </div>
+                <span data-cuzmify-field="service-price" style="font-size:1.35rem;font-weight:900;color:#10B981;font-family:monospace;white-space:nowrap;">${currencySymbol}${srv.price}</span>
+              </div>
+              <p style="font-size:0.8rem;color:#64748B;line-height:1.65;margin-bottom:16px;">${srv.description || ''}</p>
+            </div>
+            <a href="${waUrl}" data-cuzmify-action="whatsapp:booking" data-cuzmify-target-id="${srv.id}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;border-radius:12px;background:#0D5771;color:#fff;font-weight:700;font-size:0.78rem;text-decoration:none;box-sizing:border-box;">Book via WhatsApp →</a>
+          </div>`;
+        })
+        .join('');
+
+    const buildProductsSectionHtml = () => {
+      const cardsHtml = activeProducts
+        .map((prd) => {
+          const waOrderUrl = this.blueprintManager.generateWhatsAppLink({ type: 'order', targetId: prd.id });
+          const imgHtml = prd.imageUrl
+            ? `<div style="border-radius:14px;overflow:hidden;aspect-ratio:1/1;margin-bottom:14px;background:#F1F5F9;"><img src="${prd.imageUrl}" alt="${prd.name}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>`
+            : '';
+          return `<div data-cuzmify-target-id="${prd.id}" style="padding:20px;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 4px 24px rgba(0,0,0,0.05);background:#fff;display:flex;flex-direction:column;justify-content:space-between;">
+            <div>
+              ${imgHtml}
+              <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:8px;">
+                <div>
+                  <span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#0D5771;padding:3px 9px;border-radius:999px;background:rgba(13,87,113,0.08);">${prd.category || 'FEATURED'}</span>
+                  <h3 style="font-size:1rem;font-weight:700;color:#1A202C;margin:8px 0 0;">${prd.name}</h3>
+                </div>
+                <span style="font-size:1.25rem;font-weight:900;color:#10B981;font-family:monospace;white-space:nowrap;">${currencySymbol}${prd.price}</span>
+              </div>
+              <p style="font-size:0.78rem;color:#64748B;line-height:1.6;margin-bottom:14px;">${prd.description || ''}</p>
+            </div>
+            <a href="${waOrderUrl}" data-cuzmify-action="whatsapp:order" data-cuzmify-target-id="${prd.id}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;border-radius:12px;background:#10B981;color:#fff;font-weight:700;font-size:0.78rem;text-decoration:none;box-sizing:border-box;">🛍️ Order on WhatsApp</a>
+          </div>`;
+        })
+        .join('');
+
+      return `<section id="products" data-cuzmify-type="products" style="padding:80px 48px;background:#F8FAFC;max-width:1200px;margin:0 auto;box-sizing:border-box;">
+        <div style="max-width:1100px;margin:0 auto;">
+          <div style="text-align:center;margin-bottom:48px;">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#10B981;font-family:monospace;">Official Storefront</span>
+            <h2 style="font-size:clamp(1.75rem,3.5vw,2.25rem);font-weight:800;color:#1A202C;margin:12px 0;font-family:'Playfair Display',serif;">Shop Featured Products</h2>
+          </div>
+          <div class="products-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px;">
+            ${cardsHtml}
+          </div>
+        </div>
+      </section>`;
+    };
+
+    try {
+      const editor = (this.adapter as any).editor;
+      const wrapper = editor?.getWrapper?.();
+
+      if (activeServices.length > 0) {
+        const servicesGridHtml = buildServicesGridHtml();
+        if (doc) {
+          const srvSec = doc.querySelector('section#services, [data-cuzmify-type="services"]');
+          const gridEl = srvSec?.querySelector('div[style*="display:grid"], div[style*="display: grid"], .services-grid');
+          if (gridEl) {
+            gridEl.innerHTML = servicesGridHtml;
+            modified = true;
+          }
+        }
+        if (wrapper) {
+          const srvComps = wrapper.find('section#services, [data-cuzmify-type="services"]');
+          if (srvComps.length > 0) {
+            const innerContainer = srvComps[0].components?.()?.models?.[0];
+            const gridComp = innerContainer?.components?.()?.models?.[1] || srvComps[0].find('div')[2];
+            if (gridComp) {
+              gridComp.components(servicesGridHtml);
+              modified = true;
+            }
+          }
+        }
+      }
+
+      if (activeProducts.length > 0) {
+        const fullProductsHtml = buildProductsSectionHtml();
+        if (doc) {
+          const existingPrd = doc.querySelector('section#products, [data-cuzmify-type="products"]');
+          if (existingPrd) {
+            existingPrd.outerHTML = fullProductsHtml;
+            modified = true;
+          } else {
+            const srvSec = doc.querySelector('section#services, [data-cuzmify-type="services"]');
+            if (srvSec) {
+              srvSec.insertAdjacentHTML('afterend', fullProductsHtml);
+              modified = true;
+            }
+          }
+        }
+        if (wrapper) {
+          const prdComps = wrapper.find('section#products, [data-cuzmify-type="products"]');
+          if (prdComps.length > 0) {
+            prdComps[0].replaceWith(fullProductsHtml);
+            modified = true;
+          } else {
+            const srvComps = wrapper.find('section#services, [data-cuzmify-type="services"]');
+            if (srvComps.length > 0 && wrapper.components) {
+              const allModels = wrapper.components().models || [];
+              const srvIdx = allModels.indexOf(srvComps[0]);
+              if (srvIdx >= 0) {
+                wrapper.components().add(fullProductsHtml, { at: srvIdx + 1 });
+              } else {
+                wrapper.append(fullProductsHtml);
+              }
+              modified = true;
+            }
+          }
+        }
+      }
+    } catch (syncGridErr) {
+      console.warn('[EditorService] Catalog grid sync warning:', syncGridErr);
+    }
+
     // ── 2. GrapesJS Component Tree Model Synchronization (Persistence) ──
     this.adapter.traverseComponents((comp) => {
       if (!comp) return;

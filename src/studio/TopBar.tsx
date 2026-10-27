@@ -107,14 +107,14 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
 
   return (
     <header
-      className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 shrink-0 z-50 select-none shadow-xs"
+      className="h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 shrink-0 z-50 select-none shadow-xs"
       suppressHydrationWarning
     >
       {/* ─── LEFT: Spacious Brand, Breadcrumb & Project Name ─── */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl hidden md:flex items-center justify-center transition-colors cursor-pointer ${
             isLeftPanelOpen
               ? 'bg-slate-100 text-[#0D5771]'
               : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
@@ -124,17 +124,17 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
           <PanelLeft className="w-4 h-4" />
         </button>
 
-        <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+        <div className="h-5 w-px bg-slate-200 hidden md:block" />
 
         {/* Brand & Project Breadcrumb */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <Link
             href="/dashboard"
             className="flex items-center gap-2 py-1 text-slate-700 hover:text-slate-900 transition-colors group shrink-0"
             title="Return to Dashboard"
           >
             <CuzmifyLogo className="w-7 h-7 group-hover:scale-105 transition-transform" />
-            <span className="text-sm font-black tracking-tight text-slate-900 font-display">
+            <span className="hidden sm:inline text-sm font-black tracking-tight text-slate-900 font-display">
               CUZM<span className="text-[#0D5771]">IFY</span>
             </span>
           </Link>
@@ -142,7 +142,7 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
           <span className="text-slate-300 text-sm font-light">/</span>
 
           <div className="flex flex-col min-w-0">
-            <span className="text-xs font-extrabold text-slate-800 truncate max-w-[140px] sm:max-w-[220px] leading-snug">
+            <span className="text-xs font-extrabold text-slate-800 truncate max-w-[115px] sm:max-w-[220px] leading-snug">
               {businessName || 'Glory Beauty Studio'}
             </span>
             <SaveIndicator />
@@ -180,10 +180,10 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
           </button>
         </div>
 
-        <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+        <div className="h-4 w-px bg-slate-200 hidden lg:block" />
 
-        {/* Viewport Breakpoint Switcher */}
-        <div className="flex items-center gap-1">
+        {/* Viewport Breakpoint Switcher (Desktop Only) */}
+        <div className="hidden lg:flex items-center gap-1">
           {BREAKPOINTS.map((bp) => {
             const isActive = breakpoint === bp.id;
             return (
@@ -198,7 +198,7 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
                 }`}
               >
                 {bp.icon}
-                <span className="hidden md:inline text-[11px]">{bp.label}</span>
+                <span className="hidden xl:inline text-[11px]">{bp.label}</span>
               </button>
             );
           })}
@@ -206,32 +206,32 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
       </div>
 
       {/* ─── RIGHT: Clean Ghost Actions & Primary Launch Button ─── */}
-      <div className="flex items-center gap-2 shrink-0">
-        {/* Media Vault Button */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Media Vault Button (Desktop TopBar - on Mobile it lives in Bottom Dock) */}
         <button
           onClick={() => setActiveModuleModal('media')}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 transition-all cursor-pointer border border-slate-200 shadow-2xs"
+          className="hidden md:flex px-3 py-1.5 rounded-xl text-xs font-bold items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 transition-all cursor-pointer border border-slate-200 shadow-2xs"
           title="Open Media Vault & Instagram Assets"
         >
           <ImageIcon className="w-3.5 h-3.5 text-[#0D5771]" />
-          <span className="hidden sm:inline">Media Vault</span>
+          <span className="hidden lg:inline">Media Vault</span>
         </button>
 
-        {/* Attached Business Infrastructure Button */}
+        {/* Attached Business Infrastructure Button (Desktop TopBar - on Mobile it lives in Bottom Dock) */}
         <button
           onClick={() => setActiveModuleModal('whatsapp')}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-[#0D5771]/10 text-[#0D5771] hover:bg-[#0D5771]/15 transition-all cursor-pointer border border-[#0D5771]/20 shadow-2xs"
+          className="hidden md:flex px-3 py-1.5 rounded-xl text-xs font-bold items-center gap-1.5 bg-[#0D5771]/10 text-[#0D5771] hover:bg-[#0D5771]/15 transition-all cursor-pointer border border-[#0D5771]/20 shadow-2xs"
           title="Configure WhatsApp, Services, Products & Business Blueprint"
         >
           <Sparkles className="w-3.5 h-3.5 text-[#0D5771]" />
-          <span className="hidden sm:inline">Modules</span>
+          <span className="hidden lg:inline">Modules</span>
         </button>
 
         {/* Ghost Save button */}
         <button
           onClick={handleSaveClick}
           disabled={saveState === 'saving'}
-          className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+          className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
             justSaved
               ? 'text-emerald-700 bg-emerald-50'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -254,7 +254,7 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
         {/* Ghost Preview button */}
         <button
           onClick={handlePreviewToggle}
-          className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+          className={`hidden sm:flex px-3 py-2 rounded-xl text-xs font-semibold items-center gap-1.5 transition-colors cursor-pointer ${
             isPreviewMode
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -278,7 +278,7 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
         <button
           onClick={onPublish}
           disabled={isPublishing}
-          className="px-4 py-2 rounded-xl bg-[#0D5771] hover:bg-[#083D50] active:scale-98 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-[#0D5771]/20 transition-all cursor-pointer disabled:opacity-60 hover:scale-[1.02]"
+          className="px-3 sm:px-4 py-2 rounded-xl bg-[#0D5771] hover:bg-[#083D50] active:scale-98 text-white font-bold text-xs flex items-center gap-1.5 sm:gap-2 shadow-md shadow-[#0D5771]/20 transition-all cursor-pointer disabled:opacity-60 hover:scale-[1.02]"
         >
           {isPublishing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
