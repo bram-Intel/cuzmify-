@@ -6,6 +6,8 @@ import { BlockRegistry } from './BlockRegistry';
 import { HistoryManager, type HistorySnapshot } from './HistoryManager';
 import { BlueprintManager } from './BlueprintManager';
 import { SUPPORTED_CURRENCIES, type BusinessBlueprint, type ServiceItem, type ProductItem, type BusinessProfile, type WhatsAppModuleConfig, type ActionBinding, type MediaVaultAsset } from '@/core/blueprint-schema';
+import { renderTemplateEngine, resolveTemplateEngineId, TEMPLATE_ENGINES, type TemplateEngineId } from '@/core/template-engines';
+import { resolveNicheBlueprint } from '@/core/niche-blueprints';
 import type { ThemeName } from '@/core/project-schema';
 import type { CuzmifyComponentTraits } from '@/core/types';
 
@@ -126,6 +128,26 @@ export class EditorService {
         }
       }
 
+      // 1b. Harvest inline Headline & Subheadline edits into customCopy so template switching is 100% lossless
+      let copyUpdated = false;
+      const copyUpdates: Record<string, string> = {};
+      const headlineEl = doc.querySelector('[data-cuzmify-field="headline"]');
+      if (headlineEl) {
+        const rawH = (headlineEl.textContent || '').trim();
+        if (rawH && rawH !== (bp.customCopy?.headline || bp.profile.tagline)) {
+          copyUpdates.headline = rawH;
+          copyUpdated = true;
+        }
+      }
+      const subEl = doc.querySelector('[data-cuzmify-field="subheadline"]');
+      if (subEl) {
+        const rawSub = (subEl.textContent || '').trim();
+        if (rawSub && rawSub !== (bp.customCopy?.subheadline || bp.profile.bio)) {
+          copyUpdates.subheadline = rawSub;
+          copyUpdated = true;
+        }
+      }
+
       // 2. Check Service Prices edited directly on canvas cards
       const services = [...bp.modules.services.items];
       const currency = bp.profile.currency || 'USD';
@@ -162,10 +184,13 @@ export class EditorService {
         }
       });
 
-      if (profileUpdated || serviceUpdated) {
+      if (profileUpdated || serviceUpdated || copyUpdated) {
         this.isSyncingFromCanvas = true;
         if (profileUpdated) {
           this.blueprintManager.updateProfile(profileUpdates);
+        }
+        if (copyUpdated) {
+          this.blueprintManager.updateCustomCopy(copyUpdates);
         }
         if (serviceUpdated) {
           this.blueprintManager.setServices(services);
@@ -435,9 +460,65 @@ export class EditorService {
     };
   }
 
-  // ── Blueprint APIs ────────────────────────────────────────────────────────
+  // ── Blueprint & Lossless Template Engine APIs ─────────────────────────────
   getBlueprint(): BusinessBlueprint {
     return this.blueprintManager.getBlueprint();
+  }
+
+  getTemplateId(): TemplateEngineId {
+    return resolveTemplateEngineId(this.blueprintManager.getTemplateId());
+  }
+
+  getNicheId(): string {
+    return this.blueprintManager.getNicheId();
+  }
+
+  /**
+   * Losslessly switches the site's visual Template Engine while preserving 100% of
+   * owner content (photos, services, prices, WhatsApp, custom headlines).
+   */
+  switchTemplate(templateIdInput: string, siteId?: string): void {
+    this.syncBlueprintFromCanvas();
+    const tplId = resolveTemplateEngineId(templateIdInput);
+    this.isSyncingFromCanvas = true;
+    try {
+      this.blueprintManager.setTemplateId(tplId);
+      const rendered = renderTemplateEngine(tplId, this.blueprintManager.getBlueprint(), { siteId });
+      this.adapter.setHtmlContent(rendered.fullHtml);
+      this.adapter.sanitizeCanvas();
+      this.recordSnapshot(`Switched Template: ${TEMPLATE_ENGINES[tplId].name}`, 'manual_edit');
+    } finally {
+      this.isSyncingFromCanvas = false;
+    }
+    this.blueprintListeners.forEach((fn) => fn(this.blueprintManager.getBlueprint()));
+    this.notifyChange();
+  }
+
+  /**
+   * Switches the business's Service Niche Blueprint without inventing fake services/prices.
+   */
+  switchNiche(nicheIdOrCategory: string, siteId?: string): void {
+    this.syncBlueprintFromCanvas();
+    const niche = resolveNicheBlueprint(nicheIdOrCategory);
+    this.isSyncingFromCanvas = true;
+    try {
+      this.blueprintManager.setNicheId(niche.id, niche.label);
+      const rendered = renderTemplateEngine(this.getTemplateId(), this.blueprintManager.getBlueprint(), { siteId });
+      this.adapter.setHtmlContent(rendered.fullHtml);
+      this.adapter.sanitizeCanvas();
+      this.recordSnapshot(`Switched Niche: ${niche.label}`, 'manual_edit');
+    } finally {
+      this.isSyncingFromCanvas = false;
+    }
+    this.blueprintListeners.forEach((fn) => fn(this.blueprintManager.getBlueprint()));
+    this.notifyChange();
+  }
+
+  rebuildFromTemplate(siteId?: string): void {
+    const rendered = renderTemplateEngine(this.getTemplateId(), this.blueprintManager.getBlueprint(), { siteId });
+    this.adapter.setHtmlContent(rendered.fullHtml);
+    this.adapter.sanitizeCanvas();
+    this.notifyChange();
   }
 
   getProfile(): BusinessProfile {
@@ -562,6 +643,17 @@ export class EditorService {
   public syncCanvasWithBlueprint(blueprint?: BusinessBlueprint): void {
     if (!this.adapter || this.isSyncingFromCanvas) return;
     const bp = blueprint || this.blueprintManager.getBlueprint();
+
+    // Fast path: if the active canvas is backed by one of our 3 Lossless Template Engines,
+    // re-render cleanly from Blueprint so services (fixed/starting_at/quote), IG media, and copy stay 100% synced.
+    const checkDoc = this.adapter.getDoc();
+    if (checkDoc && checkDoc.querySelector('[data-cuzmify-template]')) {
+      const rendered = renderTemplateEngine(bp.templateId, bp);
+      this.adapter.setHtmlContent(rendered.fullHtml);
+      this.adapter.triggerChange();
+      return;
+    }
+
     const profile = bp.profile;
     const services = bp.modules.services.items;
     const products = bp.modules.products.items;
@@ -921,6 +1013,7 @@ export class EditorService {
         ? bpName
         : (meta?.businessName || bpName || 'My Business');
 
+      const tplId = resolveTemplateEngineId(blueprint.templateId);
       const cleanSub = (finalName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'studio';
       const res = await fetch('/api/sites/save', {
         method: 'POST',
@@ -929,7 +1022,9 @@ export class EditorService {
           siteId: projectId,
           name: finalName,
           subdomain: cleanSub,
-          template: meta?.template,
+          nicheId: blueprint.nicheId || blueprint.profile.nicheId,
+          templateId: tplId,
+          template: meta?.template || TEMPLATE_ENGINES[tplId]?.name,
           category: meta?.category || blueprint.profile.category,
           htmlContent: html,
           grapesData: {

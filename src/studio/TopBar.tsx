@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import type { Breakpoint } from './engine/EditorContext';
+import { TEMPLATE_ENGINE_LIST } from '@/core/template-engines';
 import Link from 'next/link';
 import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
 
@@ -71,6 +72,8 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
     isPreviewMode, handlePreviewToggle,
     isLeftPanelOpen, setIsLeftPanelOpen,
     setActiveModuleModal,
+    templateId,
+    handleTemplateSwitch,
   } = useEditor();
 
   const [justSaved, setJustSaved] = useState(false);
@@ -180,10 +183,38 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
           </button>
         </div>
 
-        <div className="h-4 w-px bg-slate-200 hidden lg:block" />
+        <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+        {/* 1-Tap Lossless Template Switcher (Mobile + Desktop) */}
+        <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+          {TEMPLATE_ENGINE_LIST.map((tpl) => {
+            const isSelected = templateId === tpl.id;
+            const shortName = tpl.id === 'editorial-atelier' ? 'Editorial' : tpl.id === 'noir-showcase' ? 'Noir' : 'Modern';
+            return (
+              <button
+                key={tpl.id}
+                onClick={() => handleTemplateSwitch(tpl.id)}
+                title={`Switch look to ${tpl.name} (${tpl.tagline}) — keeps all your photos & services`}
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-white text-[#0D5771] shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full border border-black/15 shrink-0"
+                  style={{ backgroundColor: tpl.swatches[0] === '#09090B' ? '#09090B' : tpl.swatches[2] }}
+                />
+                <span>{shortName}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="h-4 w-px bg-slate-200 hidden xl:block" />
 
         {/* Viewport Breakpoint Switcher (Desktop Only) */}
-        <div className="hidden lg:flex items-center gap-1">
+        <div className="hidden xl:flex items-center gap-1">
           {BREAKPOINTS.map((bp) => {
             const isActive = breakpoint === bp.id;
             return (

@@ -50,6 +50,36 @@ export class BlueprintManager {
     return this.blueprint.mediaVault;
   }
 
+  public getTemplateId(): string {
+    return this.blueprint.templateId || 'editorial-atelier';
+  }
+
+  public setTemplateId(templateId: string): void {
+    this.blueprint.templateId = templateId;
+    this.touch();
+  }
+
+  public getNicheId(): string {
+    return this.blueprint.nicheId || this.blueprint.profile.nicheId || 'beauty_makeup';
+  }
+
+  public setNicheId(nicheId: string, categoryLabel?: string): void {
+    this.blueprint.nicheId = nicheId;
+    this.blueprint.profile.nicheId = nicheId;
+    if (categoryLabel) {
+      this.blueprint.profile.category = categoryLabel;
+    }
+    this.touch();
+  }
+
+  public updateCustomCopy(updates: Record<string, string>): void {
+    this.blueprint.customCopy = {
+      ...(this.blueprint.customCopy || {}),
+      ...updates,
+    };
+    this.touch();
+  }
+
   public formatCurrency(amount: number, currencyCode?: CurrencyCode): string {
     const cur = currencyCode || this.blueprint.profile.currency || 'USD';
     const info = SUPPORTED_CURRENCIES[cur] || SUPPORTED_CURRENCIES.USD;

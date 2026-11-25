@@ -7,26 +7,16 @@ import { EditorProvider } from '@/studio/engine/EditorContext';
 import { EditorShell } from '@/studio/EditorShell';
 import { StudioAuthGate } from '@/studio/StudioAuthGate';
 import { MobileGuard } from '@/studio/MobileGuard';
-import { getBlueprintByNameOrCategory } from '@/core/blueprints';
+import { resolveNicheBlueprint } from '@/core/niche-blueprints';
+import { resolveTemplateEngineId } from '@/core/template-engines';
 import type { ThemeName } from '@/core/project-schema';
-
-const THEME_MAP: Record<string, ThemeName> = {
-  'apple-luxury': 'apple-luxury',
-  'bram-light': 'bram-light',
-  'dark-obsidian': 'dark-obsidian',
-  luxury: 'luxury',
-  minimal: 'minimal',
-  modern: 'modern',
-  editorial: 'editorial',
-  vibrant: 'vibrant',
-};
 
 export default function StudioContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const nameParam = searchParams.get('name') || searchParams.get('importName');
-  const templateName = searchParams.get('template');
-  const categoryParam = searchParams.get('category');
+  const templateParam = searchParams.get('template') || searchParams.get('templateId');
+  const categoryParam = searchParams.get('category') || searchParams.get('nicheId');
   const currencyParam = searchParams.get('currency');
   const whatsappParam = searchParams.get('whatsapp');
   const instagramParam = searchParams.get('instagram');
@@ -47,10 +37,13 @@ export default function StudioContent() {
     return <StudioAuthGate callbackUrl={`/studio?${searchParams.toString()}`} />;
   }
 
-  const blueprint = getBlueprintByNameOrCategory(templateName || categoryParam || 'beauty');
-  const initialTheme: ThemeName = THEME_MAP[blueprint.themeConfig.style] ?? 'bram-light';
-  const userAccountName = session?.user?.name ? `${session.user.name}'s Studio` : 'My Business Studio';
-  const initialBusinessName = nameParam || (templateName ? `${templateName} Studio` : userAccountName);
+  const resolvedNiche = resolveNicheBlueprint(categoryParam);
+  const resolvedTemplate = templateParam
+    ? resolveTemplateEngineId(templateParam)
+    : resolvedNiche.recommendedTemplate;
+  const initialTheme: ThemeName = resolvedTemplate === 'noir-showcase' ? 'dark-obsidian' : 'bram-light';
+  const userAccountName = session?.user?.name ? `${session.user.name}'s Studio` : 'My Studio';
+  const initialBusinessName = nameParam || userAccountName;
 
   return (
     <MobileGuard>
@@ -58,11 +51,12 @@ export default function StudioContent() {
         initialBusinessName={initialBusinessName}
         initialTheme={initialTheme}
         projectId={projectId}
-        initialCurrency={(currencyParam as any) || 'USD'}
-        initialCategory={categoryParam || undefined}
+        initialCurrency={(currencyParam as any) || 'NGN'}
+        initialCategory={resolvedNiche.label}
+        initialNicheId={resolvedNiche.id}
         initialWhatsapp={whatsappParam || undefined}
         initialInstagram={instagramParam || undefined}
-        initialTemplate={templateName || undefined}
+        initialTemplate={resolvedTemplate}
       >
         <EditorShell
           initialBusinessName={initialBusinessName}

@@ -6,6 +6,8 @@ import type { EditorService } from './EditorService';
 import type { ThemeName } from '@/core/project-schema';
 
 import type { BusinessBlueprint, CurrencyCode } from '@/core/blueprint-schema';
+import { resolveTemplateEngineId, TEMPLATE_ENGINES, type TemplateEngineId } from '@/core/template-engines';
+import { resolveNicheBlueprint } from '@/core/niche-blueprints';
 
 export type Breakpoint = 'desktop' | 'tablet' | 'mobile';
 export type SaveState = 'saved' | 'saving' | 'unsaved' | 'error';
@@ -80,6 +82,12 @@ interface EditorContextValue {
   saveToast: string | null;
   setSaveToast: (msg: string | null) => void;
 
+  // Template & Niche Engine
+  templateId: TemplateEngineId;
+  nicheId: string;
+  handleTemplateSwitch: (tplId: TemplateEngineId) => void;
+  handleNicheSwitch: (nicheId: string) => void;
+
   // Actions
   attachSelectedToChat: () => void;
   handleUndo: () => void;
@@ -99,6 +107,7 @@ export function EditorProvider({
   projectId,
   initialCurrency,
   initialCategory,
+  initialNicheId,
   initialWhatsapp,
   initialInstagram,
   initialTemplate,
@@ -109,6 +118,7 @@ export function EditorProvider({
   projectId: string;
   initialCurrency?: CurrencyCode;
   initialCategory?: string;
+  initialNicheId?: string;
   initialWhatsapp?: string;
   initialInstagram?: string;
   initialTemplate?: string;
@@ -117,6 +127,8 @@ export function EditorProvider({
   const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [theme, setTheme] = useState<ThemeName>(initialTheme);
+  const [templateId, setTemplateId] = useState<TemplateEngineId>(resolveTemplateEngineId(initialTemplate));
+  const [nicheId, setNicheId] = useState<string>(initialNicheId || resolveNicheBlueprint(initialCategory).id);
   const [selectedComponent, setSelectedComponent] = useState<SelectedComponent>({ type: null, traits: {} });
   const [leftPanelTab, setLeftPanelTab] = useState<PanelTab>('add');
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
@@ -164,6 +176,8 @@ export function EditorProvider({
 
     const unsubBlueprint = service.onBlueprintChange((bp) => {
       setBlueprint({ ...bp });
+      if (bp.templateId) setTemplateId(resolveTemplateEngineId(bp.templateId));
+      if (bp.nicheId) setNicheId(bp.nicheId);
       if (bp.profile?.name && bp.profile.name !== 'Gmakeup Studio') {
         setBusinessName(bp.profile.name);
       }
@@ -227,6 +241,27 @@ export function EditorProvider({
     }, 1500);
   }, [service, projectId, currentUserId]);
 
+  const handleTemplateSwitch = useCallback((tplId: TemplateEngineId) => {
+    setTemplateId(tplId);
+    service?.switchTemplate(tplId, projectId);
+    setSaveToast(`✨ Switched look to "${TEMPLATE_ENGINES[tplId].name}" — all your content stayed intact!`);
+    setTimeout(() => setSaveToast(null), 3000);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      service?.saveToLocalStorage(projectId, theme, currentUserId);
+      service?.saveToDatabase(projectId, { businessName, theme });
+      setSaveState('saved');
+    }, 800);
+  }, [service, projectId, theme, businessName, currentUserId]);
+
+  const handleNicheSwitch = useCallback((nextNicheId: string) => {
+    const resolved = resolveNicheBlueprint(nextNicheId);
+    setNicheId(resolved.id);
+    service?.switchNiche(resolved.id, projectId);
+    setSaveToast(`✦ Updated niche to "${resolved.shortLabel}"`);
+    setTimeout(() => setSaveToast(null), 2500);
+  }, [service, projectId]);
+
   const handleDeviceChange = useCallback((b: Breakpoint) => {
     setBreakpoint(b);
     service?.setDevice(b);
@@ -273,6 +308,10 @@ export function EditorProvider({
     activeModules, setActiveModules,
     projectId,
     saveToast, setSaveToast,
+    templateId,
+    nicheId,
+    handleTemplateSwitch,
+    handleNicheSwitch,
     attachSelectedToChat,
     handleUndo, handleRedo, handleSave,
     handleThemeChange, handleDeviceChange, handlePreviewToggle,
