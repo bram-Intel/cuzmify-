@@ -46,7 +46,9 @@ export function Canvas() {
     userIdRef.current = currentUserId;
   }, [currentUserId]);
 
-  const domain = `${(businessName || 'glorybeauty').toLowerCase().replace(/\s+/g, '')}.cuzmify.com`;
+  const cleanSlug = (businessName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 28) || 'studio';
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  const domain = rootDomain ? `${cleanSlug}.${rootDomain}` : `cuzmify.vercel.app/s/${cleanSlug}`;
 
   const initEditor = useCallback(async () => {
     if (!containerRef.current) return;

@@ -1154,50 +1154,127 @@ function AdvancedDrawer({ service }: { service: ReturnType<typeof useEditor>['se
 
 // ── No Selection Panel ──────────────────────────────────────────────────────
 function NoSelectionPanel() {
-  const { theme, handleThemeChange } = useEditor();
+  const { theme, handleThemeChange, templateId, handleTemplateSwitch, setActiveModuleModal } = useEditor();
 
-  const THEMES: { id: ThemeName; label: string; emoji: string }[] = [
-    { id: 'bram-light', label: 'Bram Light', emoji: '💎' },
-    { id: 'luxury', label: 'Luxury', emoji: '✨' },
-    { id: 'dark-obsidian', label: 'Dark Obsidian', emoji: '🖤' },
-    { id: 'editorial', label: 'Editorial', emoji: '📰' },
-    { id: 'minimal', label: 'Minimal', emoji: '⬜' },
-    { id: 'modern', label: 'Modern', emoji: '🔵' },
-    { id: 'vibrant', label: 'Vibrant', emoji: '💗' },
-    { id: 'apple-luxury', label: 'Apple Luxury', emoji: '🍏' },
+  const THEMES: { id: ThemeName; label: string }[] = [
+    { id: 'bram-light', label: 'Bram Light' },
+    { id: 'luxury', label: 'Luxury Gold' },
+    { id: 'dark-obsidian', label: 'Dark Obsidian' },
+    { id: 'editorial', label: 'Editorial' },
+    { id: 'minimal', label: 'Minimal' },
+    { id: 'modern', label: 'Modern' },
+  ];
+
+  const STYLES: { id: 'editorial-atelier' | 'noir-showcase' | 'modern-studio'; name: string; sub: string; dot: string }[] = [
+    { id: 'editorial-atelier', name: 'Editorial Atelier', sub: 'Warm ivory & serif menu', dot: '#9A6B4C' },
+    { id: 'noir-showcase', name: 'Noir Showcase', sub: 'Dark cinema & bold gallery', dot: '#09090B' },
+    { id: 'modern-studio', name: 'Modern Studio', sub: 'Crisp cards & sticky bar', dot: '#0D5771' },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
-        <MousePointer2 className="w-5 h-5 text-[#0D5771] mx-auto animate-bounce" />
-        <h3 className="text-xs font-bold text-slate-800">Select Any Element</h3>
+    <div className="space-y-3">
+      <div className="p-3.5 rounded-xl bg-white border border-slate-200 text-center space-y-1.5 shadow-2xs">
+        <MousePointer2 className="w-4 h-4 text-[#0D5771] mx-auto" />
+        <h3 className="text-xs font-bold text-slate-900">Click Any Element on Canvas</h3>
         <p className="text-[11px] text-slate-500 leading-relaxed">
-          Click any button, text, heading, or container on the canvas to customize its styling with visual sliders.
+          Select any heading, button, photo, or section in the editor to customize fonts, colors, spacing, and links.
         </p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-2.5">
-        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-800 font-mono border-b border-slate-100 pb-2">
-          <Palette className="w-3.5 h-3.5 text-[#0D5771]" />
-          <span>Curated Theme Presets</span>
+      {/* 1-Tap Lossless Website Style Switcher */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 font-mono border-b border-slate-100 pb-2">
+          <Layout className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span>Website Layout Engine</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          {STYLES.map((st) => {
+            const active = templateId === st.id;
+            return (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => handleTemplateSwitch(st.id)}
+                className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  active
+                    ? 'border-[#0D5771] bg-[#0D5771]/6'
+                    : 'border-slate-200 bg-slate-50/60 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-3 h-3 rounded-full shrink-0 border border-black/15" style={{ background: st.dot }} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 truncate">{st.name}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{st.sub}</p>
+                  </div>
+                </div>
+                {active && <Check className="w-3.5 h-3.5 text-[#0D5771] shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Quick Content Shortcuts */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 font-mono border-b border-slate-100 pb-2">
+          <Settings className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span>Quick Content Setup</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveModuleModal('media')}
+            className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-800 cursor-pointer text-left"
+          >
+            📷 IG &amp; Photos
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveModuleModal('services')}
+            className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-800 cursor-pointer text-left"
+          >
+            ✨ Services
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveModuleModal('whatsapp')}
+            className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-800 cursor-pointer text-left"
+          >
+            💬 WhatsApp
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveModuleModal('payments')}
+            className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-800 cursor-pointer text-left"
+          >
+            🌐 Custom Domain
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 font-mono border-b border-slate-100 pb-2">
+          <Palette className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span>Color Mood Presets</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
           {THEMES.map((t) => {
             const tok = DESIGN_TOKENS[t.id];
             const isSelected = theme === t.id;
             return (
               <button
                 key={t.id}
+                type="button"
                 onClick={() => handleThemeChange(t.id)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'border-[#0D5771] bg-[#0D5771]/10 text-[#0D5771] font-bold shadow-xs'
+                    ? 'border-[#0D5771] bg-[#0D5771]/10 text-[#0D5771] font-bold'
                     : 'border-slate-200 bg-slate-50 hover:border-[#0D5771]/40 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <div className="w-3.5 h-3.5 rounded-full shrink-0 border border-slate-300" style={{ background: tok.colorSecondary }} />
-                <span className="text-[10px] font-bold truncate">{t.label}</span>
+                <div className="w-3 h-3 rounded-full shrink-0 border border-slate-300" style={{ background: tok.colorSecondary }} />
+                <span className="text-[11px] font-semibold truncate">{t.label}</span>
               </button>
             );
           })}
@@ -1224,8 +1301,8 @@ export function RightPanel() {
 
   return (
     <aside
-      style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
-      className="shrink-0 bg-slate-50/70 border-l border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 shadow-2xs z-30 select-none"
+      style={{ width: '300px', minWidth: '300px', maxWidth: '300px' }}
+      className="shrink-0 bg-slate-50/70 border-l border-slate-200 flex flex-col overflow-hidden z-30 select-none"
     >
       {/* Precision Panel Header */}
       <div className="px-4 py-2.5 border-b border-slate-200 bg-white shrink-0 flex items-center justify-between shadow-2xs">

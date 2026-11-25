@@ -50,34 +50,29 @@ const INITIAL_WELCOME: ChatMessage = {
   id: 'welcome-msg',
   role: 'assistant',
   content:
-    "I'm your Autonomous AI Website Architect. You can request a full website overhaul, add new sections, or click any element on the canvas to surgically edit its style, width, or text.",
-  timestamp: 'Just now',
+    "Hi! Describe how you'd like to refine your copy, colors, or sections—or click any element on the canvas to edit it with AI.",
+  timestamp: 'Ready',
   executionSteps: [
-    'Autonomous engine connected to Gemini 2.5 Flash',
-    'Real-time Canvas & Supabase Cloud persistence active',
+    'Connected to your real portfolio & service blueprint',
   ],
 };
 
 const QUICK_ACTIONS = [
   {
-    label: '⚡ Compact Pill Button',
-    prompt: 'make the selected button compact with modern pill border-radius, elegant padding, and subtle glow',
+    label: '✨ Luxury Bridal Polish',
+    prompt: 'Refine my hero headline and bio to feel warm, editorial, and high-trust for bridal & event clients',
   },
   {
-    label: '🏎️ Monaco Supercar Rental',
-    prompt: 'Redesign into an ultra-luxury Supercar Rental Club in Monaco with dark carbon aesthetics and 3 membership tiers',
+    label: '📸 Photographer Showcase',
+    prompt: 'Make the headline punchy and minimal for a portrait & wedding photography studio',
   },
   {
-    label: '✨ Bespoke Bridal Atelier',
-    prompt: 'Transform into a bespoke luxury bridal studio with packages for destination weddings and airbrush makeup',
+    label: '⚡ Pill Booking Button',
+    prompt: 'Make the selected button a sleek modern pill shape with strong contrast',
   },
   {
-    label: '💎 3-Tier Pricing Section',
-    prompt: 'Add an interactive 3-tier pricing comparison section with a signature VIP plan highlighted',
-  },
-  {
-    label: '💬 WhatsApp Booking Hotline',
-    prompt: 'Add a dedicated 24/7 instant WhatsApp reservation and consultation hotline section',
+    label: '💬 Consultation Section',
+    prompt: 'Add a clean WhatsApp consultation and availability inquiry section',
   },
 ];
 

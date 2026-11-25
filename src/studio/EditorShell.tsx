@@ -8,9 +8,7 @@ import {
   Instagram,
   Scissors,
   Store,
-  Rocket,
-  SlidersHorizontal,
-  X,
+  Globe,
 } from 'lucide-react';
 import { TopBar } from './TopBar';
 import { LeftPanel } from './LeftPanel';
@@ -28,7 +26,7 @@ const Canvas = dynamic(() => import('./Canvas').then((m) => ({ default: m.Canvas
     <div className="flex-1 flex items-center justify-center bg-[#F1F5F9]">
       <div className="text-center space-y-3">
         <div className="w-10 h-10 border-2 border-[#0D5771] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-[#64748B] text-xs font-mono">Loading Cuzmify Studio…</p>
+        <p className="text-[#64748B] text-xs font-mono">Loading Visual Canvas…</p>
       </div>
     </div>
   ),
@@ -40,7 +38,6 @@ function EditorShellInner() {
     service,
     businessName,
     projectId,
-    selectedComponent,
     isLeftPanelOpen,
     setIsLeftPanelOpen,
     handlePreviewToggle,
@@ -53,16 +50,16 @@ function EditorShellInner() {
   } = useEditor();
   const [showPublish, setShowPublish] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
-  // On mobile phones (<768px), start with LeftPanel closed so the user sees their live Canvas immediately
+  // On screens below desktop (<1024px), keep LeftPanel closed by default
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setIsLeftPanelOpen(false);
     }
   }, [setIsLeftPanelOpen]);
 
-  // Keyboard shortcuts: Esc (preview), Ctrl/Cmd+S (save), Ctrl/Cmd+Z (undo), Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z (redo)
+  // Keyboard shortcuts: Esc (preview), Ctrl/Cmd+S (save), Ctrl/Cmd+Z (undo), Ctrl/Cmd+Y / Cmd+Shift+Z (redo)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isPreviewMode) {
@@ -79,7 +76,9 @@ function EditorShellInner() {
       if (!isInput) {
         const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
         const isUndo = (isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey;
-        const isRedo = (isMac ? (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'z') || (e.metaKey && e.key.toLowerCase() === 'y') : (e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z'));
+        const isRedo = isMac
+          ? (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'z') || (e.metaKey && e.key.toLowerCase() === 'y')
+          : (e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z');
 
         if (isUndo) {
           e.preventDefault();
@@ -95,15 +94,10 @@ function EditorShellInner() {
             const currentTop = parseInt(service.getSelectedStyle('margin-top') || '0', 10) || 0;
             const currentLeft = parseInt(service.getSelectedStyle('margin-left') || '0', 10) || 0;
 
-            if (e.key === 'ArrowUp') {
-              service.updateSelectedStyle('margin-top', `${currentTop - delta}px`);
-            } else if (e.key === 'ArrowDown') {
-              service.updateSelectedStyle('margin-top', `${currentTop + delta}px`);
-            } else if (e.key === 'ArrowLeft') {
-              service.updateSelectedStyle('margin-left', `${currentLeft - delta}px`);
-            } else if (e.key === 'ArrowRight') {
-              service.updateSelectedStyle('margin-left', `${currentLeft + delta}px`);
-            }
+            if (e.key === 'ArrowUp') service.updateSelectedStyle('margin-top', `${currentTop - delta}px`);
+            else if (e.key === 'ArrowDown') service.updateSelectedStyle('margin-top', `${currentTop + delta}px`);
+            else if (e.key === 'ArrowLeft') service.updateSelectedStyle('margin-left', `${currentLeft - delta}px`);
+            else if (e.key === 'ArrowRight') service.updateSelectedStyle('margin-left', `${currentLeft + delta}px`);
           }
         }
       }
@@ -114,10 +108,9 @@ function EditorShellInner() {
 
   const handlePublish = async (): Promise<string> => {
     setIsPublishing(true);
-    const cleanSubdomain = (businessName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'studio';
+    const cleanSubdomain = (businessName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30) || 'studio';
     const publicUrl = `/s/${cleanSubdomain}`;
 
-    // Save final state with live status to database and localStorage
     if (service) {
       service.saveToLocalStorage(projectId);
       try {
@@ -145,166 +138,129 @@ function EditorShellInner() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F1F5F9] text-[#1A202C]" suppressHydrationWarning>
+    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-[#F1F5F9] text-[#0F172A]" suppressHydrationWarning>
       {/* Top Bar */}
       {!isPreviewMode && !activeModuleModal && !showPublish && (
         <TopBar
           onPublish={() => setShowPublish(true)}
           isPublishing={isPublishing}
+          isRightPanelOpen={isRightPanelOpen}
+          onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
         />
       )}
 
-      {/* Main 3-column layout */}
+      {/* Main Workspace */}
       <div className={`flex flex-1 overflow-hidden min-h-0 relative ${activeModuleModal || showPublish ? 'hidden' : ''}`}>
-        {/* Left Panel: Static sidebar on Desktop, Slide-over Drawer on Mobile */}
+        {/* Desktop Left Sidebar (>=1024px) */}
         {!isPreviewMode && isLeftPanelOpen && (
-          <>
-            <div
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[65] md:hidden"
-              onClick={() => setIsLeftPanelOpen(false)}
-            />
-            <div className="fixed inset-y-0 left-0 z-[70] flex md:static md:z-auto h-full shadow-2xl md:shadow-none">
-              <LeftPanel />
-            </div>
-          </>
+          <div className="hidden lg:flex h-full shrink-0">
+            <LeftPanel />
+          </div>
         )}
 
-        {/* Touch-Safe 60fps Mobile Preview (<1024px) */}
+        {/* Mobile Touch-Safe 60fps Owner Studio (<1024px) */}
         <MobilePreviewPane />
 
-        {/* GrapesJS Advanced Visual Studio (>=1024px Desktop; stays mounted silently on mobile for state/publish engine) */}
-        <div className="hidden lg:flex flex-1 h-full min-w-0">
+        {/* Desktop Interactive GrapesJS Visual Canvas (>=1024px visible; off-screen real box on <1024px so EditorService iframe stays live) */}
+        <div
+          className={
+            'fixed -left-[9999px] top-0 w-[1200px] h-[800px] opacity-0 pointer-events-none overflow-hidden ' +
+            'lg:static lg:left-auto lg:top-auto lg:w-auto lg:h-full lg:opacity-100 lg:pointer-events-auto lg:flex lg:flex-1 lg:min-w-0'
+          }
+        >
           <Canvas />
         </div>
 
-        {/* Right Panel: Automatic on Desktop, On-Demand Drawer on Mobile */}
-        {!isPreviewMode && selectedComponent.type && (
-          <>
-            <div className="hidden md:flex h-full">
-              <RightPanel />
-            </div>
-
-            {mobileInspectorOpen && (
-              <>
-                <div
-                  className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[65] md:hidden"
-                  onClick={() => setMobileInspectorOpen(false)}
-                />
-                <div className="fixed inset-y-0 right-0 z-[70] flex md:hidden h-full shadow-2xl">
-                  <div className="relative flex h-full">
-                    <button
-                      onClick={() => setMobileInspectorOpen(false)}
-                      className="absolute top-3 right-3 z-[80] w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 shadow-xs"
-                      title="Close Inspector"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <RightPanel />
-                  </div>
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {/* Mobile Floating Action Pill (only shown if Desktop/Tablet GrapesJS canvas is active) */}
-        {!isPreviewMode && selectedComponent.type && !mobileInspectorOpen && !isLeftPanelOpen && (
-          <div className="hidden" />
+        {/* Desktop Right Design Inspector (>=1024px — always ready for element styling & theme presets) */}
+        {!isPreviewMode && isRightPanelOpen && (
+          <div className="hidden lg:flex h-full shrink-0">
+            <RightPanel />
+          </div>
         )}
       </div>
 
-      {/* Floating Exit Preview Bar */}
+      {/* Floating Exit Preview Pill */}
       {isPreviewMode && !activeModuleModal && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-2 rounded-full bg-[#0D5771] text-white shadow-2xl border border-white/20 backdrop-blur-md animate-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-2 rounded-full bg-[#071A24] text-white shadow-2xl border border-white/15 backdrop-blur-md">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="text-xs font-mono font-bold tracking-wider uppercase">Live Preview Mode</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-mono font-bold tracking-wider uppercase">Live Preview</span>
           </div>
           <div className="w-px h-4 bg-white/20" />
           <button
             onClick={handlePreviewToggle}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 hover:bg-white/30 text-white text-[11px] font-bold transition-all border border-white/20 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all cursor-pointer"
             title="Exit Preview Mode (Esc)"
           >
             <EyeOff className="w-3.5 h-3.5 text-emerald-300" />
-            <span>Exit Preview</span>
+            <span>Exit</span>
           </button>
         </div>
       )}
 
-      {/* Floating Save Toast */}
+      {/* Floating Toast */}
       {saveToast && (
-        <div className="fixed bottom-20 md:bottom-14 right-4 sm:right-6 z-[100005] flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#0D5771] text-white shadow-2xl border border-white/20 backdrop-blur-md animate-in slide-in-from-bottom-3 duration-300 font-sans text-xs font-bold">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>{saveToast}</span>
+        <div className="fixed bottom-20 lg:bottom-12 right-4 sm:right-6 z-[100005] flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#071A24] text-white shadow-2xl border border-white/15 backdrop-blur-md font-sans text-xs font-semibold max-w-[90vw]">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span className="truncate">{saveToast}</span>
         </div>
       )}
 
-      {/* Desktop Bottom Status Bar */}
+      {/* Desktop Bottom Status Bar (>=1024px) */}
       {!isPreviewMode && !activeModuleModal && !showPublish && (
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <BottomBar />
         </div>
       )}
 
-      {/* Mobile-First Thumb Navigation Dock (<1024px) */}
+      {/* Mobile Bottom Thumb Dock (<1024px) — Clean 5-Tab Creator Navigation */}
       {!isPreviewMode && !activeModuleModal && !showPublish && (
-        <nav className="lg:hidden h-16 bg-white border-t border-slate-200 px-2 flex items-center justify-around shrink-0 z-[60] shadow-[0_-4px_20px_rgba(0,0,0,0.05)] select-none">
+        <nav className="lg:hidden h-16 bg-white border-t border-slate-200 px-1.5 flex items-center justify-around shrink-0 z-[60] shadow-[0_-4px_20px_rgba(15,23,42,0.06)] select-none">
           <button
-            onClick={() => {
-              setIsLeftPanelOpen(false);
-              setMobileInspectorOpen(false);
-              setActiveModuleModal(null);
-            }}
+            type="button"
+            onClick={() => setActiveModuleModal(null)}
             className={`flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl transition-all cursor-pointer ${
-              !isLeftPanelOpen && !activeModuleModal
-                ? 'text-[#0D5771] font-extrabold'
-                : 'text-slate-500'
+              !activeModuleModal ? 'text-[#0D5771] bg-[#0D5771]/8 font-bold' : 'text-slate-500'
             }`}
           >
             <Smartphone className="w-4 h-4" />
-            <span className="text-[10px]">Preview</span>
+            <span className="text-[11px] leading-none">Preview</span>
           </button>
 
           <button
-            onClick={() => {
-              setIsLeftPanelOpen(false);
-              setActiveModuleModal('media');
-            }}
+            type="button"
+            onClick={() => setActiveModuleModal('media')}
             className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
           >
             <Instagram className="w-4 h-4 text-pink-600" />
-            <span className="text-[10px] font-bold">IG &amp; Photos</span>
+            <span className="text-[11px] font-semibold leading-none">IG &amp; Photos</span>
           </button>
 
           <button
-            onClick={() => {
-              setIsLeftPanelOpen(false);
-              setActiveModuleModal('services');
-            }}
+            type="button"
+            onClick={() => setActiveModuleModal('services')}
             className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
           >
             <Scissors className="w-4 h-4 text-amber-600" />
-            <span className="text-[10px] font-bold">Services</span>
+            <span className="text-[11px] font-semibold leading-none">Services</span>
           </button>
 
           <button
-            onClick={() => {
-              setIsLeftPanelOpen(false);
-              setActiveModuleModal('profile');
-            }}
+            type="button"
+            onClick={() => setActiveModuleModal('profile')}
             className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
           >
             <Store className="w-4 h-4 text-[#0D5771]" />
-            <span className="text-[10px] font-bold">Brand &amp; WA</span>
+            <span className="text-[11px] font-semibold leading-none">Brand &amp; WA</span>
           </button>
 
           <button
-            onClick={() => setShowPublish(true)}
-            className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl bg-[#0D5771] text-white font-extrabold transition-all cursor-pointer shadow-xs"
+            type="button"
+            onClick={() => setActiveModuleModal('payments')}
+            className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
           >
-            <Rocket className="w-4 h-4 text-emerald-300" />
-            <span className="text-[10px]">Publish</span>
+            <Globe className="w-4 h-4 text-emerald-600" />
+            <span className="text-[11px] font-semibold leading-none">Domain</span>
           </button>
         </nav>
       )}
@@ -329,9 +285,9 @@ function EditorShellInner() {
 }
 
 export function EditorShell({
-  initialBusinessName,
-  initialTheme,
-  projectId,
+  initialBusinessName: _initialBusinessName,
+  initialTheme: _initialTheme,
+  projectId: _projectId,
 }: {
   initialBusinessName: string;
   initialTheme: import('@/core/project-schema').ThemeName;
@@ -345,7 +301,7 @@ export function EditorShell({
 
   if (!mounted) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#F1F5F9]">
+      <div className="flex h-screen w-screen items-center justify-center bg-[#F8FAFC]">
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-2 border-[#0D5771] border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-[#64748B] text-xs font-mono">Initializing Cuzmify Studio…</p>
@@ -354,7 +310,5 @@ export function EditorShell({
     );
   }
 
-  return (
-    <EditorShellInner />
-  );
+  return <EditorShellInner />;
 }

@@ -6,13 +6,14 @@ const config: Config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/studio/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/core/**/*.{js,ts,jsx,tsx,mdx}',
     './src/engine/**/*.{js,ts,jsx,tsx,mdx}',
     './src/modules/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
-        // Bram Intel Palette
         brand: {
           50: '#f0f9ff',
           100: '#e0f2fe',
@@ -34,16 +35,26 @@ const config: Config = {
           accent: '#3498E3',
           accentLight: '#72B9F3',
           teal: '#0D5771',
-          text: '#1A202C',
+          text: '#0F172A',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        display: ['Kanit', 'Outfit', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Plus Jakarta Sans', 'Outfit', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        '2xs': '0 1px 2px 0 rgba(15, 23, 42, 0.04)',
+        xs: '0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04)',
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+      blur: {
+        xs: '2px',
       },
       animation: {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'glow': 'glow 2s ease-in-out infinite alternate',
+        glow: 'glow 2s ease-in-out infinite alternate',
       },
       keyframes: {
         glow: {

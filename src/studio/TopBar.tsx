@@ -2,11 +2,24 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Undo2, Redo2, Monitor, Tablet, Smartphone,
-  Eye, EyeOff, Rocket, Save, CheckCircle2,
-  AlertCircle, Loader2, MoreHorizontal, RotateCcw,
-  PanelLeft, Layers, Sparkles, ExternalLink,
-  Image as ImageIcon
+  Undo2,
+  Redo2,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Eye,
+  EyeOff,
+  Rocket,
+  Save,
+  CheckCircle2,
+  Loader2,
+  MoreHorizontal,
+  RotateCcw,
+  PanelLeft,
+  PanelRight,
+  Layers,
+  Sliders,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import type { Breakpoint } from './engine/EditorContext';
@@ -17,6 +30,8 @@ import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
 interface TopBarProps {
   onPublish: () => void;
   isPublishing: boolean;
+  isRightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
 }
 
 const BREAKPOINTS: { id: Breakpoint; label: string; widthLabel: string; icon: React.ReactNode }[] = [
@@ -30,7 +45,7 @@ function SaveIndicator() {
 
   if (saveState === 'saving') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
+      <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
         <Loader2 className="w-2.5 h-2.5 animate-spin text-[#0D5771]" />
         <span>Saving…</span>
       </span>
@@ -38,24 +53,24 @@ function SaveIndicator() {
   }
   if (saveState === 'saved') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-600 font-semibold">
+      <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        <span>Saved to Cloud</span>
+        <span>Saved</span>
       </span>
     );
   }
   if (saveState === 'unsaved') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-mono text-amber-600 font-semibold">
+      <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-        <span>Unsaved Changes</span>
+        <span>Unsaved</span>
       </span>
     );
   }
   if (saveState === 'error') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-mono text-red-600 font-semibold">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+      <span className="flex items-center gap-1 text-[10px] font-medium text-rose-600">
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
         <span>Save Error</span>
       </span>
     );
@@ -63,14 +78,26 @@ function SaveIndicator() {
   return null;
 }
 
-export function TopBar({ onPublish, isPublishing }: TopBarProps) {
+export function TopBar({
+  onPublish,
+  isPublishing,
+  isRightPanelOpen = true,
+  onToggleRightPanel,
+}: TopBarProps) {
   const {
     businessName,
-    breakpoint, handleDeviceChange,
-    canUndo, canRedo, handleUndo, handleRedo,
-    handleSave, saveState,
-    isPreviewMode, handlePreviewToggle,
-    isLeftPanelOpen, setIsLeftPanelOpen,
+    breakpoint,
+    handleDeviceChange,
+    canUndo,
+    canRedo,
+    handleUndo,
+    handleRedo,
+    handleSave,
+    saveState,
+    isPreviewMode,
+    handlePreviewToggle,
+    isLeftPanelOpen,
+    setIsLeftPanelOpen,
     setActiveModuleModal,
     templateId,
     handleTemplateSwitch,
@@ -80,7 +107,6 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -99,10 +125,9 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
 
   const handleResetCanvas = async () => {
     setShowMoreMenu(false);
-    if (confirm('Reset canvas to pristine default template? This will erase local drafts.')) {
+    if (confirm('Reset this project to a fresh template? This will clear unsaved local drafts.')) {
       try {
         localStorage.clear();
-        await fetch('/api/sites', { method: 'DELETE' });
       } catch {}
       window.location.reload();
     }
@@ -110,99 +135,95 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
 
   return (
     <header
-      className="h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 shrink-0 z-50 select-none shadow-xs"
+      className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 lg:px-5 shrink-0 z-50 select-none"
       suppressHydrationWarning
     >
-      {/* ─── LEFT: Spacious Brand, Breadcrumb & Project Name ─── */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      {/* ─── LEFT: Panel Toggle + Brand + Project Title ─── */}
+      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
         <button
+          type="button"
           onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl hidden md:flex items-center justify-center transition-colors cursor-pointer ${
+          className={`w-8 h-8 rounded-lg hidden lg:flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
             isLeftPanelOpen
-              ? 'bg-slate-100 text-[#0D5771]'
+              ? 'bg-[#0D5771]/10 text-[#0D5771]'
               : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
           }`}
-          title={isLeftPanelOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}
+          title={isLeftPanelOpen ? 'Hide Tools Sidebar' : 'Show Tools Sidebar'}
         >
           <PanelLeft className="w-4 h-4" />
         </button>
 
-        <div className="h-5 w-px bg-slate-200 hidden md:block" />
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 py-1 text-slate-800 hover:text-[#0D5771] transition-colors shrink-0"
+          title="Back to My Dashboard"
+        >
+          <CuzmifyLogo className="w-7 h-7" />
+          <span className="hidden xl:inline text-sm font-extrabold tracking-tight text-[#0F172A] font-display">
+            CUZM<span className="text-[#0D5771]">IFY</span>
+          </span>
+        </Link>
 
-        {/* Brand & Project Breadcrumb */}
-        <div className="flex items-center gap-2 min-w-0">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 py-1 text-slate-700 hover:text-slate-900 transition-colors group shrink-0"
-            title="Return to Dashboard"
-          >
-            <CuzmifyLogo className="w-7 h-7 group-hover:scale-105 transition-transform" />
-            <span className="hidden sm:inline text-sm font-black tracking-tight text-slate-900 font-display">
-              CUZM<span className="text-[#0D5771]">IFY</span>
-            </span>
-          </Link>
+        <span className="text-slate-300 text-sm">/</span>
 
-          <span className="text-slate-300 text-sm font-light">/</span>
-
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs font-extrabold text-slate-800 truncate max-w-[115px] sm:max-w-[220px] leading-snug">
-              {businessName || 'Glory Beauty Studio'}
-            </span>
-            <SaveIndicator />
-          </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-[13px] font-bold text-[#0F172A] truncate max-w-[145px] sm:max-w-[200px] leading-tight font-display">
+            {businessName || 'My Studio'}
+          </span>
+          <SaveIndicator />
         </div>
       </div>
 
-      {/* ─── CENTER: Breathable, Unboxed Precision Toolbar ─── */}
-      <div className="flex items-center gap-1 sm:gap-2">
-        {/* Undo / Redo buttons */}
-        <div className="flex items-center gap-0.5">
+      {/* ─── CENTER: Desktop Visual Editor Controls (Hidden on Mobile so Mobile TopBar stays airy) ─── */}
+      <div className="hidden lg:flex items-center gap-2">
+        {/* Undo / Redo */}
+        <div className="flex items-center gap-0.5 bg-slate-50 p-0.5 rounded-lg border border-slate-200/80">
           <button
+            type="button"
             onClick={handleUndo}
             disabled={!canUndo}
             title="Undo (Ctrl+Z)"
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+            className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
               canUndo
-                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 active:scale-95 cursor-pointer opacity-100'
-                : 'text-slate-300 opacity-30 cursor-not-allowed'
+                ? 'text-slate-700 hover:text-slate-900 hover:bg-white cursor-pointer'
+                : 'text-slate-300 cursor-not-allowed'
             }`}
           >
-            <Undo2 className="w-4 h-4" />
+            <Undo2 className="w-3.5 h-3.5" />
           </button>
           <button
+            type="button"
             onClick={handleRedo}
             disabled={!canRedo}
-            title="Redo (Ctrl+Y / Cmd+Shift+Z)"
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+            title="Redo (Ctrl+Y)"
+            className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
               canRedo
-                ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 active:scale-95 cursor-pointer opacity-100'
-                : 'text-slate-300 opacity-30 cursor-not-allowed'
+                ? 'text-slate-700 hover:text-slate-900 hover:bg-white cursor-pointer'
+                : 'text-slate-300 cursor-not-allowed'
             }`}
           >
-            <Redo2 className="w-4 h-4" />
+            <Redo2 className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-
-        {/* 1-Tap Lossless Template Switcher (Mobile + Desktop) */}
+        {/* 1-Tap Lossless Style Switcher */}
         <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
           {TEMPLATE_ENGINE_LIST.map((tpl) => {
             const isSelected = templateId === tpl.id;
-            const shortName = tpl.id === 'editorial-atelier' ? 'Editorial' : tpl.id === 'noir-showcase' ? 'Noir' : 'Modern';
+            const shortName =
+              tpl.id === 'editorial-atelier' ? 'Editorial' : tpl.id === 'noir-showcase' ? 'Noir' : 'Modern';
             return (
               <button
                 key={tpl.id}
+                type="button"
                 onClick={() => handleTemplateSwitch(tpl.id)}
-                title={`Switch look to ${tpl.name} (${tpl.tagline}) — keeps all your photos & services`}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isSelected
-                    ? 'bg-white text-[#0D5771] shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-900'
+                title={`Switch to ${tpl.name} — keeps all your photos & services intact`}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isSelected ? 'bg-white text-[#0D5771] shadow-2xs' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 <span
-                  className="w-2 h-2 rounded-full border border-black/15 shrink-0"
+                  className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
                   style={{ backgroundColor: tpl.swatches[0] === '#09090B' ? '#09090B' : tpl.swatches[2] }}
                 />
                 <span>{shortName}</span>
@@ -211,143 +232,149 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
           })}
         </div>
 
-        <div className="h-4 w-px bg-slate-200 hidden xl:block" />
-
-        {/* Viewport Breakpoint Switcher (Desktop Only) */}
-        <div className="hidden xl:flex items-center gap-1">
+        {/* Viewport Breakpoint Switcher */}
+        <div className="hidden xl:flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
           {BREAKPOINTS.map((bp) => {
             const isActive = breakpoint === bp.id;
             return (
               <button
                 key={bp.id}
+                type="button"
                 onClick={() => handleDeviceChange(bp.id)}
                 title={`${bp.label} (${bp.widthLabel})`}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-[#0D5771] text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  isActive ? 'bg-white text-[#0D5771] shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 {bp.icon}
-                <span className="hidden xl:inline text-[11px]">{bp.label}</span>
+                <span className="text-[11px]">{bp.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ─── RIGHT: Clean Ghost Actions & Primary Launch Button ─── */}
+      {/* ─── RIGHT: Actions & Publish ─── */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Media Vault Button (Desktop TopBar - on Mobile it lives in Bottom Dock) */}
+        {/* Desktop Quick Hub Triggers */}
         <button
+          type="button"
           onClick={() => setActiveModuleModal('media')}
-          className="hidden md:flex px-3 py-1.5 rounded-xl text-xs font-bold items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 transition-all cursor-pointer border border-slate-200 shadow-2xs"
-          title="Open Media Vault & Instagram Assets"
+          className="hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer"
+          title="Instagram Sync & Media Vault"
         >
-          <ImageIcon className="w-3.5 h-3.5 text-[#0D5771]" />
-          <span className="hidden lg:inline">Media Vault</span>
+          <ImageIcon className="w-3.5 h-3.5 text-pink-600" />
+          <span>IG &amp; Media</span>
         </button>
 
-        {/* Attached Business Infrastructure Button (Desktop TopBar - on Mobile it lives in Bottom Dock) */}
         <button
-          onClick={() => setActiveModuleModal('whatsapp')}
-          className="hidden md:flex px-3 py-1.5 rounded-xl text-xs font-bold items-center gap-1.5 bg-[#0D5771]/10 text-[#0D5771] hover:bg-[#0D5771]/15 transition-all cursor-pointer border border-[#0D5771]/20 shadow-2xs"
-          title="Configure WhatsApp, Services, Products & Business Blueprint"
+          type="button"
+          onClick={() => setActiveModuleModal('services')}
+          className="hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 bg-[#0D5771]/8 hover:bg-[#0D5771]/15 text-[#0D5771] border border-[#0D5771]/20 transition-all cursor-pointer"
+          title="Services, WhatsApp, Niche & Custom Domain"
         >
-          <Sparkles className="w-3.5 h-3.5 text-[#0D5771]" />
-          <span className="hidden lg:inline">Modules</span>
+          <Sliders className="w-3.5 h-3.5 text-[#0D5771]" />
+          <span>Business Setup</span>
         </button>
 
-        {/* Ghost Save button */}
+        {/* Save Button */}
         <button
+          type="button"
           onClick={handleSaveClick}
           disabled={saveState === 'saving'}
-          className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-            justSaved
-              ? 'text-emerald-700 bg-emerald-50'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          className={`p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+            justSaved ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
-          title="Save website state to cloud (Ctrl+S)"
+          title="Save changes (Ctrl+S)"
         >
           {justSaved ? (
             <>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span className="hidden sm:inline">Saved</span>
+              <span className="hidden md:inline">Saved</span>
             </>
           ) : (
             <>
               <Save className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">Save</span>
+              <span className="hidden md:inline">Save</span>
             </>
           )}
         </button>
 
-        {/* Ghost Preview button */}
+        {/* Desktop Preview Toggle */}
         <button
+          type="button"
           onClick={handlePreviewToggle}
-          className={`hidden sm:flex px-3 py-2 rounded-xl text-xs font-semibold items-center gap-1.5 transition-colors cursor-pointer ${
-            isPreviewMode
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          className={`hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 transition-colors cursor-pointer ${
+            isPreviewMode ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
-          title="Toggle preview mode"
+          title="Full-screen preview"
         >
-          {isPreviewMode ? (
-            <>
-              <EyeOff className="w-4 h-4" />
-              <span className="hidden sm:inline">Exit</span>
-            </>
-          ) : (
-            <>
-              <Eye className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">Preview</span>
-            </>
-          )}
+          {isPreviewMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-slate-500" />}
+          <span>Preview</span>
         </button>
 
-        {/* Primary Confident Launch Button */}
+        {/* Primary Publish Button */}
         <button
+          type="button"
           onClick={onPublish}
           disabled={isPublishing}
-          className="px-3 sm:px-4 py-2 rounded-xl bg-[#0D5771] hover:bg-[#083D50] active:scale-98 text-white font-bold text-xs flex items-center gap-1.5 sm:gap-2 shadow-md shadow-[#0D5771]/20 transition-all cursor-pointer disabled:opacity-60 hover:scale-[1.02]"
+          className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full lg:rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-60 whitespace-nowrap"
         >
           {isPublishing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : (
             <Rocket className="w-3.5 h-3.5 text-emerald-300" />
           )}
-          <span>Launch</span>
+          <span>Publish</span>
         </button>
 
-        {/* More Actions Dropdown Menu */}
+        {/* Desktop Right Inspector Toggle */}
+        {onToggleRightPanel && (
+          <button
+            type="button"
+            onClick={onToggleRightPanel}
+            className={`w-8 h-8 rounded-lg hidden lg:flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+              isRightPanelOpen
+                ? 'bg-[#0D5771]/10 text-[#0D5771]'
+                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+            title={isRightPanelOpen ? 'Hide Style Inspector' : 'Show Style Inspector'}
+          >
+            <PanelRight className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* More Menu */}
         <div className="relative" ref={menuRef}>
           <button
+            type="button"
             onClick={() => setShowMoreMenu(!showMoreMenu)}
-            className="w-9 h-9 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
             title="More Options"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>
 
           {showMoreMenu && (
-            <div className="absolute right-0 top-11 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 top-10 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-50">
               <Link
                 href="/dashboard"
                 onClick={() => setShowMoreMenu(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
               >
-                <Layers className="w-3.5 h-3.5 text-slate-400" />
+                <Layers className="w-3.5 h-3.5 text-[#0D5771]" />
                 <span>My Dashboard</span>
               </Link>
 
               <div className="h-px bg-slate-100 my-1" />
 
               <button
+                type="button"
                 onClick={handleResetCanvas}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-left cursor-pointer"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-red-500" />
-                <span>Reset to Default Template</span>
+                <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+                <span>Reset Local Draft</span>
               </button>
             </div>
           )}
