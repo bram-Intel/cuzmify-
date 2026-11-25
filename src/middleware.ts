@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for:
-     * 1. /api/auth/ (NextAuth endpoints)
+     * Match all page request paths except:
+     * 1. /api/ (API routes must work directly on custom domains & subdomains too)
      * 2. /_next/ (Next.js internals)
-     * 3. /_static or static files (favicon.ico, images, fonts)
+     * 3. Static public assets
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.json|robots.txt|sitemap.xml).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico|manifest.json|robots.txt|sitemap.xml).*)',
   ],
 };
 
@@ -29,8 +29,11 @@ export default function middleware(req: NextRequest) {
     '127.0.0.1',
   ];
 
-  // If accessing from the root platform host directly, pass through normally
-  if (rootDomains.includes(currentHost)) {
+  // If accessing from the root platform host or a Vercel deployment preview URL, pass through normally
+  if (
+    rootDomains.includes(currentHost) ||
+    (currentHost.endsWith('.vercel.app') && !currentHost.endsWith('.cuzmify.vercel.app'))
+  ) {
     return NextResponse.next();
   }
 

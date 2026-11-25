@@ -34,7 +34,7 @@ import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type Service
 import { NICHE_LIST, resolveNicheBlueprint } from '@/core/niche-blueprints';
 import { compressImageFileToWebP } from '@/lib/image-compress';
 import { DomainAndProPanel } from './DomainAndProPanel';
-import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing';
+import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
 
 export function StudioInfrastructureHub({
   onClose,

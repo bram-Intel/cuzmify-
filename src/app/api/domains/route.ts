@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolve4, resolveCname } from 'node:dns/promises';
+import { resolve4, resolveCname } from 'dns/promises';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 

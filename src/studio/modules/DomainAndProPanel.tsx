@@ -12,7 +12,7 @@ import {
   KeyRound,
   RefreshCw,
 } from 'lucide-react';
-import { PRO_PRICING } from '@/lib/billing';
+import { PRO_PRICING } from '@/lib/billing-constants';
 
 export function DomainAndProPanel({
   siteId,

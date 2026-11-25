@@ -91,21 +91,19 @@ export const Footer: React.FC = () => {
                     <h4 className="text-xs font-extrabold text-[#1A202C] uppercase tracking-wider font-display">About Platform</h4>
                   </div>
                   <p className="text-[#64748B] leading-relaxed text-xs">
-                    A composable digital-business marketplace, AI customization engine & deployment platform. Turn any business idea into a live digital home.
+                    Cuzmify turns a service vendor&apos;s Instagram into a fast, professional portfolio and booking website in 3 minutes—right from their phone.
                   </p>
                   <div className="text-xs text-[#0D5771] font-mono font-bold">
-                    Powered by Bram Intel OS
+                    Powered by Bram Intel
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="text-xs font-extrabold text-[#1A202C] uppercase tracking-wider font-display">Mantra Steps</h4>
+                  <h4 className="text-xs font-extrabold text-[#1A202C] uppercase tracking-wider font-display">3-Minute Flow</h4>
                   <ul className="space-y-2 text-[#64748B] text-xs">
-                    <li className="flex items-center gap-2"><span className="text-[#0D5771] font-bold font-mono">01.</span> Choose It</li>
-                    <li className="flex items-center gap-2"><span className="text-[#0D5771] font-bold font-mono">02.</span> Import It</li>
-                    <li className="flex items-center gap-2"><span className="text-[#3498E3] font-bold font-mono">03.</span> Cuzmify It</li>
-                    <li className="flex items-center gap-2"><span className="text-emerald-600 font-bold font-mono">04.</span> Launch It</li>
-                    <li className="flex items-center gap-2"><span className="text-indigo-600 font-bold font-mono">05.</span> Extend It</li>
+                    <li className="flex items-center gap-2"><span className="text-[#0D5771] font-bold font-mono">01.</span> Connect Instagram</li>
+                    <li className="flex items-center gap-2"><span className="text-[#3498E3] font-bold font-mono">02.</span> Add Packages &amp; Switch Styles</li>
+                    <li className="flex items-center gap-2"><span className="text-emerald-600 font-bold font-mono">03.</span> Publish &amp; Receive Bookings</li>
                   </ul>
                 </div>
 
@@ -119,14 +117,14 @@ export const Footer: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="text-xs font-extrabold text-[#1A202C] uppercase tracking-wider font-display">Security & Trust</h4>
+                  <h4 className="text-xs font-extrabold text-[#1A202C] uppercase tracking-wider font-display">Security &amp; Speed</h4>
                   <div className="bg-[#F7FAFC] p-3.5 rounded-2xl border border-[#E2E8F0] space-y-2">
                     <div className="flex items-center gap-2 font-bold text-[#0D5771] text-xs">
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      <span>RSA 2048 Signed</span>
+                      <span>Official Meta OAuth + SSL</span>
                     </div>
                     <p className="text-xs text-[#64748B] leading-relaxed">
-                      Signed license keys protect developer IP and guarantee authentic cloud deployments.
+                      Read-only Instagram import, automatic HTTPS on custom domains, and zero booking commissions.
                     </p>
                   </div>
                 </div>
