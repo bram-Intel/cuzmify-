@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { InstagramImporter } from '@/services/importer/instagram-importer';
-import { createDefaultBlueprint, type CurrencyCode } from '@/core/blueprint-schema';
+import { createDefaultBlueprint, type CurrencyCode, type MediaVaultAsset } from '@/core/blueprint-schema';
 
 async function resolveUserId() {
   const session = await auth();
@@ -50,7 +51,29 @@ export async function POST(req: Request) {
     const whatsappPhone = (body.whatsappPhone || body.whatsapp || '').replace(/[^\d]/g, '');
     const rawIg = body.instagramHandle ? InstagramImporter.cleanHandle(body.instagramHandle) : undefined;
 
-    const cachedMedia = rawIg ? (InstagramImporter.getCachedMedia(rawIg) || []) : [];
+    // Hydrate Instagram token & media across stateless serverless invocations via onboarding cookies
+    let hydratedMedia: MediaVaultAsset[] = rawIg ? (InstagramImporter.getCachedMedia(rawIg) || []) : [];
+    let onboardingIgToken: string | undefined;
+    let onboardingIgExpiresAt: Date | undefined;
+
+    try {
+      const cookieStore = await cookies();
+      const mediaCookie = cookieStore.get('cuzmify_ig_media')?.value;
+      if (hydratedMedia.length === 0 && mediaCookie) {
+        const parsed = JSON.parse(mediaCookie);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          hydratedMedia = parsed;
+        }
+      }
+      const tokenCookie = cookieStore.get('cuzmify_ig_token')?.value;
+      if (tokenCookie) {
+        const parsedTok = JSON.parse(tokenCookie);
+        if (parsedTok?.accessToken && (!rawIg || !parsedTok?.handle || parsedTok.handle === rawIg)) {
+          onboardingIgToken = parsedTok.accessToken;
+          if (parsedTok.expiresAt) onboardingIgExpiresAt = new Date(parsedTok.expiresAt);
+        }
+      }
+    } catch {}
 
     const initialBp = createDefaultBlueprint({
       name: siteName,
@@ -60,7 +83,7 @@ export async function POST(req: Request) {
       currency,
       whatsapp: whatsappPhone,
       instagramHandle: rawIg,
-      mediaVault: cachedMedia,
+      mediaVault: hydratedMedia,
     });
 
     let baseSlug = siteName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24) || 'studio';
@@ -87,9 +110,21 @@ export async function POST(req: Request) {
         status: 'draft',
         liveUrl: `/s/${uniqueSubdomain}`,
         instagramHandle: rawIg || undefined,
+        ...(onboardingIgToken ? { instagramToken: onboardingIgToken } : {}),
+        ...(onboardingIgExpiresAt ? { instagramTokenExpiresAt: onboardingIgExpiresAt } : {}),
         blueprintData: JSON.stringify(initialBp),
       },
     });
+
+    // Bind concrete siteId into /api/media/ig proxy URLs so public sites self-heal IG images seamlessly
+    if (rawIg && hydratedMedia.length > 0) {
+      const boundVault = InstagramImporter.bindSiteIdToVault(hydratedMedia, newSite.id, rawIg);
+      const updatedBp = { ...initialBp, mediaVault: boundVault };
+      await prisma.site.update({
+        where: { id: newSite.id },
+        data: { blueprintData: JSON.stringify(updatedBp) },
+      });
+    }
 
     return NextResponse.json({ success: true, site: newSite });
   } catch (err: any) {

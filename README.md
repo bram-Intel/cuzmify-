@@ -152,3 +152,23 @@ Per strict MVP scope discipline, unfinished or non-MVP surfaces were moved intac
 | `src/_parked/legacy-editor/` | Early React `LivePreview` / `VisualControls` (`/editor` prototype) | Superseded by `StudioInfrastructureHub` + `MobilePreviewPane` + GrapesJS Studio (`/studio`). |
 | `src/_parked/templates/` | Hardcoded single-niche `GmakeupBeautyTemplate` & `BeautyProTemplate` | Replaced by reusable multi-niche `src/core/niche-blueprints.ts` + `src/core/template-engines.ts`. |
 | `src/_parked/services/` | Mock `deployment-orchestrator.ts` & RSA `license-service.ts` | Replaced by real `/s/[domain]` edge serving and live Vercel Custom Domains API (`/api/domains`). |
+
+---
+
+## 8. Meta / Instagram App Review & Live Mode Checklist
+
+Use these exact URLs inside **Meta for Developers → App (`INSTAGRAM_CLIENT_ID`)**:
+
+| Meta Field | Exact Value to Paste |
+| :--- | :--- |
+| **App Domains** | `cuzmify.vercel.app` |
+| **Privacy Policy URL** | `https://cuzmify.vercel.app/privacy` |
+| **Terms of Service URL** | `https://cuzmify.vercel.app/terms` |
+| **Data Deletion Instructions URL** | `https://cuzmify.vercel.app/data-deletion` |
+| **Data Deletion Callback URL** | `https://cuzmify.vercel.app/api/auth/instagram/data-deletion` |
+| **Deauthorize Callback URL** | `https://cuzmify.vercel.app/api/auth/instagram/deauthorize` |
+| **Valid OAuth Redirect URIs** | `https://cuzmify.vercel.app/api/auth/instagram/callback` |
+| **Requested Permission Scope** | `instagram_business_basic` (only this one permission) |
+
+**Vercel Environment Variable Check:** Ensure `INSTAGRAM_REDIRECT_URI` on Vercel is either unset (dynamic `${origin}`) or explicitly set to `https://cuzmify.vercel.app/api/auth/instagram/callback`—never `http://localhost:3000/...`.
+

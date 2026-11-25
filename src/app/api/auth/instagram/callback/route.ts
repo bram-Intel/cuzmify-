@@ -255,7 +255,36 @@ export async function GET(req: Request) {
     redirectUrl.searchParams.set('currency', stateData.currency || 'NGN');
     redirectUrl.searchParams.set('mediaCount', String(realMediaVault.length));
 
-    return NextResponse.redirect(redirectUrl.toString());
+    const onboardingResponse = NextResponse.redirect(redirectUrl.toString());
+    if (realMediaVault.length > 0) {
+      const compactMedia = realMediaVault.slice(0, 12).map(({ rawMediaUrl: _rm, rawThumbUrl: _rt, ...rest }) => rest);
+      onboardingResponse.cookies.set('cuzmify_ig_media', JSON.stringify(compactMedia), {
+        path: '/',
+        maxAge: 3600,
+        sameSite: 'lax',
+      });
+    }
+    if (handle) {
+      onboardingResponse.cookies.set('cuzmify_ig_handle', handle, {
+        path: '/',
+        maxAge: 3600,
+        sameSite: 'lax',
+      });
+    }
+    if (accessToken) {
+      onboardingResponse.cookies.set(
+        'cuzmify_ig_token',
+        JSON.stringify({ accessToken, expiresAt: tokenExpiresAt.toISOString(), handle }),
+        {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 3600,
+        }
+      );
+    }
+
+    return onboardingResponse;
   } catch (err) {
     console.error('[Instagram OAuth Callback Exception]:', err);
     const redirectUrl = new URL('/onboarding', req.url);

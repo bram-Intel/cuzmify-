@@ -168,14 +168,17 @@ export const Footer: React.FC = () => {
               <div className="pt-4 border-t border-[#E2E8F0] flex flex-col sm:flex-row items-center justify-between text-xs text-[#64748B] gap-2">
                 <div>© {new Date().getFullYear()} Cuzmify by Bram Intel. All rights reserved.</div>
                 <div className="flex items-center gap-5 font-medium">
+                  <Link href="/privacy" onClick={() => setIsExpanded(false)} className="hover:text-[#0F172A]">
+                    Privacy Policy
+                  </Link>
+                  <Link href="/terms" onClick={() => setIsExpanded(false)} className="hover:text-[#0F172A]">
+                    Terms
+                  </Link>
+                  <Link href="/data-deletion" onClick={() => setIsExpanded(false)} className="hover:text-[#0F172A]">
+                    Data Deletion
+                  </Link>
                   <Link href="/#pricing" onClick={() => setIsExpanded(false)} className="hover:text-[#0F172A]">
                     Pricing
-                  </Link>
-                  <Link href="/#templates" onClick={() => setIsExpanded(false)} className="hover:text-[#0F172A]">
-                    Templates
-                  </Link>
-                  <Link href="/login" onClick={() => setIsExpanded(false)} className="hover:text-[#0F172A]">
-                    Sign In
                   </Link>
                 </div>
               </div>

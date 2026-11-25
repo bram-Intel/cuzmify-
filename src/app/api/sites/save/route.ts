@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
+
+async function readOnboardingIgToken(): Promise<{ accessToken?: string; expiresAt?: Date; handle?: string }> {
+  try {
+    const cookieStore = await cookies();
+    const raw = cookieStore.get('cuzmify_ig_token')?.value;
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return {
+      accessToken: parsed?.accessToken || undefined,
+      expiresAt: parsed?.expiresAt ? new Date(parsed.expiresAt) : undefined,
+      handle: parsed?.handle || undefined,
+    };
+  } catch {
+    return {};
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -29,6 +46,7 @@ export async function POST(req: Request) {
       body.subdomain ||
       rawName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30) ||
       'studio';
+    const igCookieToken = await readOnboardingIgToken();
 
     let savedSite;
     if (targetId) {
@@ -70,7 +88,13 @@ export async function POST(req: Request) {
                   : JSON.stringify(body.blueprintData)
                 : existing.blueprintData,
             theme: theme || existing.theme,
-            instagramHandle: body.instagramHandle !== undefined ? body.instagramHandle : existing.instagramHandle,
+            instagramHandle: body.instagramHandle !== undefined ? body.instagramHandle : existing.instagramHandle || igCookieToken.handle,
+            ...(igCookieToken.accessToken && !existing.instagramToken
+              ? {
+                  instagramToken: igCookieToken.accessToken,
+                  instagramTokenExpiresAt: igCookieToken.expiresAt,
+                }
+              : {}),
             whatsappPhone: body.whatsappPhone !== undefined ? body.whatsappPhone : existing.whatsappPhone,
             currency: body.currency || existing.currency,
             domain: domain !== undefined ? domain : existing.domain || `${activeSubdomain}.cuzmify.com`,
@@ -95,7 +119,13 @@ export async function POST(req: Request) {
             grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
             blueprintData: body.blueprintData ? (typeof body.blueprintData === 'string' ? body.blueprintData : JSON.stringify(body.blueprintData)) : undefined,
             theme: theme || 'bram-light',
-            instagramHandle: body.instagramHandle || undefined,
+            instagramHandle: body.instagramHandle || igCookieToken.handle || undefined,
+            ...(igCookieToken.accessToken
+              ? {
+                  instagramToken: igCookieToken.accessToken,
+                  instagramTokenExpiresAt: igCookieToken.expiresAt,
+                }
+              : {}),
             whatsappPhone: body.whatsappPhone || undefined,
             currency: body.currency || 'NGN',
             domain: domain || `${computedSubdomain}.cuzmify.com`,
@@ -136,7 +166,13 @@ export async function POST(req: Request) {
                   : JSON.stringify(body.blueprintData)
                 : existing.blueprintData,
             theme: theme || existing.theme,
-            instagramHandle: body.instagramHandle !== undefined ? body.instagramHandle : existing.instagramHandle,
+            instagramHandle: body.instagramHandle !== undefined ? body.instagramHandle : existing.instagramHandle || igCookieToken.handle,
+            ...(igCookieToken.accessToken && !existing.instagramToken
+              ? {
+                  instagramToken: igCookieToken.accessToken,
+                  instagramTokenExpiresAt: igCookieToken.expiresAt,
+                }
+              : {}),
             whatsappPhone: body.whatsappPhone !== undefined ? body.whatsappPhone : existing.whatsappPhone,
             currency: body.currency || existing.currency,
             domain: domain !== undefined ? domain : existing.domain || `${activeSubdomain}.cuzmify.com`,
@@ -160,7 +196,13 @@ export async function POST(req: Request) {
             grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
             blueprintData: body.blueprintData ? (typeof body.blueprintData === 'string' ? body.blueprintData : JSON.stringify(body.blueprintData)) : undefined,
             theme: theme || 'bram-light',
-            instagramHandle: body.instagramHandle || undefined,
+            instagramHandle: body.instagramHandle || igCookieToken.handle || undefined,
+            ...(igCookieToken.accessToken
+              ? {
+                  instagramToken: igCookieToken.accessToken,
+                  instagramTokenExpiresAt: igCookieToken.expiresAt,
+                }
+              : {}),
             whatsappPhone: body.whatsappPhone || undefined,
             currency: body.currency || 'NGN',
             domain: domain || `${computedSubdomain}.cuzmify.com`,
