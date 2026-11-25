@@ -180,6 +180,81 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(editorialRendered.css).toContain('max-height:280px');
   });
 
+  it('isolates mobile/tablet/desktop overrides cleanly and supports heroLayout, servicesLayout, reorder_sections, and custom sections', () => {
+    let bp = createDefaultBlueprint({
+      name: 'Zara Glam',
+      templateId: 'editorial-atelier',
+      mediaVault: [
+        { id: 'img-1', url: 'https://example.com/hero.webp', name: 'Hero', type: 'hero', source: 'upload', addedAt: '' },
+        { id: 'img-2', url: 'https://example.com/work.webp', name: 'Work', type: 'gallery', source: 'upload', addedAt: '' },
+      ],
+    });
+    bp = executeBlueprintMcpTool('upsert_service_package', { name: 'Bridal Look', price: 120000 }, bp).blueprint;
+
+    // Isolated Mobile override
+    bp = executeBlueprintMcpTool(
+      'customize_template_design',
+      {
+        device: 'mobile',
+        heroTextAlign: 'center',
+        heroImageMaxHeight: 220,
+        galleryColumns: 1,
+        fontScale: 'compact',
+      },
+      bp
+    ).blueprint;
+
+    // Isolated Desktop override
+    bp = executeBlueprintMcpTool(
+      'customize_template_design',
+      {
+        device: 'desktop',
+        heroTextAlign: 'left',
+        galleryColumns: 4,
+      },
+      bp
+    ).blueprint;
+
+    // Structural layouts + section reorder + custom info section
+    bp = executeBlueprintMcpTool(
+      'customize_template_design',
+      { heroLayout: 'centered', servicesLayout: 'compact_menu' },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool(
+      'upsert_custom_section',
+      {
+        title: 'Studio Hours & Policy',
+        layout: 'hours_info',
+        items: [
+          { label: 'Tue – Sat', detail: '9:00 AM – 7:00 PM' },
+          { label: 'Booking Deposit', detail: '50% secures appointment date' },
+        ],
+      },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool(
+      'reorder_sections',
+      { order: ['hero', 'custom', 'portfolio', 'services', 'booking'] },
+      bp
+    ).blueprint;
+
+    const rendered = renderTemplateEngine('editorial-atelier', bp);
+    expect(rendered.css).toContain('@media (max-width:767px){');
+    expect(rendered.css).toContain('max-height:220px');
+    expect(rendered.css).toContain('@media (min-width:1024px){');
+    expect(rendered.css).toContain('grid-template-columns:repeat(4,1fr)');
+    expect(rendered.fullHtml).toContain('Studio Hours &amp; Policy');
+    expect(rendered.fullHtml).toContain('9:00 AM – 7:00 PM');
+    // Verify custom order puts custom-section before portfolio & services
+    const customIdx = rendered.fullHtml.indexOf('data-cuzmify-type="custom-section"');
+    const portfolioIdx = rendered.fullHtml.indexOf('id="portfolio"');
+    const servicesIdx = rendered.fullHtml.indexOf('id="services"');
+    expect(customIdx).toBeGreaterThan(-1);
+    expect(portfolioIdx).toBeGreaterThan(customIdx);
+    expect(servicesIdx).toBeGreaterThan(portfolioIdx);
+  });
+
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {
     const token = generateUserMcpToken('user_abc_123');
     expect(verifyUserMcpToken(token)).toBe('user_abc_123');

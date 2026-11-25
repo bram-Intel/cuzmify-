@@ -12,8 +12,10 @@
 import {
   SUPPORTED_CURRENCIES,
   type BusinessBlueprint,
+  type DeviceDesignOverrides,
   type MediaVaultAsset,
   type ServiceItem,
+  type TemplateDesignOverrides,
 } from './blueprint-schema';
 import { resolveNicheBlueprint, type NicheBlueprint } from './niche-blueprints';
 
@@ -112,10 +114,87 @@ function getSafeHexColor(val?: string | null): string | null {
   return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(trimmed) ? trimmed : null;
 }
 
+function getActiveDesignOverrides(templateId: TemplateEngineId, bp: BusinessBlueprint): TemplateDesignOverrides | undefined {
+  return bp.templateDesignOverrides ? bp.templateDesignOverrides[templateId] : bp.designOverrides;
+}
+
+function compileDeviceDesignRules(dev?: DeviceDesignOverrides): string {
+  if (!dev) return '';
+  const rules: string[] = [];
+
+  const pxVal =
+    dev.pagePaddingX === 'compact' ? '14px' : dev.pagePaddingX === 'spacious' ? '32px' : dev.pagePaddingX === 'normal' ? '22px' : null;
+  if (pxVal) {
+    rules.push(`.cz-ea-container,.cz-nr-container,.cz-ms-container{padding-left:${pxVal} !important;padding-right:${pxVal} !important;}`);
+  }
+
+  const secVal =
+    dev.sectionSpacing === 'compact' ? '32px' : dev.sectionSpacing === 'airy' ? '76px' : dev.sectionSpacing === 'normal' ? '52px' : null;
+  if (secVal) {
+    rules.push(`section[data-cuzmify-type]{padding-top:${secVal} !important;padding-bottom:${secVal} !important;}`);
+  }
+
+  if (dev.heroLayout === 'centered') {
+    rules.push(`.cz-ea-hero-grid{grid-template-columns:1fr !important;text-align:center !important;justify-items:center;}.cz-ea-hero-grid > div:first-child,.cz-hero-text{text-align:center !important;display:flex;flex-direction:column;align-items:center;}.cz-hero-actions{justify-content:center !important;}`);
+  } else if (dev.heroLayout === 'split') {
+    rules.push(`.cz-ea-hero-grid{grid-template-columns:1.05fr 0.95fr !important;text-align:left !important;}.cz-hero-text{text-align:left !important;align-items:flex-start !important;}.cz-hero-actions{justify-content:flex-start !important;}`);
+  }
+
+  if (dev.heroTextAlign === 'center') {
+    rules.push(`.cz-hero-text{text-align:center !important;display:flex;flex-direction:column;align-items:center;}.cz-hero-actions{justify-content:center !important;}`);
+  } else if (dev.heroTextAlign === 'left') {
+    rules.push(`.cz-hero-text{text-align:left !important;align-items:flex-start !important;}.cz-hero-actions{justify-content:flex-start !important;}`);
+  }
+
+  if (dev.hideHeroImage === true) {
+    rules.push(`.cz-hero-media{display:none !important;}`);
+  } else if (dev.hideHeroImage === false) {
+    rules.push(`.cz-hero-media{display:block !important;}`);
+  }
+
+  const heroMediaDecls: string[] = [];
+  if (dev.heroImageAspect === 'square') heroMediaDecls.push('aspect-ratio:1 / 1 !important;');
+  else if (dev.heroImageAspect === 'landscape') heroMediaDecls.push('aspect-ratio:4 / 3 !important;');
+  else if (dev.heroImageAspect === 'wide') heroMediaDecls.push('aspect-ratio:16 / 9 !important;');
+  else if (dev.heroImageAspect === 'portrait') heroMediaDecls.push('aspect-ratio:4 / 5 !important;');
+  else if (dev.heroImageAspect === 'auto') heroMediaDecls.push('aspect-ratio:auto !important;');
+
+  if (typeof dev.heroImageMaxHeight === 'number' && !Number.isNaN(dev.heroImageMaxHeight)) {
+    const h = Math.min(680, Math.max(140, Math.round(dev.heroImageMaxHeight)));
+    heroMediaDecls.push(`max-height:${h}px !important;margin-left:auto;margin-right:auto;`);
+  }
+  if (dev.heroImageShape === 'arch') heroMediaDecls.push('border-radius:220px 220px 24px 24px !important;');
+  else if (dev.heroImageShape === 'rounded') heroMediaDecls.push('border-radius:24px !important;');
+  else if (dev.heroImageShape === 'card') heroMediaDecls.push('border-radius:12px !important;');
+  else if (dev.heroImageShape === 'circle') heroMediaDecls.push('border-radius:9999px !important;aspect-ratio:1 / 1 !important;');
+
+  if (heroMediaDecls.length > 0) rules.push(`.cz-hero-media{${heroMediaDecls.join('')}}`);
+
+  if (dev.heroImageFit === 'contain') {
+    rules.push(`.cz-hero-media{padding:16px;box-sizing:border-box;}.cz-hero-media img{object-fit:contain !important;border-radius:16px;}`);
+  } else if (dev.heroImageFit === 'cover') {
+    rules.push(`.cz-hero-media img{object-fit:cover !important;}`);
+  }
+
+  if (typeof dev.galleryColumns === 'number' && dev.galleryColumns >= 1 && dev.galleryColumns <= 4) {
+    rules.push(`.gallery-grid{grid-template-columns:repeat(${Math.round(dev.galleryColumns)},1fr) !important;}`);
+  }
+
+  if (typeof dev.servicesColumns === 'number' && dev.servicesColumns >= 1 && dev.servicesColumns <= 3) {
+    rules.push(`.services-grid{display:grid !important;grid-template-columns:repeat(${Math.round(dev.servicesColumns)},1fr) !important;gap:16px !important;}`);
+  }
+
+  if (dev.fontScale === 'compact') {
+    rules.push(`.cz-hero-title{font-size:clamp(1.65rem,3.6vw,2.6rem) !important;}`);
+  } else if (dev.fontScale === 'large') {
+    rules.push(`.cz-hero-title{font-size:clamp(2.5rem,6vw,4.3rem) !important;}`);
+  }
+
+  return rules.join('');
+}
+
 function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBlueprint): string {
-  const ov = bp.templateDesignOverrides
-    ? bp.templateDesignOverrides[templateId]
-    : bp.designOverrides;
+  const ov = getActiveDesignOverrides(templateId, bp);
   if (!ov) return '';
 
   const accent = getSafeHexColor(ov.accentColor);
@@ -156,60 +235,111 @@ function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBluepr
     ? `.cz-ea-root a[href="#booking"],.cz-ea-root a[href="#services"],.cz-nr-root a[href="#booking"],.cz-nr-root a[href="#portfolio"],.cz-ms-root a[href="#booking"],.cz-submit-btn{border-radius:${radius} !important;}`
     : '';
 
-  const pxVal =
-    ov.pagePaddingX === 'compact' ? '14px' : ov.pagePaddingX === 'spacious' ? '32px' : ov.pagePaddingX === 'normal' ? '22px' : null;
-  const pagePaddingCss = pxVal
-    ? `.cz-ea-container,.cz-nr-container,.cz-ms-container{padding-left:${pxVal} !important;padding-right:${pxVal} !important;}`
-    : '';
-
-  const secVal =
-    ov.sectionSpacing === 'compact' ? '32px' : ov.sectionSpacing === 'airy' ? '76px' : ov.sectionSpacing === 'normal' ? '52px' : null;
-  const sectionSpacingCss = secVal
-    ? `section[data-cuzmify-type]{padding-top:${secVal} !important;padding-bottom:${secVal} !important;}`
-    : '';
-
-  const heroMediaDecls: string[] = [];
-  if (ov.heroImageAspect === 'square') heroMediaDecls.push('aspect-ratio:1 / 1 !important;');
-  else if (ov.heroImageAspect === 'landscape') heroMediaDecls.push('aspect-ratio:4 / 3 !important;');
-  else if (ov.heroImageAspect === 'wide') heroMediaDecls.push('aspect-ratio:16 / 9 !important;');
-  else if (ov.heroImageAspect === 'portrait') heroMediaDecls.push('aspect-ratio:4 / 5 !important;');
-  else if (ov.heroImageAspect === 'auto') heroMediaDecls.push('aspect-ratio:auto !important;');
-
-  if (typeof ov.heroImageMaxHeight === 'number' && !Number.isNaN(ov.heroImageMaxHeight)) {
-    const h = Math.min(680, Math.max(180, Math.round(ov.heroImageMaxHeight)));
-    heroMediaDecls.push(`max-height:${h}px !important;margin-left:auto;margin-right:auto;`);
-  }
-  if (ov.heroImageShape === 'arch') heroMediaDecls.push('border-radius:220px 220px 24px 24px !important;');
-  else if (ov.heroImageShape === 'rounded') heroMediaDecls.push('border-radius:24px !important;');
-  else if (ov.heroImageShape === 'card') heroMediaDecls.push('border-radius:12px !important;');
-  else if (ov.heroImageShape === 'circle') heroMediaDecls.push('border-radius:9999px !important;aspect-ratio:1 / 1 !important;');
-
-  const heroMediaCss = heroMediaDecls.length > 0 ? `.cz-hero-media{${heroMediaDecls.join('')}}` : '';
-  const heroFitCss =
-    ov.heroImageFit === 'contain'
-      ? `.cz-hero-media{padding:16px;box-sizing:border-box;}.cz-hero-media img{object-fit:contain !important;border-radius:16px;}`
-      : ov.heroImageFit === 'cover'
-        ? `.cz-hero-media img{object-fit:cover !important;}`
-        : '';
-
-  const galleryColsCss =
-    typeof ov.galleryColumns === 'number' && ov.galleryColumns >= 1 && ov.galleryColumns <= 4
-      ? `.gallery-grid{grid-template-columns:repeat(${Math.round(ov.galleryColumns)},1fr) !important;}`
-      : '';
-
   const varsCss = varLines.length > 0 ? `:root,[data-cuzmify-template]{${varLines.join('')}}` : '';
+  const baseDeviceCss = compileDeviceDesignRules(ov);
+  const mobileCss = compileDeviceDesignRules(ov.responsive?.mobile);
+  const tabletCss = compileDeviceDesignRules(ov.responsive?.tablet);
+  const desktopCss = compileDeviceDesignRules(ov.responsive?.desktop);
+
   return [
     varsCss,
     fontOverrideCss,
     radiusCss,
-    pagePaddingCss,
-    sectionSpacingCss,
-    heroMediaCss,
-    heroFitCss,
-    galleryColsCss,
+    baseDeviceCss,
+    mobileCss ? `@media (max-width:767px){${mobileCss}}` : '',
+    tabletCss ? `@media (min-width:768px) and (max-width:1023px){${tabletCss}}` : '',
+    desktopCss ? `@media (min-width:1024px){${desktopCss}}` : '',
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateEngineId): string {
+  const list = (bp.customSections || []).filter((s) => Boolean(s?.title?.trim()));
+  if (list.length === 0 || !isSectionVisible(bp, 'custom')) return '';
+
+  const isDark = templateId === 'noir-showcase';
+  const accent = isDark ? 'var(--cz-noir-accent)' : templateId === 'modern-studio' ? 'var(--cz-ms-primary)' : 'var(--cz-accent)';
+  const surface = isDark ? 'var(--cz-noir-card)' : templateId === 'modern-studio' ? 'var(--cz-ms-card)' : 'var(--cz-surface)';
+  const border = isDark ? 'rgba(255,255,255,0.1)' : templateId === 'modern-studio' ? 'var(--cz-ms-border)' : 'var(--cz-border)';
+  const muted = isDark ? 'var(--cz-noir-muted)' : templateId === 'modern-studio' ? 'var(--cz-ms-muted)' : 'var(--cz-muted)';
+  const containerCls = isDark ? 'cz-nr-container' : templateId === 'modern-studio' ? 'cz-ms-container' : 'cz-ea-container';
+  const headingCls = isDark ? 'cz-nr-display' : templateId === 'modern-studio' ? 'cz-ms-heading' : 'cz-ea-serif';
+
+  return list
+    .slice(0, 6)
+    .map((sec) => {
+      const items = (sec.items || []).filter((i) => i.label?.trim() || i.detail?.trim());
+      let bodyHtml = '';
+
+      if (sec.layout === 'banner_cta') {
+        bodyHtml = `<div style="padding:28px 24px;border-radius:20px;border:1px solid ${border};background:${surface};display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;">
+          <div style="max-width:620px;">
+            ${sec.eyebrow ? `<span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
+            <h2 class="${headingCls}" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0;">${escapeHtml(sec.title)}</h2>
+            ${sec.subtitle ? `<p style="font-size:14px;color:${muted};line-height:1.6;margin:8px 0 0;">${escapeHtml(sec.subtitle)}</p>` : ''}
+          </div>
+          ${sec.ctaText ? `<a href="${escapeHtml(sec.ctaHref || '#booking')}" style="padding:12px 22px;border-radius:999px;background:${accent};color:#FFFFFF;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(sec.ctaText)} →</a>` : ''}
+        </div>`;
+      } else if (sec.layout === 'checklist' || sec.layout === 'hours_info') {
+        bodyHtml = `<div style="max-width:780px;margin:0 auto;">
+          ${sec.eyebrow ? `<span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
+          <h2 class="${headingCls}" style="font-size:clamp(1.5rem,3vw,2.1rem);font-weight:700;margin:0 0 8px;">${escapeHtml(sec.title)}</h2>
+          ${sec.subtitle ? `<p style="font-size:14px;color:${muted};line-height:1.6;margin:0 0 22px;">${escapeHtml(sec.subtitle)}</p>` : '<div style="height:14px;"></div>'}
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            ${items
+              .map(
+                (it) => `<div style="padding:14px 18px;border-radius:14px;border:1px solid ${border};background:${surface};display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between;">
+                  <strong style="font-size:14px;">${sec.layout === 'checklist' ? '✓ ' : ''}${escapeHtml(it.label)}</strong>
+                  ${it.detail ? `<span style="font-size:13px;color:${muted};">${escapeHtml(it.detail)}</span>` : ''}
+                </div>`
+              )
+              .join('')}
+          </div>
+        </div>`;
+      } else {
+        bodyHtml = `<div>
+          ${sec.eyebrow ? `<span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
+          <h2 class="${headingCls}" style="font-size:clamp(1.5rem,3vw,2.1rem);font-weight:700;margin:0 0 8px;">${escapeHtml(sec.title)}</h2>
+          ${sec.subtitle ? `<p style="font-size:14px;color:${muted};line-height:1.6;margin:0 0 24px;max-width:620px;">${escapeHtml(sec.subtitle)}</p>` : '<div style="height:16px;"></div>'}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+            ${items
+              .map(
+                (it) => `<div style="padding:20px;border-radius:16px;border:1px solid ${border};background:${surface};">
+                  <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:${accent};">${escapeHtml(it.label)}</h3>
+                  ${it.detail ? `<p style="margin:0;font-size:13px;line-height:1.6;color:${muted};">${escapeHtml(it.detail)}</p>` : ''}
+                </div>`
+              )
+              .join('')}
+          </div>
+        </div>`;
+      }
+
+      return `<section id="${escapeHtml(sec.id)}" data-cuzmify-type="custom-section" style="padding:48px 0;border-top:1px solid ${border};">
+        <div class="${containerCls}">
+          ${bodyHtml}
+        </div>
+      </section>`;
+    })
+    .join('\n');
+}
+
+function assembleOrderedSections(
+  sectionMap: Record<string, string>,
+  requestedOrder: string[] | undefined,
+  defaultOrder: string[]
+): string {
+  const baseOrder = Array.isArray(requestedOrder) && requestedOrder.length > 0 ? requestedOrder : defaultOrder;
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const rawKey of [...baseOrder, ...defaultOrder]) {
+    const key = String(rawKey || '').trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    if (sectionMap[key]) out.push(sectionMap[key]);
+  }
+  return out.join('\n');
 }
 
 function renderSharedTestimonialsSection(bp: BusinessBlueprint, isDark: boolean): string {
@@ -348,6 +478,204 @@ function renderSharedEnquiryForm(
   </form>`;
 }
 
+interface HeroVariantCtx {
+  templateId: TemplateEngineId;
+  bp: BusinessBlueprint;
+  niche: NicheBlueprint;
+  heroBadge: string;
+  headline: string;
+  subheadline: string;
+  primaryCta: string;
+  heroAsset: MediaVaultAsset | null;
+  hasServices: boolean;
+  hasGallery: boolean;
+}
+
+function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroLayout']>, ctx: HeroVariantCtx): string {
+  const { templateId, bp, heroBadge, headline, subheadline, primaryCta, heroAsset, hasServices, hasGallery } = ctx;
+  const isDark = templateId === 'noir-showcase';
+  const accent = isDark ? 'var(--cz-noir-accent)' : templateId === 'modern-studio' ? 'var(--cz-ms-primary)' : 'var(--cz-accent)';
+  const surface = isDark ? 'var(--cz-noir-card)' : templateId === 'modern-studio' ? 'var(--cz-ms-card)' : 'var(--cz-surface)';
+  const ink = isDark ? 'var(--cz-noir-text)' : templateId === 'modern-studio' ? 'var(--cz-ms-ink)' : 'var(--cz-ink)';
+  const muted = isDark ? 'var(--cz-noir-muted)' : templateId === 'modern-studio' ? 'var(--cz-ms-muted)' : 'var(--cz-muted)';
+  const border = isDark ? 'rgba(255,255,255,0.12)' : templateId === 'modern-studio' ? 'var(--cz-ms-border)' : 'var(--cz-border)';
+  const containerCls = isDark ? 'cz-nr-container' : templateId === 'modern-studio' ? 'cz-ms-container' : 'cz-ea-container';
+  const headingCls = isDark ? 'cz-nr-display' : templateId === 'modern-studio' ? 'cz-ms-heading' : 'cz-ea-serif';
+  const btnBg = isDark ? accent : templateId === 'modern-studio' ? accent : ink;
+  const btnColor = isDark ? '#09090B' : '#FFFFFF';
+  const profileName = bp.profile.name;
+
+  if (layout === 'centered') {
+    return `<section id="hero" data-cuzmify-type="hero" style="padding:48px 0;">
+      <div class="${containerCls}" style="max-width:860px;">
+        <div class="cz-hero-text" style="text-align:center;display:flex;flex-direction:column;align-items:center;">
+          <span style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
+          <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.5rem);font-weight:700;line-height:1.1;margin:0 0 16px;color:${ink};max-width:720px;">${escapeHtml(headline)}</h1>
+          <p data-cuzmify-field="subheadline" style="font-size:15px;line-height:1.68;color:${muted};margin:0 0 26px;max-width:560px;">${escapeHtml(subheadline)}</p>
+          <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px;">
+            <a href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
+          </div>
+          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:32px;width:100%;max-width:620px;border-radius:22px;overflow:hidden;aspect-ratio:16/10;max-height:420px;border:1px solid ${border};background:${surface};"><img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  if (layout === 'full_bleed') {
+    return `<section id="hero" data-cuzmify-type="hero" style="position:relative;${heroAsset ? 'min-height:460px;display:flex;align-items:flex-end;' : 'padding:64px 0;'}background:linear-gradient(135deg,#0F172A,#1E293B);overflow:hidden;">
+      ${heroAsset ? `<img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.48;"/><div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(9,9,11,0.88) 12%,rgba(9,9,11,0.45) 60%,rgba(9,9,11,0.28) 100%);"></div>` : ''}
+      <div class="${containerCls} cz-hero-text" style="position:relative;z-index:2;padding-top:72px;padding-bottom:52px;width:100%;">
+        <span style="display:inline-block;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,0.14);color:#FAFAFA;font-size:11px;font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
+        <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.6rem);font-weight:800;line-height:1.08;margin:0 0 14px;max-width:700px;color:#FAFAFA;">${escapeHtml(headline)}</h1>
+        <p data-cuzmify-field="subheadline" style="font-size:15px;color:#E4E4E7;line-height:1.65;margin:0 0 26px;max-width:540px;">${escapeHtml(subheadline)}</p>
+        <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
+          <a href="#booking" style="padding:13px 26px;border-radius:12px;background:${accent};color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          ${hasGallery ? `<a href="#portfolio" style="padding:13px 22px;border-radius:12px;background:rgba(255,255,255,0.12);color:#FAFAFA;font-weight:700;font-size:13px;text-decoration:none;">View Work</a>` : ''}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  if (layout === 'minimal_card') {
+    return `<section id="hero" data-cuzmify-type="hero" style="padding:36px 0;">
+      <div class="${containerCls}">
+        <div class="cz-hero-text" style="background:${surface};border:1px solid ${border};border-radius:24px;padding:30px 24px;">
+          <span style="display:inline-block;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:10px;">${escapeHtml(heroBadge)}</span>
+          <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(1.85rem,4.5vw,2.9rem);font-weight:800;line-height:1.12;margin:0 0 12px;color:${ink};">${escapeHtml(headline)}</h1>
+          <p data-cuzmify-field="subheadline" style="font-size:14px;line-height:1.65;color:${muted};margin:0 0 22px;max-width:600px;">${escapeHtml(subheadline)}</p>
+          <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
+            <a href="#booking" style="padding:12px 22px;border-radius:12px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          </div>
+          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:24px;border-radius:18px;overflow:hidden;aspect-ratio:16/9;max-height:360px;background:${surface};border:1px solid ${border};"><img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  // 'split' variant
+  return `<section id="hero" data-cuzmify-type="hero">
+    <div class="${containerCls} cz-ea-hero-grid">
+      <div class="cz-hero-text">
+        <span style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
+        <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.2rem,5vw,3.6rem);font-weight:700;line-height:1.08;margin:0 0 16px;color:${ink};">${escapeHtml(headline)}</h1>
+        <p data-cuzmify-field="subheadline" style="font-size:15px;line-height:1.68;color:${muted};margin:0 0 26px;max-width:480px;">${escapeHtml(subheadline)}</p>
+        <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
+          <a href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
+        </div>
+      </div>
+      ${heroAsset ? `<div class="cz-hero-media" style="border-radius:24px;overflow:hidden;aspect-ratio:4/5;max-height:480px;width:100%;border:1px solid ${border};background:${surface};"><img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+    </div>
+  </section>`;
+}
+
+function renderCustomServicesLayout(
+  layout: NonNullable<TemplateDesignOverrides['servicesLayout']>,
+  params: {
+    templateId: TemplateEngineId;
+    services: ServiceItem[];
+    currencySymbol: string;
+    eyebrow: string;
+    heading: string;
+    itemCta: string;
+  }
+): string {
+  const { templateId, services, currencySymbol, eyebrow, heading, itemCta } = params;
+  if (services.length === 0) return '';
+  const isDark = templateId === 'noir-showcase';
+  const accent = isDark ? 'var(--cz-noir-accent)' : templateId === 'modern-studio' ? 'var(--cz-ms-primary)' : 'var(--cz-accent)';
+  const surface = isDark ? 'var(--cz-noir-card)' : templateId === 'modern-studio' ? 'var(--cz-ms-card)' : 'var(--cz-surface)';
+  const ink = isDark ? 'var(--cz-noir-text)' : templateId === 'modern-studio' ? 'var(--cz-ms-ink)' : 'var(--cz-ink)';
+  const muted = isDark ? 'var(--cz-noir-muted)' : templateId === 'modern-studio' ? 'var(--cz-ms-muted)' : 'var(--cz-muted)';
+  const border = isDark ? 'rgba(255,255,255,0.1)' : templateId === 'modern-studio' ? 'var(--cz-ms-border)' : 'var(--cz-border)';
+  const containerCls = isDark ? 'cz-nr-container' : templateId === 'modern-studio' ? 'cz-ms-container' : 'cz-ea-container';
+  const headingCls = isDark ? 'cz-nr-display' : templateId === 'modern-studio' ? 'cz-ms-heading' : 'cz-ea-serif';
+
+  if (layout === 'compact_menu') {
+    return `<section id="services" data-cuzmify-type="services" style="padding:52px 0;border-top:1px solid ${border};">
+      <div class="${containerCls}">
+        <div style="margin-bottom:24px;">
+          <span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
+          <h2 class="${headingCls}" style="font-size:clamp(1.6rem,3.5vw,2.25rem);font-weight:700;margin:6px 0 0;">${escapeHtml(heading)}</h2>
+        </div>
+        <div class="services-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;">
+          ${services
+            .map((srv) => {
+              const pText = formatServicePrice(srv, currencySymbol);
+              return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:16px 18px;border-radius:14px;border:1px solid ${border};background:${surface};display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div style="min-width:0;">
+                  <h3 data-cuzmify-field="service-name" style="margin:0;font-size:15px;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
+                  ${srv.description ? `<p style="margin:4px 0 0;font-size:12px;color:${muted};line-height:1.45;">${escapeHtml(srv.description)}</p>` : ''}
+                </div>
+                <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="font-size:13px;font-weight:800;color:${accent};text-decoration:none;white-space:nowrap;">${escapeHtml(pText)}</a>
+              </div>`;
+            })
+            .join('')}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  if (layout === 'card_grid') {
+    return `<section id="services" data-cuzmify-type="services" style="padding:56px 0;border-top:1px solid ${border};">
+      <div class="${containerCls}">
+        <div style="margin-bottom:28px;">
+          <span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
+          <h2 class="${headingCls}" style="font-size:clamp(1.65rem,3.5vw,2.35rem);font-weight:700;margin:6px 0 0;">${escapeHtml(heading)}</h2>
+        </div>
+        <div class="services-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;">
+          ${services
+            .map((srv) => {
+              const pText = formatServicePrice(srv, currencySymbol);
+              return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:${surface};border:1px solid ${border};border-radius:18px;padding:22px;display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                    <h3 data-cuzmify-field="service-name" class="${headingCls}" style="margin:0;font-size:1.15rem;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
+                    <span data-cuzmify-field="service-price" style="font-weight:800;font-size:0.95rem;color:${accent};white-space:nowrap;">${escapeHtml(pText)}</span>
+                  </div>
+                  ${srv.description ? `<p style="margin:8px 0 0;font-size:13px;color:${muted};line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
+                </div>
+                <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:${accent};color:${isDark ? '#09090B' : '#FFFFFF'};font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(itemCta)} →</a>
+              </div>`;
+            })
+            .join('')}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  // 'editorial_list'
+  return `<section id="services" data-cuzmify-type="services" style="padding:56px 0;border-top:1px solid ${border};">
+    <div class="${containerCls}">
+      <div style="margin-bottom:32px;">
+        <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
+        <h2 class="${headingCls}" style="font-size:clamp(1.75rem,3.8vw,2.5rem);font-weight:600;margin:8px 0 0;">${escapeHtml(heading)}</h2>
+      </div>
+      <div class="services-grid" style="display:flex;flex-direction:column;">
+        ${services
+          .map((srv, idx) => {
+            const pText = formatServicePrice(srv, currencySymbol);
+            return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:22px 0;border-bottom:1px solid ${border};display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;">
+              <div style="display:flex;gap:14px;align-items:flex-start;flex:1 1 250px;">
+                <span style="font-size:1.1rem;color:${accent};font-weight:700;min-width:26px;">0${idx + 1}</span>
+                <div>
+                  <h3 data-cuzmify-field="service-name" class="${headingCls}" style="font-size:1.25rem;font-weight:700;margin:0;color:${ink};">${escapeHtml(srv.name)}</h3>
+                  ${srv.description ? `<p style="font-size:13px;color:${muted};margin:5px 0 0;line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
+                <span data-cuzmify-field="service-price" style="font-weight:700;color:${ink};">${escapeHtml(pText)}</span>
+                <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="padding:9px 16px;border-radius:999px;border:1px solid ${border};color:${ink};text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap;">${escapeHtml(itemCta)}</a>
+              </div>
+            </div>`;
+          })
+          .join('')}
+      </div>
+    </div>
+  </section>`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATE 1: EDITORIAL ATELIER (Warm Ivory, Serif, Numbered Menu, Split Hero)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -369,6 +697,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
   const primaryCta = copy.primaryCta || niche.vocabulary.primaryCta;
   const heroBadge = copy.heroBadge || `${niche.shortLabel}${locationLine ? ` • ${locationLine}` : ''}`;
   const serviceItemCta = copy.serviceItemCta || niche.vocabulary.serviceItemCta;
+  const activeOv = getActiveDesignOverrides('editorial-atelier', bp);
 
   const css = `
     :root { --cz-bg:#FAF7F2; --cz-surface:#FFFFFF; --cz-ink:#1C1917; --cz-muted:#6B635B; --cz-accent:#9A6B4C; --cz-border:#E7E0D6; }
@@ -386,7 +715,16 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
 
   const servicesHtml =
     services.length > 0 && isSectionVisible(bp, 'services')
-      ? `<section id="services" data-cuzmify-type="services" style="padding:64px 0;border-top:1px solid var(--cz-border);">
+      ? activeOv?.servicesLayout
+        ? renderCustomServicesLayout(activeOv.servicesLayout, {
+            templateId: 'editorial-atelier',
+            services,
+            currencySymbol,
+            eyebrow: copy.servicesEyebrow || niche.vocabulary.servicesEyebrow,
+            heading: copy.servicesHeading || niche.vocabulary.servicesHeading,
+            itemCta: serviceItemCta,
+          })
+        : `<section id="services" data-cuzmify-type="services" style="padding:64px 0;border-top:1px solid var(--cz-border);">
           <div class="cz-ea-container">
             <div style="margin-bottom:36px;">
               <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
@@ -443,19 +781,32 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
       : '';
 
   const heroSectionHtml = isSectionVisible(bp, 'hero')
-    ? `<section id="hero" data-cuzmify-type="hero">
+    ? activeOv?.heroLayout
+      ? renderCustomHeroLayout(activeOv.heroLayout, {
+          templateId: 'editorial-atelier',
+          bp,
+          niche,
+          heroBadge,
+          headline,
+          subheadline,
+          primaryCta,
+          heroAsset,
+          hasServices: services.length > 0 && isSectionVisible(bp, 'services'),
+          hasGallery: galleryAssets.length > 0 && isSectionVisible(bp, 'portfolio'),
+        })
+      : `<section id="hero" data-cuzmify-type="hero">
       <div class="cz-ea-container cz-ea-hero-grid">
-        <div>
+        <div class="cz-hero-text">
           <span style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;margin-bottom:14px;">
             ${escapeHtml(heroBadge)}
           </span>
-          <h1 data-cuzmify-field="headline" class="cz-ea-serif" style="font-size:clamp(2.35rem,5.5vw,3.85rem);font-weight:600;line-height:1.08;margin:0 0 18px;color:var(--cz-ink);">
+          <h1 data-cuzmify-field="headline" class="cz-ea-serif cz-hero-title" style="font-size:clamp(2.35rem,5.5vw,3.85rem);font-weight:600;line-height:1.08;margin:0 0 18px;color:var(--cz-ink);">
             ${escapeHtml(headline)}
           </h1>
           <p data-cuzmify-field="subheadline" style="font-size:15px;line-height:1.7;color:var(--cz-muted);margin:0 0 28px;max-width:480px;">
             ${escapeHtml(subheadline)}
           </p>
-          <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
             <a href="#booking" style="padding:14px 26px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-weight:600;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
             ${services.length > 0 && isSectionVisible(bp, 'services') ? `<a href="#services" style="padding:14px 22px;border-radius:999px;border:1px solid var(--cz-border);background:var(--cz-surface);color:var(--cz-ink);font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
           </div>
@@ -489,6 +840,20 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
     </section>`
     : '';
 
+  const bodySections = assembleOrderedSections(
+    {
+      hero: heroSectionHtml,
+      services: servicesHtml,
+      portfolio: galleryHtml,
+      custom: renderSharedCustomSections(bp, 'editorial-atelier'),
+      testimonials: renderSharedTestimonialsSection(bp, false),
+      faq: renderSharedFaqSection(bp, false),
+      booking: bookingSectionHtml,
+    },
+    activeOv?.sectionOrder,
+    ['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking']
+  );
+
   const html = `<div class="cz-ea-root" data-cuzmify-template="editorial-atelier">
     <nav data-cuzmify-type="navbar" style="border-bottom:1px solid var(--cz-border);background:var(--cz-bg);backdrop-filter:blur(10px);position:sticky;top:0;z-index:30;">
       <div class="cz-ea-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
@@ -497,12 +862,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
       </div>
     </nav>
 
-    ${heroSectionHtml}
-    ${servicesHtml}
-    ${galleryHtml}
-    ${renderSharedTestimonialsSection(bp, false)}
-    ${renderSharedFaqSection(bp, false)}
-    ${bookingSectionHtml}
+    ${bodySections}
   </div>`;
 
   return { css, html };
@@ -529,6 +889,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   const primaryCta = copy.primaryCta || niche.vocabulary.primaryCta;
   const heroBadge = copy.heroBadge || `${niche.shortLabel}${locationLine ? ` • ${locationLine}` : ''}`;
   const serviceItemCta = copy.serviceItemCta || niche.vocabulary.serviceItemCta;
+  const activeOv = getActiveDesignOverrides('noir-showcase', bp);
 
   const css = `
     :root { --cz-noir-bg:#09090B; --cz-noir-card:#141418; --cz-noir-text:#FAFAFA; --cz-noir-muted:#A1A1AA; --cz-noir-accent:#F59E0B; }
@@ -569,7 +930,16 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
 
   const servicesHtml =
     services.length > 0 && isSectionVisible(bp, 'services')
-      ? `<section id="services" data-cuzmify-type="services" style="padding:56px 0;border-top:1px solid rgba(255,255,255,0.08);">
+      ? activeOv?.servicesLayout
+        ? renderCustomServicesLayout(activeOv.servicesLayout, {
+            templateId: 'noir-showcase',
+            services,
+            currencySymbol,
+            eyebrow: copy.servicesEyebrow || niche.vocabulary.servicesEyebrow,
+            heading: copy.servicesHeading || niche.vocabulary.servicesHeading,
+            itemCta: serviceItemCta,
+          })
+        : `<section id="services" data-cuzmify-type="services" style="padding:56px 0;border-top:1px solid rgba(255,255,255,0.08);">
           <div class="cz-nr-container">
             <div style="margin-bottom:28px;">
               <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.16em;color:var(--cz-noir-accent);font-weight:700;">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
@@ -598,24 +968,37 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       : '';
 
   const heroSectionHtml = isSectionVisible(bp, 'hero')
-    ? `<section id="hero" data-cuzmify-type="hero" style="position:relative;${heroAsset ? 'min-height:440px;display:flex;align-items:flex-end;' : ''}background:radial-gradient(ellipse at 50% 0%,#1E2430 0%,var(--cz-noir-bg) 72%);overflow:hidden;border-bottom:1px solid rgba(255,255,255,0.08);">
+    ? activeOv?.heroLayout
+      ? renderCustomHeroLayout(activeOv.heroLayout, {
+          templateId: 'noir-showcase',
+          bp,
+          niche,
+          heroBadge,
+          headline,
+          subheadline,
+          primaryCta,
+          heroAsset,
+          hasServices: services.length > 0 && isSectionVisible(bp, 'services'),
+          hasGallery: galleryAssets.length > 0 && isSectionVisible(bp, 'portfolio'),
+        })
+      : `<section id="hero" data-cuzmify-type="hero" style="position:relative;${heroAsset ? 'min-height:440px;display:flex;align-items:flex-end;' : ''}background:radial-gradient(ellipse at 50% 0%,#1E2430 0%,var(--cz-noir-bg) 72%);overflow:hidden;border-bottom:1px solid rgba(255,255,255,0.08);">
       ${
         heroAsset
           ? `<img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.46;"/>
              <div style="position:absolute;inset:0;background:linear-gradient(to top,var(--cz-noir-bg) 14%,rgba(9,9,11,0.55) 60%,rgba(9,9,11,0.35) 100%);"></div>`
           : ''
       }
-      <div class="cz-nr-container" style="position:relative;z-index:2;padding:${heroAsset ? '88px 20px 52px' : '56px 20px 56px'};width:100%;">
+      <div class="cz-nr-container cz-hero-text" style="position:relative;z-index:2;padding:${heroAsset ? '88px 20px 52px' : '56px 20px 56px'};width:100%;">
         <span style="display:inline-block;padding:5px 12px;border-radius:999px;background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.35);color:var(--cz-noir-accent);font-size:11px;font-weight:700;margin-bottom:16px;">
           ${escapeHtml(heroBadge)}
         </span>
-        <h1 data-cuzmify-field="headline" class="cz-nr-display" style="font-size:clamp(2.1rem,5vw,3.5rem);font-weight:800;line-height:1.08;margin:0 0 14px;max-width:720px;color:var(--cz-noir-text);">
+        <h1 data-cuzmify-field="headline" class="cz-nr-display cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.5rem);font-weight:800;line-height:1.08;margin:0 0 14px;max-width:720px;color:var(--cz-noir-text);">
           ${escapeHtml(headline)}
         </h1>
         <p data-cuzmify-field="subheadline" style="font-size:15px;color:#D4D4D8;line-height:1.65;margin:0 0 26px;max-width:540px;">
           ${escapeHtml(subheadline)}
         </p>
-        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+        <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
           <a href="#booking" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:12px;background:var(--cz-noir-accent);color:#09090B;font-weight:800;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
           ${galleryAssets.length > 0 && isSectionVisible(bp, 'portfolio') ? `<a href="#portfolio" style="display:inline-flex;align-items:center;padding:13px 22px;border-radius:12px;background:rgba(255,255,255,0.1);color:var(--cz-noir-text);font-weight:700;font-size:13px;text-decoration:none;backdrop-filter:blur(8px);">View Work</a>` : ''}
         </div>
@@ -638,6 +1021,20 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
     </section>`
     : '';
 
+  const bodySections = assembleOrderedSections(
+    {
+      hero: heroSectionHtml,
+      portfolio: galleryHtml,
+      services: servicesHtml,
+      custom: renderSharedCustomSections(bp, 'noir-showcase'),
+      testimonials: renderSharedTestimonialsSection(bp, true),
+      faq: renderSharedFaqSection(bp, true),
+      booking: bookingSectionHtml,
+    },
+    activeOv?.sectionOrder,
+    ['hero', 'portfolio', 'services', 'custom', 'testimonials', 'faq', 'booking']
+  );
+
   const html = `<div class="cz-nr-root" data-cuzmify-template="noir-showcase">
     <nav data-cuzmify-type="navbar" style="position:sticky;top:0;z-index:30;background:var(--cz-noir-bg);color:var(--cz-noir-text);border-bottom:1px solid rgba(255,255,255,0.1);">
       <div class="cz-nr-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
@@ -646,12 +1043,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       </div>
     </nav>
 
-    ${heroSectionHtml}
-    ${galleryHtml}
-    ${servicesHtml}
-    ${renderSharedTestimonialsSection(bp, true)}
-    ${renderSharedFaqSection(bp, true)}
-    ${bookingSectionHtml}
+    ${bodySections}
   </div>`;
 
   return { css, html };
@@ -665,6 +1057,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   const currencySymbol = SUPPORTED_CURRENCIES[profile.currency || 'NGN']?.symbol || '₦';
   const services = (bp.modules?.services?.items || []).filter((s) => s.enabled !== false);
   const vault = (bp.mediaVault || []).filter((m) => Boolean(m.thumbnailUrl || m.url));
+  const heroAsset = vault[0] || null;
   const stripAssets = vault.slice(0, 3);
   const igHandle = (profile.instagramHandle || profile.instagram || '').replace(/^@/, '');
   const locationLine = [profile.city, profile.country].filter(Boolean).join(', ');
@@ -678,6 +1071,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   const heroBadge = copy.heroBadge || `${niche.label}${locationLine ? ` • ${locationLine}` : ''}`;
   const serviceItemCta = copy.serviceItemCta || niche.vocabulary.serviceItemCta;
   const waPhone = (bp.modules?.whatsapp?.phoneNumber || profile.whatsapp || '').replace(/[^\d]/g, '');
+  const activeOv = getActiveDesignOverrides('modern-studio', bp);
 
   const css = `
     :root { --cz-ms-bg:#F8FAFC; --cz-ms-card:#FFFFFF; --cz-ms-primary:#0D5771; --cz-ms-ink:#0F172A; --cz-ms-muted:#64748B; --cz-ms-border:#E2E8F0; }
@@ -708,7 +1102,16 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
 
   const servicesHtml =
     services.length > 0 && isSectionVisible(bp, 'services')
-      ? `<section id="services" data-cuzmify-type="services" style="padding:48px 0;">
+      ? activeOv?.servicesLayout
+        ? renderCustomServicesLayout(activeOv.servicesLayout, {
+            templateId: 'modern-studio',
+            services,
+            currencySymbol,
+            eyebrow: copy.servicesEyebrow || niche.vocabulary.servicesEyebrow,
+            heading: copy.servicesHeading || niche.vocabulary.servicesHeading,
+            itemCta: serviceItemCta,
+          })
+        : `<section id="services" data-cuzmify-type="services" style="padding:48px 0;">
           <div class="cz-ms-container">
             <div style="margin-bottom:24px;">
               <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--cz-ms-primary);">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
@@ -763,19 +1166,32 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       : '';
 
   const heroSectionHtml = isSectionVisible(bp, 'hero')
-    ? `<section id="hero" data-cuzmify-type="hero" style="padding:36px 0 24px;">
+    ? activeOv?.heroLayout
+      ? renderCustomHeroLayout(activeOv.heroLayout, {
+          templateId: 'modern-studio',
+          bp,
+          niche,
+          heroBadge,
+          headline,
+          subheadline,
+          primaryCta,
+          heroAsset,
+          hasServices: services.length > 0 && isSectionVisible(bp, 'services'),
+          hasGallery: vault.length > 0 && isSectionVisible(bp, 'portfolio'),
+        })
+      : `<section id="hero" data-cuzmify-type="hero" style="padding:36px 0 24px;">
       <div class="cz-ms-container">
-        <div style="background:var(--cz-ms-card);border:1px solid var(--cz-ms-border);border-radius:24px;padding:28px 22px;box-shadow:0 8px 30px rgba(13,87,113,0.05);">
+        <div class="cz-hero-text" style="background:var(--cz-ms-card);border:1px solid var(--cz-ms-border);border-radius:24px;padding:28px 22px;box-shadow:0 8px 30px rgba(13,87,113,0.05);">
           <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(13,87,113,0.08);color:var(--cz-ms-primary);font-size:11px;font-weight:700;margin-bottom:12px;">
             ${escapeHtml(heroBadge)}
           </span>
-          <h1 data-cuzmify-field="headline" class="cz-ms-heading" style="font-size:clamp(1.75rem,4.2vw,2.75rem);font-weight:800;line-height:1.15;margin:0 0 12px;">
+          <h1 data-cuzmify-field="headline" class="cz-ms-heading cz-hero-title" style="font-size:clamp(1.75rem,4.2vw,2.75rem);font-weight:800;line-height:1.15;margin:0 0 12px;">
             ${escapeHtml(headline)}
           </h1>
           <p data-cuzmify-field="subheadline" style="font-size:14px;color:var(--cz-ms-muted);line-height:1.65;margin:0 0 22px;max-width:600px;">
             ${escapeHtml(subheadline)}
           </p>
-          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
             <a href="#booking" style="padding:13px 22px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
             ${waPhone ? `<a href="${escapeHtml(buildWhatsAppDirectHref(waPhone, `Hello ${profile.name}, I found your website and have a quick question.`))}" target="_blank" rel="noopener noreferrer" style="padding:13px 20px;border-radius:12px;background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;font-weight:700;font-size:13px;text-decoration:none;">Chat on WhatsApp</a>` : ''}
           </div>
@@ -800,6 +1216,20 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
     </section>`
     : '';
 
+  const bodySections = assembleOrderedSections(
+    {
+      hero: heroSectionHtml,
+      services: servicesHtml,
+      portfolio: galleryHtml,
+      custom: renderSharedCustomSections(bp, 'modern-studio'),
+      testimonials: renderSharedTestimonialsSection(bp, false),
+      faq: renderSharedFaqSection(bp, false),
+      booking: bookingSectionHtml,
+    },
+    activeOv?.sectionOrder,
+    ['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking']
+  );
+
   const html = `<div class="cz-ms-root" data-cuzmify-template="modern-studio">
     <nav data-cuzmify-type="navbar" style="background:var(--cz-ms-card);border-bottom:1px solid var(--cz-ms-border);position:sticky;top:0;z-index:30;">
       <div class="cz-ms-container" style="height:60px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
@@ -811,12 +1241,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       </div>
     </nav>
 
-    ${heroSectionHtml}
-    ${servicesHtml}
-    ${galleryHtml}
-    ${renderSharedTestimonialsSection(bp, false)}
-    ${renderSharedFaqSection(bp, false)}
-    ${bookingSectionHtml}
+    ${bodySections}
   </div>`;
 
   return { css, html };

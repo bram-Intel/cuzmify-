@@ -11,9 +11,13 @@ import { resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engin
 import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
 
 export interface McpToolProperty {
-  type: 'string' | 'number' | 'boolean';
+  type: 'string' | 'number' | 'boolean' | 'array';
   description: string;
   enum?: string[];
+  items?: {
+    type: 'string' | 'object';
+    properties?: Record<string, { type: 'string'; description: string }>;
+  };
 }
 
 export interface McpToolDefinition {
@@ -87,11 +91,16 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'customize_template_design',
     description:
-      'Customize brand palette colors (hex), card/background surfaces, button corner radius, font mood, mobile/page horizontal padding, section spacing, hero image aspect ratio/max height/shape/fit, or gallery column count on top of the active template engine.',
+      'Customize brand palette colors, button corners, fonts, hero/services layouts, section spacing, mobile/tablet/desktop isolated layout & hero-image overrides on top of the active template engine.',
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
+        device: {
+          type: 'string',
+          description: 'Target screen scope for layout/padding/hero sizing overrides ("all" default, or isolate strictly to "mobile", "tablet", or "desktop").',
+          enum: ['all', 'mobile', 'tablet', 'desktop'],
+        },
         accentColor: { type: 'string', description: 'Hex brand accent color (e.g. #D97706, #0D5771, #E11D48).' },
         backgroundColor: { type: 'string', description: 'Hex page background color (e.g. #FAF7F2, #09090B).' },
         surfaceColor: { type: 'string', description: 'Hex card/panel surface color (e.g. #FFFFFF, #18181B).' },
@@ -106,14 +115,38 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
           description: 'Typography pairing mood.',
           enum: ['editorial_serif', 'modern_sans', 'bold_display'],
         },
+        heroLayout: {
+          type: 'string',
+          description: 'Hero layout arrangement ("split", "centered", "full_bleed", or "minimal_card").',
+          enum: ['split', 'centered', 'full_bleed', 'minimal_card'],
+        },
+        servicesLayout: {
+          type: 'string',
+          description: 'Services section structural presentation ("editorial_list", "card_grid", or "compact_menu").',
+          enum: ['editorial_list', 'card_grid', 'compact_menu'],
+        },
+        heroTextAlign: {
+          type: 'string',
+          description: 'Align Hero headline, bio & CTA buttons left or centered (great for mobile isolation).',
+          enum: ['left', 'center'],
+        },
+        hideHeroImage: {
+          type: 'boolean',
+          description: 'Hide or show the hero image container cleanly on the chosen device scope.',
+        },
+        fontScale: {
+          type: 'string',
+          description: 'Headline display scale on the target device.',
+          enum: ['compact', 'normal', 'large'],
+        },
         pagePaddingX: {
           type: 'string',
-          description: 'Horizontal page margin/padding preset across mobile and desktop.',
+          description: 'Horizontal page margin/padding preset on the target device.',
           enum: ['compact', 'normal', 'spacious'],
         },
         sectionSpacing: {
           type: 'string',
-          description: 'Vertical padding rhythm between website sections.',
+          description: 'Vertical padding rhythm between sections on the target device.',
           enum: ['compact', 'normal', 'airy'],
         },
         heroImageAspect: {
@@ -123,7 +156,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         },
         heroImageMaxHeight: {
           type: 'number',
-          description: 'Maximum height in pixels for the Hero image frame (180 to 680).',
+          description: 'Maximum height in pixels for the Hero image frame (140 to 680).',
         },
         heroImageShape: {
           type: 'string',
@@ -139,11 +172,67 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
           type: 'number',
           description: 'Portfolio gallery grid columns (1 to 4).',
         },
+        servicesColumns: {
+          type: 'number',
+          description: 'Services grid columns (1 to 3).',
+        },
         resetToDefaults: {
           type: 'boolean',
-          description: 'Set true to clear custom colors/fonts/layout overrides and restore native template defaults.',
+          description: 'Set true to clear custom overrides for the active template (or just the targeted device scope).',
         },
       },
+    },
+  },
+  {
+    name: 'reorder_sections',
+    description:
+      'Reorder website sections top-to-bottom cleanly for the active template (e.g. ["hero", "portfolio", "services", "custom", "testimonials", "faq", "booking"]).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        order: {
+          type: 'array',
+          description: 'Ordered list of section keys: hero, services, portfolio, custom, testimonials, faq, booking.',
+          items: { type: 'string' },
+        },
+      },
+      required: ['order'],
+    },
+  },
+  {
+    name: 'upsert_custom_section',
+    description:
+      'Create, update, or remove a custom content block (Studio Hours, Booking Process Steps, Travel/Deposit Policy, Highlights Banner) inside the active template engine.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        id: { type: 'string', description: 'Existing custom section ID to update or remove (optional).' },
+        title: { type: 'string', description: 'Section heading (e.g. Studio Hours & Policy, How Booking Works).' },
+        eyebrow: { type: 'string', description: 'Optional small label above title.' },
+        subtitle: { type: 'string', description: 'Optional intro paragraph below title.' },
+        layout: {
+          type: 'string',
+          description: 'Presentation style for this custom section.',
+          enum: ['cards', 'checklist', 'hours_info', 'banner_cta'],
+        },
+        items: {
+          type: 'array',
+          description: 'Optional list of key-detail pairs shown inside the section.',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', description: 'Card heading, checklist point, or day label.' },
+              detail: { type: 'string', description: 'Supporting description or hours.' },
+            },
+          },
+        },
+        ctaText: { type: 'string', description: 'Optional CTA button text for banner_cta layout.' },
+        ctaHref: { type: 'string', description: 'Optional CTA link (defaults to #booking).' },
+        remove: { type: 'boolean', description: 'Set true to remove matching custom section by id or title.' },
+      },
+      required: ['title'],
     },
   },
   {
@@ -355,6 +444,29 @@ export function toGeminiFunctionDeclarations(includeServerOnly = true): Function
     const props: Record<string, any> = {};
     for (const [k, v] of Object.entries(tool.inputSchema.properties)) {
       if (k === 'siteId') continue; // Studio/account context supplies active site automatically
+      if (v.type === 'array') {
+        if (v.items?.type === 'object' && v.items.properties) {
+          const nestedProps: Record<string, any> = {};
+          for (const [nk, nv] of Object.entries(v.items.properties)) {
+            nestedProps[nk] = { type: SchemaType.STRING, description: nv.description };
+          }
+          props[k] = {
+            type: SchemaType.ARRAY,
+            description: v.description,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: nestedProps,
+            },
+          };
+        } else {
+          props[k] = {
+            type: SchemaType.ARRAY,
+            description: v.description,
+            items: { type: SchemaType.STRING },
+          };
+        }
+        continue;
+      }
       const schemaType =
         v.type === 'number'
           ? SchemaType.NUMBER
@@ -541,22 +653,51 @@ export function executeBlueprintMcpTool(
     case 'customize_template_design': {
       const activeTpl = resolveTemplateEngineId(bp.templateId);
       const scopedMap: Record<string, TemplateDesignOverrides> = { ...(bp.templateDesignOverrides || {}) };
+      const scope: 'all' | 'mobile' | 'tablet' | 'desktop' =
+        args.device === 'mobile' || args.device === 'tablet' || args.device === 'desktop'
+          ? args.device
+          : 'all';
+
       if (args.resetToDefaults) {
-        scopedMap[activeTpl] = {};
+        const curTplOv: TemplateDesignOverrides = { ...(scopedMap[activeTpl] || bp.designOverrides || {}) };
+        if (scope === 'all') {
+          scopedMap[activeTpl] = {};
+          bp.templateDesignOverrides = scopedMap;
+          bp.designOverrides = {};
+          bp.updatedAt = new Date().toISOString();
+          return {
+            ok: true,
+            blueprint: bp,
+            changeSummary: `Restored ${TEMPLATE_ENGINES[activeTpl].name} native defaults (other templates untouched)`,
+            data: { templateId: activeTpl, device: 'all', designOverrides: {}, templateDesignOverrides: scopedMap },
+          };
+        }
+        const nextResp = { ...(curTplOv.responsive || {}) };
+        delete nextResp[scope];
+        curTplOv.responsive = nextResp;
+        scopedMap[activeTpl] = curTplOv;
         bp.templateDesignOverrides = scopedMap;
-        bp.designOverrides = {};
+        bp.designOverrides = curTplOv;
         bp.updatedAt = new Date().toISOString();
         return {
           ok: true,
           blueprint: bp,
-          changeSummary: `Restored ${TEMPLATE_ENGINES[activeTpl].name} native defaults (other templates untouched)`,
-          data: { templateId: activeTpl, designOverrides: {}, templateDesignOverrides: scopedMap },
+          changeSummary: `Cleared ${scope}-only overrides on ${TEMPLATE_ENGINES[activeTpl].name}`,
+          data: { templateId: activeTpl, device: scope, designOverrides: curTplOv },
         };
       }
+
       const nextDesign: TemplateDesignOverrides = {
         ...(scopedMap[activeTpl] || bp.designOverrides || {}),
       };
+      const targetSlice: Record<string, any> =
+        scope === 'all'
+          ? nextDesign
+          : { ...((nextDesign.responsive && nextDesign.responsive[scope]) || {}) };
+
       const changed: string[] = [];
+
+      // Site/template-level colors, typography & section variant choices
       const accent = normalizeSafeHex(args.accentColor);
       if (accent) {
         nextDesign.accentColor = accent;
@@ -585,13 +726,40 @@ export function executeBlueprintMcpTool(
         nextDesign.fontMood = args.fontMood;
         changed.push(`font=${args.fontMood}`);
       }
+      if (args.servicesLayout === 'editorial_list' || args.servicesLayout === 'card_grid' || args.servicesLayout === 'compact_menu') {
+        nextDesign.servicesLayout = args.servicesLayout;
+        changed.push(`servicesLayout=${args.servicesLayout}`);
+      }
+
+      // Breakpoint-isolatable layout, padding, hero & grid properties (all / mobile / tablet / desktop)
+      if (
+        args.heroLayout === 'split' ||
+        args.heroLayout === 'centered' ||
+        args.heroLayout === 'full_bleed' ||
+        args.heroLayout === 'minimal_card'
+      ) {
+        targetSlice.heroLayout = args.heroLayout;
+        changed.push(`${scope}:heroLayout=${args.heroLayout}`);
+      }
+      if (args.heroTextAlign === 'left' || args.heroTextAlign === 'center') {
+        targetSlice.heroTextAlign = args.heroTextAlign;
+        changed.push(`${scope}:heroAlign=${args.heroTextAlign}`);
+      }
+      if (typeof args.hideHeroImage === 'boolean') {
+        targetSlice.hideHeroImage = args.hideHeroImage;
+        changed.push(`${scope}:hideHeroImage=${args.hideHeroImage}`);
+      }
+      if (args.fontScale === 'compact' || args.fontScale === 'normal' || args.fontScale === 'large') {
+        targetSlice.fontScale = args.fontScale;
+        changed.push(`${scope}:fontScale=${args.fontScale}`);
+      }
       if (args.pagePaddingX === 'compact' || args.pagePaddingX === 'normal' || args.pagePaddingX === 'spacious') {
-        nextDesign.pagePaddingX = args.pagePaddingX;
-        changed.push(`paddingX=${args.pagePaddingX}`);
+        targetSlice.pagePaddingX = args.pagePaddingX;
+        changed.push(`${scope}:paddingX=${args.pagePaddingX}`);
       }
       if (args.sectionSpacing === 'compact' || args.sectionSpacing === 'normal' || args.sectionSpacing === 'airy') {
-        nextDesign.sectionSpacing = args.sectionSpacing;
-        changed.push(`spacing=${args.sectionSpacing}`);
+        targetSlice.sectionSpacing = args.sectionSpacing;
+        changed.push(`${scope}:spacing=${args.sectionSpacing}`);
       }
       if (
         args.heroImageAspect === 'auto' ||
@@ -600,13 +768,13 @@ export function executeBlueprintMcpTool(
         args.heroImageAspect === 'portrait' ||
         args.heroImageAspect === 'wide'
       ) {
-        nextDesign.heroImageAspect = args.heroImageAspect;
-        changed.push(`heroAspect=${args.heroImageAspect}`);
+        targetSlice.heroImageAspect = args.heroImageAspect;
+        changed.push(`${scope}:heroAspect=${args.heroImageAspect}`);
       }
       if (typeof args.heroImageMaxHeight === 'number' && !Number.isNaN(args.heroImageMaxHeight)) {
-        const clamped = Math.min(680, Math.max(180, Math.round(args.heroImageMaxHeight)));
-        nextDesign.heroImageMaxHeight = clamped;
-        changed.push(`heroMaxH=${clamped}px`);
+        const clamped = Math.min(680, Math.max(140, Math.round(args.heroImageMaxHeight)));
+        targetSlice.heroImageMaxHeight = clamped;
+        changed.push(`${scope}:heroMaxH=${clamped}px`);
       }
       if (
         args.heroImageShape === 'arch' ||
@@ -614,18 +782,31 @@ export function executeBlueprintMcpTool(
         args.heroImageShape === 'card' ||
         args.heroImageShape === 'circle'
       ) {
-        nextDesign.heroImageShape = args.heroImageShape;
-        changed.push(`heroShape=${args.heroImageShape}`);
+        targetSlice.heroImageShape = args.heroImageShape;
+        changed.push(`${scope}:heroShape=${args.heroImageShape}`);
       }
       if (args.heroImageFit === 'cover' || args.heroImageFit === 'contain') {
-        nextDesign.heroImageFit = args.heroImageFit;
-        changed.push(`heroFit=${args.heroImageFit}`);
+        targetSlice.heroImageFit = args.heroImageFit;
+        changed.push(`${scope}:heroFit=${args.heroImageFit}`);
       }
       if (typeof args.galleryColumns === 'number' && !Number.isNaN(args.galleryColumns)) {
         const cols = Math.min(4, Math.max(1, Math.round(args.galleryColumns)));
-        nextDesign.galleryColumns = cols;
-        changed.push(`galleryCols=${cols}`);
+        targetSlice.galleryColumns = cols;
+        changed.push(`${scope}:galleryCols=${cols}`);
       }
+      if (typeof args.servicesColumns === 'number' && !Number.isNaN(args.servicesColumns)) {
+        const cols = Math.min(3, Math.max(1, Math.round(args.servicesColumns)));
+        targetSlice.servicesColumns = cols;
+        changed.push(`${scope}:servicesCols=${cols}`);
+      }
+
+      if (scope !== 'all') {
+        nextDesign.responsive = {
+          ...(nextDesign.responsive || {}),
+          [scope]: targetSlice,
+        };
+      }
+
       scopedMap[activeTpl] = nextDesign;
       bp.templateDesignOverrides = scopedMap;
       bp.designOverrides = nextDesign;
@@ -635,12 +816,114 @@ export function executeBlueprintMcpTool(
         blueprint: bp,
         changeSummary:
           changed.length > 0
-            ? `Customized ${TEMPLATE_ENGINES[activeTpl].name} design (${changed.join(', ')})`
+            ? `Customized ${TEMPLATE_ENGINES[activeTpl].name} (${changed.join(', ')})`
             : 'No valid design or layout tokens specified',
         ...(changed.length === 0
-          ? { error: 'Pass hex colors, buttonRadius, fontMood, pagePaddingX, sectionSpacing, heroImage*, or galleryColumns.' }
+          ? { error: 'Pass colors, heroLayout, servicesLayout, device overrides, spacing, or heroImage* parameters.' }
           : {}),
-        data: { templateId: activeTpl, designOverrides: nextDesign },
+        data: { templateId: activeTpl, device: scope, designOverrides: nextDesign },
+      };
+    }
+
+    case 'reorder_sections': {
+      const activeTpl = resolveTemplateEngineId(bp.templateId);
+      const validKeys = ['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking'];
+      const rawOrder = Array.isArray(args.order) ? args.order : [];
+      const cleaned = Array.from(
+        new Set(
+          rawOrder
+            .map((k: any) => String(k || '').trim().toLowerCase())
+            .filter((k: string) => validKeys.includes(k))
+        )
+      );
+      if (cleaned.length === 0) {
+        return {
+          ok: false,
+          blueprint: bp,
+          changeSummary: 'Invalid section order',
+          error: `Provide an order array using: ${validKeys.join(', ')}`,
+        };
+      }
+      const scopedMap: Record<string, TemplateDesignOverrides> = { ...(bp.templateDesignOverrides || {}) };
+      const nextDesign: TemplateDesignOverrides = {
+        ...(scopedMap[activeTpl] || bp.designOverrides || {}),
+        sectionOrder: cleaned,
+      };
+      scopedMap[activeTpl] = nextDesign;
+      bp.templateDesignOverrides = scopedMap;
+      bp.designOverrides = nextDesign;
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: true,
+        blueprint: bp,
+        changeSummary: `Reordered sections: ${cleaned.join(' → ')}`,
+        data: { templateId: activeTpl, sectionOrder: cleaned },
+      };
+    }
+
+    case 'upsert_custom_section': {
+      const title = String(args.title || '').trim().slice(0, 100);
+      const list = bp.customSections || [];
+      if (args.remove) {
+        const next = list.filter(
+          (s) => !(args.id && s.id === args.id) && !(title && s.title.toLowerCase() === title.toLowerCase())
+        );
+        bp.customSections = next;
+        bp.updatedAt = new Date().toISOString();
+        return {
+          ok: next.length < list.length,
+          blueprint: bp,
+          changeSummary: next.length < list.length ? 'Removed custom section' : 'Custom section not found',
+          ...(next.length === list.length ? { error: 'No matching custom section found.' } : {}),
+        };
+      }
+      if (!title) {
+        return { ok: false, blueprint: bp, changeSummary: 'Missing section title', error: 'title is required.' };
+      }
+      const validLayouts = ['cards', 'checklist', 'hours_info', 'banner_cta'] as const;
+      const layout = validLayouts.includes(args.layout) ? args.layout : 'cards';
+      const parsedItems: Array<{ label: string; detail: string }> = Array.isArray(args.items)
+        ? args.items
+            .map((it: any) => {
+              if (typeof it === 'string') {
+                const [l, ...rest] = it.split(':');
+                return { label: (l || '').trim().slice(0, 80), detail: rest.join(':').trim().slice(0, 220) };
+              }
+              return {
+                label: String(it?.label || '').trim().slice(0, 80),
+                detail: String(it?.detail || '').trim().slice(0, 220),
+              };
+            })
+            .filter((it: { label: string; detail: string }) => Boolean(it.label || it.detail))
+            .slice(0, 10)
+        : [];
+
+      const idx = list.findIndex(
+        (s) => (args.id && s.id === args.id) || s.title.toLowerCase() === title.toLowerCase()
+      );
+      const entry = {
+        id: idx >= 0 ? list[idx].id : `sec-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+        title,
+        ...(typeof args.eyebrow === 'string' && args.eyebrow.trim() ? { eyebrow: args.eyebrow.trim().slice(0, 40) } : {}),
+        ...(typeof args.subtitle === 'string' && args.subtitle.trim() ? { subtitle: args.subtitle.trim().slice(0, 260) } : {}),
+        layout,
+        items: parsedItems,
+        ...(typeof args.ctaText === 'string' && args.ctaText.trim() ? { ctaText: args.ctaText.trim().slice(0, 50) } : {}),
+        ...(typeof args.ctaHref === 'string' && args.ctaHref.trim() ? { ctaHref: args.ctaHref.trim().slice(0, 120) } : {}),
+      };
+      if (idx >= 0) {
+        list[idx] = entry;
+        bp.customSections = list;
+      } else {
+        bp.customSections = [...list, entry];
+      }
+      bp.sectionVisibility = { ...(bp.sectionVisibility || {}), custom: true };
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: true,
+        blueprint: bp,
+        changeSummary: `${idx >= 0 ? 'Updated' : 'Added'} custom section "${title}" (${layout})`,
+        data: { section: entry },
       };
     }
 

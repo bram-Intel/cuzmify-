@@ -171,20 +171,46 @@ export interface AppointmentRemindersModuleConfig {
 }
 
 // ── 9. Template Engine Overrides & Rich Sections ──────────────────────────
-export interface TemplateDesignOverrides {
+export interface DeviceDesignOverrides {
+  pagePaddingX?: 'compact' | 'normal' | 'spacious';
+  sectionSpacing?: 'compact' | 'normal' | 'airy';
+  heroLayout?: 'split' | 'centered' | 'full_bleed' | 'minimal_card';
+  heroImageAspect?: 'auto' | 'square' | 'landscape' | 'portrait' | 'wide';
+  heroImageMaxHeight?: number;
+  heroImageShape?: 'arch' | 'rounded' | 'card' | 'circle';
+  heroImageFit?: 'cover' | 'contain';
+  heroTextAlign?: 'left' | 'center';
+  galleryColumns?: number;
+  servicesColumns?: number;
+  fontScale?: 'compact' | 'normal' | 'large';
+  hideHeroImage?: boolean;
+}
+
+export interface TemplateDesignOverrides extends DeviceDesignOverrides {
   accentColor?: string;
   backgroundColor?: string;
   surfaceColor?: string;
   textColor?: string;
   buttonRadius?: 'pill' | 'rounded' | 'sharp';
   fontMood?: 'editorial_serif' | 'modern_sans' | 'bold_display';
-  pagePaddingX?: 'compact' | 'normal' | 'spacious';
-  sectionSpacing?: 'compact' | 'normal' | 'airy';
-  heroImageAspect?: 'auto' | 'square' | 'landscape' | 'portrait' | 'wide';
-  heroImageMaxHeight?: number;
-  heroImageShape?: 'arch' | 'rounded' | 'card' | 'circle';
-  heroImageFit?: 'cover' | 'contain';
-  galleryColumns?: number;
+  servicesLayout?: 'editorial_list' | 'card_grid' | 'compact_menu';
+  sectionOrder?: string[];
+  responsive?: {
+    mobile?: DeviceDesignOverrides;
+    tablet?: DeviceDesignOverrides;
+    desktop?: DeviceDesignOverrides;
+  };
+}
+
+export interface BlueprintCustomSection {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  layout: 'cards' | 'checklist' | 'hours_info' | 'banner_cta';
+  items?: Array<{ label: string; detail: string }>;
+  ctaText?: string;
+  ctaHref?: string;
 }
 
 export interface BlueprintTestimonialItem {
@@ -222,6 +248,7 @@ export interface BusinessBlueprint {
   sectionVisibility?: Record<string, boolean>;
   designOverrides?: TemplateDesignOverrides;
   templateDesignOverrides?: Record<string, TemplateDesignOverrides>;
+  customSections?: BlueprintCustomSection[];
   testimonials?: BlueprintTestimonialItem[];
   faqs?: BlueprintFaqItem[];
   updatedAt: string;

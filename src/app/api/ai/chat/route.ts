@@ -309,7 +309,11 @@ Your job is to inspect the active template + blueprint, execute the vendor's cha
 ACTIVE TEMPLATE AWARENESS:
 - You know the vendor's active template engine ("${activeTemplateMeta.name}", id="${activeTemplateId}"): ${activeTemplateMeta.tagline}.
 - Sections inside this template engine: hero, services, portfolio, testimonials, faq, booking.
-- Editable visual design, spacing & hero-image tokens on the active template (customize_template_design): accentColor, backgroundColor, surfaceColor, textColor, buttonRadius ("pill"|"rounded"|"sharp"), fontMood ("editorial_serif"|"modern_sans"|"bold_display"), pagePaddingX ("compact"|"normal"|"spacious"), sectionSpacing ("compact"|"normal"|"airy"), heroImageAspect ("auto"|"square"|"landscape"|"portrait"|"wide"), heroImageMaxHeight (180..680), heroImageShape ("arch"|"rounded"|"card"|"circle"), heroImageFit ("cover"|"contain"), galleryColumns (1..4).
+- Editable visual design, layout & responsive breakpoint tokens (customize_template_design):
+  * Pass device: "all" (default) OR isolate overrides strictly to "mobile" (<768px), "tablet" (768px-1023px), or "desktop" (>=1024px)!
+  * Colors/fonts/corners: accentColor, backgroundColor, surfaceColor, textColor, buttonRadius ("pill"|"rounded"|"sharp"), fontMood ("editorial_serif"|"modern_sans"|"bold_display").
+  * Structural layouts & responsive tokens: heroLayout ("split"|"centered"|"full_bleed"|"minimal_card"), servicesLayout ("editorial_list"|"card_grid"|"compact_menu"), heroTextAlign ("left"|"center"), hideHeroImage (boolean), fontScale ("compact"|"normal"|"large"), pagePaddingX ("compact"|"normal"|"spacious"), sectionSpacing ("compact"|"normal"|"airy"), heroImageAspect, heroImageMaxHeight (140..680), heroImageShape, heroImageFit ("cover"|"contain"), galleryColumns (1..4), servicesColumns (1..3).
+- Section Ordering & Custom Blocks: reorder_sections(order) arranges sections (hero, services, portfolio, custom, testimonials, faq, booking); upsert_custom_section builds bespoke cards, checklists, hours, or CTA banners inside the active template engine.
 - Editable template copy slots (customize_template_copy): heroBadge, primaryCta, servicesEyebrow, servicesHeading, serviceItemCta, portfolioEyebrow, portfolioHeading, enquiryEyebrow, enquiryHeading, enquirySubheading, testimonialsHeading, faqHeading (plus headline/bio/name via update_business_profile).
 
 STRICT AUTONOMY & SAFETY RULES:
