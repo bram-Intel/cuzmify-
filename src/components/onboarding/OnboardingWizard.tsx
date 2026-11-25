@@ -23,9 +23,12 @@ import {
 import { AuthGate } from '@/components/auth/AuthGate';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { SUPPORTED_CURRENCIES, type CurrencyCode } from '@/core/blueprint-schema';
+import { SUPPORTED_CURRENCIES, type CurrencyCode, type MediaVaultAsset } from '@/core/blueprint-schema';
 import { NICHE_LIST, resolveNicheBlueprint, type NicheId } from '@/core/niche-blueprints';
 import { TEMPLATE_ENGINE_LIST, resolveTemplateEngineId, type TemplateEngineId } from '@/core/template-engines';
+import { compressImageFileToWebP } from '@/lib/image-compress';
+import { loadOnboardingDraftMedia, saveOnboardingDraftMedia } from '@/lib/onboarding-media-draft';
+import { UploadCloud, X, Star } from 'lucide-react';
 
 const CURRENCY_OPTIONS: CurrencyCode[] = ['NGN', 'USD', 'GBP', 'EUR', 'KES', 'ZAR', 'CAD', 'AED'];
 
@@ -52,8 +55,11 @@ function WizardContent() {
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [instagramHandle, setInstagramHandle] = useState('');
   const [mediaCount, setMediaCount] = useState<number>(0);
+  const [uploadedAssets, setUploadedAssets] = useState<MediaVaultAsset[]>([]);
+  const [isCompressingPhotos, setIsCompressingPhotos] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [isCreatingSite, setIsCreatingSite] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const hasInitializedRef = useRef(false);
 
@@ -95,7 +101,64 @@ function WizardContent() {
       const parsed = parseInt(stepFromUrl, 10);
       if (parsed >= 1 && parsed <= 4) setStep(parsed as 1 | 2 | 3 | 4);
     }
+    const existingDrafts = loadOnboardingDraftMedia();
+    if (existingDrafts.length > 0) {
+      setUploadedAssets(existingDrafts);
+    }
   }, [searchParams]);
+
+  const handleGalleryPhotosSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setIsCompressingPhotos(true);
+    try {
+      const newlyCompressed: MediaVaultAsset[] = [];
+      for (const file of files.slice(0, 8)) {
+        if (!file.type.startsWith('image/')) continue;
+        const webp = await compressImageFileToWebP(file, 1000, 0.78);
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').slice(0, 40) || 'Portfolio Shot';
+        newlyCompressed.push({
+          id: `mv-up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          url: webp,
+          thumbnailUrl: webp,
+          name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+          type: 'gallery',
+          source: 'upload',
+          addedAt: new Date().toISOString(),
+        });
+      }
+      if (newlyCompressed.length > 0) {
+        const merged = [...uploadedAssets, ...newlyCompressed].slice(0, 10).map((a, idx) => ({
+          ...a,
+          type: (idx === 0 ? 'hero' : 'gallery') as MediaVaultAsset['type'],
+        }));
+        setUploadedAssets(merged);
+        saveOnboardingDraftMedia(merged);
+      }
+    } finally {
+      setIsCompressingPhotos(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSetDraftCover = (id: string) => {
+    const chosen = uploadedAssets.find((a) => a.id === id);
+    if (!chosen) return;
+    const next = [chosen, ...uploadedAssets.filter((a) => a.id !== id)].map((a, idx) => ({
+      ...a,
+      type: (idx === 0 ? 'hero' : 'gallery') as MediaVaultAsset['type'],
+    }));
+    setUploadedAssets(next);
+    saveOnboardingDraftMedia(next);
+  };
+
+  const handleRemoveDraftPhoto = (id: string) => {
+    const next = uploadedAssets
+      .filter((a) => a.id !== id)
+      .map((a, idx) => ({ ...a, type: (idx === 0 ? 'hero' : 'gallery') as MediaVaultAsset['type'] }));
+    setUploadedAssets(next);
+    saveOnboardingDraftMedia(next);
+  };
 
   const activeNiche = NICHE_LIST.find((n) => n.id === nicheId) || NICHE_LIST[0];
 
@@ -121,10 +184,12 @@ function WizardContent() {
           currency: selectedCurrency,
           whatsappPhone,
           instagramHandle: instagramHandle || undefined,
+          ...(uploadedAssets.length > 0 ? { mediaVault: uploadedAssets } : {}),
         }),
       });
       const data = await res.json();
       if (res.ok && data?.site?.id) {
+        saveOnboardingDraftMedia([]);
         const params = new URLSearchParams({
           projectId: data.site.id,
           name: finalName,
@@ -387,8 +452,90 @@ function WizardContent() {
                   </button>
 
                   <p className="text-[11px] text-[#64748B] leading-relaxed">
-                    Requires a free Instagram <strong>Creator</strong> or <strong>Business</strong> profile. On a personal account? No problem—you can upload photos from your phone camera roll inside the editor.
+                    Requires a whitelisted Instagram <strong>Creator</strong> or <strong>Business</strong> account while in Beta, or upload your photos directly below.
                   </p>
+                </SpotlightCard>
+
+                {/* Alternative First-Class Option: Direct Multi-Photo Gallery Upload */}
+                <SpotlightCard className="p-4 sm:p-5 rounded-2xl bg-[#FFFFFF] border border-[#E2E8F0] shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#0D5771]/10 flex items-center justify-center text-[#0D5771] shrink-0">
+                        <UploadCloud className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-[#1A202C]">Upload Photos From Phone Gallery</h3>
+                        <p className="text-[11px] text-[#64748B]">Pick 1–8 portfolio shots directly (auto-compressed WebP)</p>
+                      </div>
+                    </div>
+                    {uploadedAssets.length > 0 && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold shrink-0">
+                        {uploadedAssets.length} Ready
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleGalleryPhotosSelected}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    disabled={isCompressingPhotos}
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-dashed border-[#0D5771]/50 text-[#0D5771] font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isCompressingPhotos ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Optimizing photos for fast loading…</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-4 h-4" />
+                        <span>{uploadedAssets.length > 0 ? '+ Add More Gallery Photos' : 'Choose Photos From Device'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  {uploadedAssets.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 pt-1">
+                      {uploadedAssets.map((asset, idx) => (
+                        <div key={asset.id} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={asset.url} alt={asset.name} className="w-full h-full object-cover" />
+                          {idx === 0 ? (
+                            <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-[#0D5771] text-white text-[8px] font-mono font-bold">
+                              COVER
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDraftCover(asset.id)}
+                              title="Set as hero cover image"
+                              className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[8px] font-bold flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <Star className="w-2.5 h-2.5 text-amber-300" />
+                              Cover
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDraftPhoto(asset.id)}
+                            title="Remove photo"
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </SpotlightCard>
 
                 <SpotlightCard className="p-4 sm:p-5 rounded-2xl bg-[#FFFFFF] border border-[#E2E8F0] shadow-2xs space-y-3">

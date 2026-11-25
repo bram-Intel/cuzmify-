@@ -56,6 +56,24 @@ export async function POST(req: Request) {
     let onboardingIgToken: string | undefined;
     let onboardingIgExpiresAt: Date | undefined;
 
+    if (Array.isArray(body.mediaVault) && body.mediaVault.length > 0) {
+      const uploadedItems: MediaVaultAsset[] = body.mediaVault
+        .slice(0, 12)
+        .filter((m: any) => m && typeof m.url === 'string' && (m.url.startsWith('data:image/') || m.url.startsWith('http') || m.url.startsWith('/api/')))
+        .map((m: any, idx: number) => ({
+          id: typeof m.id === 'string' ? m.id : `mv-onb-${Date.now()}-${idx}`,
+          url: m.url,
+          thumbnailUrl: typeof m.thumbnailUrl === 'string' ? m.thumbnailUrl : m.url,
+          name: typeof m.name === 'string' ? m.name.slice(0, 60) : `Portfolio Photo ${idx + 1}`,
+          type: idx === 0 ? 'hero' : (m.type || 'gallery'),
+          source: m.source === 'instagram' ? 'instagram' : 'upload',
+          addedAt: m.addedAt || new Date().toISOString(),
+        }));
+      if (uploadedItems.length > 0) {
+        hydratedMedia = [...uploadedItems, ...hydratedMedia.filter((ig) => !uploadedItems.some((u) => u.id === ig.id))].slice(0, 16);
+      }
+    }
+
     try {
       const cookieStore = await cookies();
       const mediaCookie = cookieStore.get('cuzmify_ig_media')?.value;

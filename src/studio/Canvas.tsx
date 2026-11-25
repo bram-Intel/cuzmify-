@@ -7,6 +7,7 @@ import { EditorService } from './engine/EditorService';
 import { Lock, Sparkles } from 'lucide-react';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine } from '@/core/template-engines';
+import { clearOnboardingDraftMedia, loadOnboardingDraftMedia } from '@/lib/onboarding-media-draft';
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -180,6 +181,19 @@ export function Canvas() {
       service.loadHtml(rendered.fullHtml, 'Initial Template', 'initial');
       service.sanitizeCanvas();
       setIsCanvasLoading(false);
+    }
+
+    // Hydrate gallery photos uploaded during Onboarding Step 2 (survives Google/Email auth redirect)
+    const draftOnboardingMedia = loadOnboardingDraftMedia();
+    if (draftOnboardingMedia.length > 0) {
+      const existingVault = service.getMediaVault();
+      const merged = [
+        ...draftOnboardingMedia,
+        ...existingVault.filter((ex) => !draftOnboardingMedia.some((d) => d.id === ex.id)),
+      ].slice(0, 20);
+      service.setMediaVault(merged);
+      service.syncCanvasWithBlueprint();
+      clearOnboardingDraftMedia();
     }
 
     // 3. Instagram Media Hydration (Cookie / URL Params / OAuth Returning)

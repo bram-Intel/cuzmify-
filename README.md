@@ -172,3 +172,16 @@ Use these exact URLs inside **Meta for Developers → App (`INSTAGRAM_CLIENT_ID`
 
 **Vercel Environment Variable Check:** Ensure `INSTAGRAM_REDIRECT_URI` on Vercel is either unset (dynamic `${origin}`) or explicitly set to `https://cuzmify.vercel.app/api/auth/instagram/callback`—never `http://localhost:3000/...`.
 
+---
+
+## 9. Non-Instagram Multi-Photo Uploads & Cuzmify MCP Server
+
+Vendors who cannot or prefer not to connect Instagram OAuth have a full first-class asset workflow, and all site mutations are exposed via a standard Model Context Protocol (MCP) server:
+
+- **Multi-Photo Phone Gallery Upload (`OnboardingWizard.tsx` + `src/lib/onboarding-media-draft.ts`):** During Onboarding Step 2, vendors can pick multiple photos directly from their phone or desktop gallery (WebP-compressed client-side up to 1,000px), designate any image as the Hero **Cover**, and persist drafts across NextAuth OAuth/Email sign-in redirects into `POST /api/sites` and `Canvas.tsx`.
+- **Studio Media Vault Batch & Hero Controls (`StudioInfrastructureHub.tsx`):** Batch gallery upload (`multiple`) works identically on mobile & desktop, with 1-tap **`★ Set Hero`** (`promoteMediaToHero(id)`) to feature any photo in the Hero section without needing desktop GrapesJS canvas clicks.
+- **Cuzmify MCP Tool Layer (`src/lib/mcp/cuzmify-tools.ts`):** Single source of truth defining 10 deterministic tools (`get_site_blueprint`, `update_business_profile`, `upsert_service_package`, `delete_service_package`, `switch_template_style`, `switch_niche_blueprint`, `configure_whatsapp`, `promote_media_to_hero`, `list_enquiries`, `publish_site`).
+- **Streamable JSON-RPC 2.0 MCP Server (`/api/mcp` & `/api/mcp/token`):** Authenticated via Bearer token (`czm_<userId>.<hmac>`) or NextAuth session so external MCP clients (ChatGPT Apps, Claude Desktop, Cursor) can inspect and edit live Cuzmify sites and persist rendered template HTML straight to PostgreSQL.
+- **MCP-Powered AI Copilot (`/api/ai/chat` + `AIPanel.tsx`):** Untargeted AI chat requests in both Mobile Studio and Desktop Studio use Gemini native function calling over the same Cuzmify MCP tools with snapshot rollback support.
+
+

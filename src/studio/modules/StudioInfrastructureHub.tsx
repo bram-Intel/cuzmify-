@@ -106,6 +106,49 @@ export function StudioInfrastructureHub({
   const [uploadedFilePreview, setUploadedFilePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const batchUploadRef = React.useRef<HTMLInputElement>(null);
+
+  const handleBatchGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !service) return;
+    setIsUploading(true);
+    let addedCount = 0;
+    try {
+      for (const file of files.slice(0, 10)) {
+        if (file.size > 15 * 1024 * 1024) continue;
+        const isVideo = file.type.startsWith('video/');
+        const dataUrl = isVideo
+          ? await new Promise<string>((res, rej) => {
+              const r = new FileReader();
+              r.onload = () => res(r.result as string);
+              r.onerror = rej;
+              r.readAsDataURL(file);
+            })
+          : await compressImageFileToWebP(file, 1200, 0.8);
+
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        service.addMediaAsset({
+          url: dataUrl,
+          thumbnailUrl: isVideo ? undefined : dataUrl,
+          name: cleanName ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) : 'Uploaded Photo',
+          type: isVideo ? 'video' : 'gallery',
+          source: 'upload',
+        });
+        addedCount++;
+      }
+      if (addedCount > 0) {
+        service.syncCanvasWithBlueprint();
+        handleSave(true);
+        setSaveToast(`✨ Uploaded ${addedCount} ${addedCount === 1 ? 'asset' : 'photos'} to your portfolio!`);
+        setTimeout(() => setSaveToast(null), 3000);
+      }
+    } catch {
+      alert('Some files could not be processed. Please try smaller images.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -900,19 +943,37 @@ export function StudioInfrastructureHub({
           {/* ── 4. MEDIA VAULT & EXTRACTED ASSETS TAB ── */}
           {activeTab === 'media' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-base font-extrabold text-slate-900 font-display">Portfolio &amp; Media Vault</h2>
-                  <p className="text-xs text-slate-500">Sync Instagram posts or upload photos from your phone</p>
+                  <p className="text-xs text-slate-500">Sync Instagram posts or upload multiple photos straight from your phone</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddMedia(!showAddMedia)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-4 h-4 shrink-0" />
-                  <span>Upload Photo</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    ref={batchUploadRef}
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={handleBatchGalleryUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={isUploading}
+                    onClick={() => batchUploadRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50"
+                  >
+                    {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4 shrink-0" />}
+                    <span>{isUploading ? 'Optimizing…' : 'Upload Photos'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMedia(!showAddMedia)}
+                    className="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    + By URL
+                  </button>
+                </div>
               </div>
 
               {/* Instagram Live Connection & Auto-Sync Card */}
@@ -1345,16 +1406,35 @@ export function StudioInfrastructureHub({
                           </div>
                         )}
 
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
                           <button
+                            type="button"
                             onClick={() => {
-                              service.applyMediaToSelected(asset.type === 'video' ? (asset.thumbnailUrl || asset.url) : asset.url, asset.name);
-                              setSaveToast(`✦ Applied "${asset.name}" to canvas`);
-                              setTimeout(() => setSaveToast(null), 2500);
+                              service.promoteMediaToHero(asset.id);
+                              handleSave(true);
+                              setSaveToast(`★ "${asset.name}" is now your Hero Cover photo!`);
+                              setTimeout(() => setSaveToast(null), 2800);
                             }}
-                            className="flex-1 py-1.5 px-2 rounded-lg bg-[#0D5771]/10 hover:bg-[#0D5771] text-[#0D5771] hover:text-white text-[10px] font-bold transition-all cursor-pointer text-center"
+                            className="flex-1 py-1.5 px-2 rounded-lg bg-[#0D5771]/10 hover:bg-[#0D5771] text-[#0D5771] hover:text-white text-[10px] font-bold transition-all cursor-pointer text-center whitespace-nowrap"
+                            title="Feature this image at the top Hero section of your website"
                           >
-                            Apply to Selected
+                            ★ Set Hero
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const applied = service.applyMediaToSelected(asset.type === 'video' ? (asset.thumbnailUrl || asset.url) : asset.url, asset.name);
+                              if (applied) {
+                                setSaveToast(`✦ Applied "${asset.name}" to selected element`);
+                              } else {
+                                setSaveToast('Click an image on the Desktop canvas first, or tap ★ Set Hero.');
+                              }
+                              setTimeout(() => setSaveToast(null), 2800);
+                            }}
+                            className="hidden lg:inline-block py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap"
+                            title="Apply to the currently selected Desktop canvas element"
+                          >
+                            Replace Selected
                           </button>
                           {asset.instagramPostUrl && (
                             <a

@@ -189,6 +189,18 @@ export class BlueprintManager {
     this.touch();
   }
 
+  public promoteMediaToHero(id: string): MediaVaultAsset | null {
+    const idx = this.blueprint.mediaVault.findIndex((m) => m.id === id);
+    if (idx === -1) return null;
+    const picked = { ...this.blueprint.mediaVault[idx], type: 'hero' as const };
+    const rest = this.blueprint.mediaVault
+      .filter((m) => m.id !== id)
+      .map((m, i) => (i === 0 && m.type === 'hero' ? { ...m, type: 'gallery' as const } : m));
+    this.blueprint.mediaVault = [picked, ...rest];
+    this.touch();
+    return picked;
+  }
+
   // ── Dynamic WhatsApp Formula Resolver ─────────────────────────────────────
   public generateWhatsAppLink(options: {
     type: 'booking' | 'order' | 'general';

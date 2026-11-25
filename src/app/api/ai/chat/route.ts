@@ -1,22 +1,26 @@
 import { NextResponse } from 'next/server';
+import { FunctionCallingMode } from '@google/generative-ai';
 import { getGeminiClient } from '@/lib/gemini';
 import type { ThemeName } from '@/core/project-schema';
+import { createDefaultBlueprint, type BusinessBlueprint } from '@/core/blueprint-schema';
+import { TEMPLATE_ENGINES } from '@/core/template-engines';
+import { toGeminiFunctionDeclarations, executeBlueprintMcpTool } from '@/lib/mcp/cuzmify-tools';
 
 export const maxDuration = 120; // Allow full AI visual synthesis on Vercel/Node
 
 // ── Intent Classifier ─────────────────────────────────────────────────────────
 type PromptIntent =
-  | 'style-only'        // Pure theme token swap — never touches HTML
-  | 'element-style'     // Targeted element edit (targetElement provided)
-  | 'add-section'       // Append a new section, existing sections are read-only
-  | 'full-transform'    // DEFAULT: Restyle the full site — structure is LOCKED
+  | 'mcp-tools'         // DEFAULT untargeted path: structured Gemini MCP tool-calling
+  | 'element-style'     // Targeted GrapesJS element edit (targetElement provided)
+  | 'add-section'       // Append a new HTML section in desktop GrapesJS
+  | 'full-transform'    // Restyle full HTML visuals while preserving sections
   | 'full-rebuild';     // Explicit wipe & rebuild (user said so explicitly)
 
 function classifyIntent(prompt: string, hasTarget: boolean): PromptIntent {
   if (hasTarget) return 'element-style';
   const p = prompt.toLowerCase();
 
-  // Pure unconstrained rebuild — only when user explicitly says so
+  // Pure unconstrained HTML rebuild — only when user explicitly asks
   if (
     (p.includes('redesign') && p.includes('everything')) ||
     p.includes('start fresh') || p.includes('rebuild the site') ||
@@ -24,13 +28,7 @@ function classifyIntent(prompt: string, hasTarget: boolean): PromptIntent {
     p.includes('full redesign') || p.includes('start over')
   ) return 'full-rebuild';
 
-  // Pure style/theme token swap — no HTML needed at all
-  if (
-    (p.includes('change theme') || p.includes('switch theme') || p.includes('apply theme')) &&
-    !p.includes('transform') && !p.includes('design') && !p.includes('make')
-  ) return 'style-only';
-
-  // Append-only: add new sections, never touch existing
+  // Append-only HTML section for desktop visual canvas
   if (
     p.includes('add a section') || p.includes('insert a section') ||
     p.includes('new section') || p.includes('include a section') ||
@@ -41,8 +39,9 @@ function classifyIntent(prompt: string, hasTarget: boolean): PromptIntent {
     ))
   ) return 'add-section';
 
-  // Everything else = full-transform (structure-locked, visuals unlocked)
-  return 'full-transform';
+  // Default: Route untargeted edits (copy, packages, prices, templates, WhatsApp, hero cover, niches)
+  // through deterministic Cuzmify MCP tools so mobile & desktop share identical live guarantees.
+  return 'mcp-tools';
 }
 
 function detectTheme(prompt: string, currentTheme: ThemeName): ThemeName {
@@ -213,17 +212,7 @@ export async function POST(req: Request) {
     const isTargeted = Boolean(targetElement && targetElement.id);
     const intent = classifyIntent(message, isTargeted);
     const newTheme = detectTheme(message, currentTheme);
-
-    // ── FAST PATH: Pure theme token swap ──────────────────────────────────────
-    if (intent === 'style-only') {
-      return NextResponse.json({
-        success: true, source: 'style-fast-path', intent,
-        aiReply: `Applied the ${newTheme} theme. All sections, layout, and blueprint connections preserved exactly.`,
-        theme: newTheme,
-        changesApplied: [`Switched to "${newTheme}" theme`, 'Section structure untouched', 'Design tokens updated globally'],
-        updatedHtml: null, updatedElementHtml: null, blueprintUpdates: null,
-      });
-    }
+    const userPlan: 'free' | 'pro' = body.plan === 'pro' ? 'pro' : 'free';
 
     // ── GEMINI PATH ───────────────────────────────────────────────────────────
     const genAI = getGeminiClient();
@@ -236,8 +225,175 @@ export async function POST(req: Request) {
     const mediaVault = blueprint?.mediaVault || [];
     const services = blueprint?.modules?.services?.items || [];
     const products = blueprint?.modules?.products?.items || [];
-    const whatsappPhone = blueprint?.modules?.whatsapp?.phoneNumber || '18005554526';
+    const whatsappPhone = blueprint?.modules?.whatsapp?.phoneNumber || '';
     const isCartActive = blueprint?.modules?.cart?.enabled !== false;
+
+    // ── MCP TOOL-CALLING PATH (DEFAULT FOR UNTARGETED MOBILE & DESKTOP EDITS) ──
+    if (intent === 'mcp-tools') {
+      const workingBlueprint: BusinessBlueprint =
+        blueprint && blueprint.profile
+          ? JSON.parse(JSON.stringify(blueprint))
+          : createDefaultBlueprint({ name: profile?.name || 'My Studio' });
+
+      const templateOptions = Object.values(TEMPLATE_ENGINES)
+        .map((t) => `"${t.id}" (${t.name}: ${t.tagline})`)
+        .join(', ');
+
+      const mediaSummary = (workingBlueprint.mediaVault || [])
+        .slice(0, 12)
+        .map((m, idx) => `${idx + 1}. id="${m.id}" name="${m.name}" type="${m.type}"`);
+
+      const serviceSummary = (workingBlueprint.modules?.services?.items || [])
+        .slice(0, 15)
+        .map((s) => `- id="${s.id}" name="${s.name}" price=${s.price} priceMode="${s.priceMode}" enabled=${s.enabled}`);
+
+      const mcpSystemInstruction = `You are Cuzmify AI Copilot, wired directly to the website's Cuzmify MCP tools.
+Your job is to carry out the vendor's website changes deterministically using the available MCP tools so both Mobile Studio and Desktop Studio update cleanly and safely.
+
+RULES:
+1. For any request to update business name, headline, tagline, bio, city, country, email, currency, service packages/prices, template style, niche blueprint, WhatsApp booking phone/message, or Hero cover photo: CALL the matching MCP tool(s) immediately. You may call multiple tools in one response when asked to do several things.
+2. NEVER invent fake prices, durations, street addresses, or phone numbers the user did not provide. If the user asks to add a service without giving a price, pass priceMode: "quote" and omit price (or pass 0).
+3. Available templateId values: ${templateOptions}.
+4. Do NOT call get_site_blueprint unless specifically needed — the live blueprint snapshot is already provided below.
+5. Keep your final reply concise (1-2 friendly sentences) explaining what was updated or answering the user's question.`;
+
+      const mcpUserPrompt = `LIVE SITE BLUEPRINT:
+- Name: "${workingBlueprint.profile.name}"
+- Headline / Tagline: "${workingBlueprint.profile.tagline}"
+- Bio: "${workingBlueprint.profile.bio || ''}"
+- City/Country: "${workingBlueprint.profile.city || ''}", "${workingBlueprint.profile.country || ''}"
+- Currency: "${workingBlueprint.profile.currency}"
+- Niche: "${workingBlueprint.nicheId}"
+- Template: "${workingBlueprint.templateId}"
+- WhatsApp: "${workingBlueprint.modules?.whatsapp?.phoneNumber || '(not configured)'}"
+- Services (${workingBlueprint.modules?.services?.items?.length || 0} items, plan="${userPlan}"):
+${serviceSummary.join('\n') || '  (none yet)'}
+- Uploaded Media Vault (${workingBlueprint.mediaVault?.length || 0} photos):
+${mediaSummary.join('\n') || '  (no photos uploaded yet)'}
+
+VENDOR REQUEST: "${message}"`;
+
+      const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
+      let mcpLastError: any = null;
+
+      for (const modelName of candidateModels) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const mcpModel = genAI.getGenerativeModel({
+              model: modelName,
+              tools: [{ functionDeclarations: toGeminiFunctionDeclarations(false) }],
+              toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
+              generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 2048,
+              },
+              systemInstruction: mcpSystemInstruction,
+            });
+
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 45s`)), 45000)
+            );
+
+            const result: any = await Promise.race([
+              mcpModel.generateContent(mcpUserPrompt),
+              timeoutPromise,
+            ]);
+
+            const fnCalls =
+              typeof result?.response?.functionCalls === 'function'
+                ? result.response.functionCalls() || []
+                : [];
+
+            let bpCursor = workingBlueprint;
+            const toolCalls: Array<{
+              name: string;
+              args: Record<string, any>;
+              ok: boolean;
+              summary: string;
+              error?: string;
+            }> = [];
+            const changesApplied: string[] = [];
+            let templateSwitched = false;
+            let mutatedBlueprint = false;
+
+            for (const fnCall of fnCalls) {
+              if (!fnCall?.name) continue;
+              const args = (fnCall.args || {}) as Record<string, any>;
+              const exec = executeBlueprintMcpTool(fnCall.name, args, bpCursor, { plan: userPlan });
+              bpCursor = exec.blueprint;
+              if (exec.ok && fnCall.name !== 'get_site_blueprint') {
+                mutatedBlueprint = true;
+              }
+              if (fnCall.name === 'switch_template_style' && exec.ok) {
+                templateSwitched = true;
+              }
+              toolCalls.push({
+                name: fnCall.name,
+                args,
+                ok: exec.ok,
+                summary: exec.changeSummary,
+                ...(exec.error ? { error: exec.error } : {}),
+              });
+              if (exec.ok && exec.changeSummary) {
+                changesApplied.push(exec.changeSummary);
+              } else if (!exec.ok && exec.error) {
+                changesApplied.push(exec.error);
+              }
+            }
+
+            let textReply = '';
+            try {
+              textReply = result?.response?.text?.()?.trim() || '';
+            } catch {
+              textReply = '';
+            }
+
+            if (!textReply) {
+              if (changesApplied.length > 0) {
+                textReply = `Done! ${changesApplied.join(' · ')}.`;
+              } else {
+                textReply = 'How would you like to update your site? You can ask me to edit your headline, add services, change styles, or update WhatsApp.';
+              }
+            }
+
+            return NextResponse.json({
+              success: true,
+              source: 'gemini-mcp',
+              model: modelName,
+              intent: 'mcp-tools',
+              aiReply: textReply,
+              theme: currentTheme,
+              changesApplied,
+              toolCalls,
+              templateSwitched,
+              updatedBlueprint: mutatedBlueprint ? bpCursor : null,
+              updatedHtml: null,
+              updatedElementHtml: null,
+              blueprintUpdates: null,
+            });
+          } catch (candidateErr: any) {
+            mcpLastError = candidateErr;
+            const isTransient =
+              candidateErr?.message?.includes('503') ||
+              candidateErr?.message?.includes('429') ||
+              candidateErr?.message?.includes('high demand') ||
+              candidateErr?.message?.includes('fetch failed');
+
+            if (isTransient && attempt === 0) {
+              await new Promise((r) => setTimeout(r, 1500));
+              continue;
+            }
+            console.warn(`[AI Chat MCP] Model ${modelName} (attempt ${attempt + 1}) failed:`, candidateErr?.message);
+            break;
+          }
+        }
+      }
+
+      return NextResponse.json(
+        { error: `Gemini MCP Copilot failed: ${mcpLastError?.message || 'Google AI is temporarily busy.'}` },
+        { status: 503 }
+      );
+    }
 
     const sectionManifest = extractSectionManifest(currentHtml);
     const cuzmifyAttributes = extractCuzmifyAttributes(currentHtml);

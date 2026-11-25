@@ -23,11 +23,21 @@ import {
   Bot,
   User,
   History,
-  Terminal
+  Terminal,
+  Copy,
+  Wrench,
+  Code2,
 } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 import { useSession } from 'next-auth/react';
 import type { ThemeName } from '@/core/project-schema';
+
+export interface ToolCallSummary {
+  name: string;
+  ok: boolean;
+  summary: string;
+  error?: string;
+}
 
 export interface ChatMessage {
   id: string;
@@ -36,8 +46,10 @@ export interface ChatMessage {
   timestamp: string;
   changesApplied?: string[];
   executionSteps?: string[];
+  toolCalls?: ToolCallSummary[];
   theme?: ThemeName;
   snapshotHtml?: string;
+  snapshotBlueprint?: any;
   resultHtml?: string;
   targetInfo?: {
     id?: string;
@@ -50,29 +62,29 @@ const INITIAL_WELCOME: ChatMessage = {
   id: 'welcome-msg',
   role: 'assistant',
   content:
-    "Hi! Describe how you'd like to refine your copy, colors, or sections—or click any element on the canvas to edit it with AI.",
+    "Hi! Ask me to rewrite your headline or bio, add/price services, switch template styles, update WhatsApp, or click any element on desktop canvas to restyle it.",
   timestamp: 'Ready',
   executionSteps: [
-    'Connected to your real portfolio & service blueprint',
+    'Connected to Cuzmify MCP tools & live site blueprint',
   ],
 };
 
 const QUICK_ACTIONS = [
   {
-    label: '✨ Luxury Bridal Polish',
-    prompt: 'Refine my hero headline and bio to feel warm, editorial, and high-trust for bridal & event clients',
+    label: '✨ Bridal Headline & Bio',
+    prompt: 'Update my headline and bio to feel warm, editorial, and high-trust for bridal & event clients',
   },
   {
-    label: '📸 Photographer Showcase',
-    prompt: 'Make the headline punchy and minimal for a portrait & wedding photography studio',
+    label: '💼 Add Studio Package',
+    prompt: 'Add a Signature Studio Session service package priced on quote',
   },
   {
-    label: '⚡ Pill Booking Button',
-    prompt: 'Make the selected button a sleek modern pill shape with strong contrast',
+    label: '🖤 Dark Noir Style',
+    prompt: 'Switch my website design template to Dark Noir',
   },
   {
-    label: '💬 Consultation Section',
-    prompt: 'Add a clean WhatsApp consultation and availability inquiry section',
+    label: '🎨 Modern Studio Style',
+    prompt: 'Switch my website design template to Modern Studio',
   },
 ];
 
@@ -97,6 +109,10 @@ export function AIPanel() {
   const [isBuilding, setIsBuilding] = useState(false);
   const [buildPhase, setBuildPhase] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
+  const [showMcpModal, setShowMcpModal] = useState(false);
+  const [mcpTokenData, setMcpTokenData] = useState<{ endpoint: string; token: string; mcpConfigExample?: any } | null>(null);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpCopied, setMcpCopied] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -164,6 +180,12 @@ export function AIPanel() {
       currentHtml = service.getHtml();
     } catch {}
 
+    let snapshotBlueprint: any = undefined;
+    try {
+      const liveBp = service.getBlueprint();
+      if (liveBp) snapshotBlueprint = JSON.parse(JSON.stringify(liveBp));
+    } catch {}
+
     const activeTarget = targetElement ? { ...targetElement } : undefined;
 
     const userMsgId = `user-${Date.now()}`;
@@ -200,6 +222,7 @@ export function AIPanel() {
           targetElement: activeTarget,
           currentHtml,
           theme,
+          plan: (session?.user as any)?.plan === 'pro' ? 'pro' : 'free',
           blueprint: service?.getBlueprint(),
         }),
       });
@@ -226,34 +249,37 @@ export function AIPanel() {
         handleThemeChange(data.theme);
       }
 
-      // ── Apply canvas changes based on intent ────────────────────────────────
-      const isStyleOnly = data?.intent === 'style-only' || !data?.updatedHtml;
+      // ── Apply canvas / blueprint changes based on intent ────────────────────
+      if (data?.updatedBlueprint) {
+        service.applyExternalBlueprint(data.updatedBlueprint, projectId);
+      } else {
+        const isStyleOnly = data?.intent === 'style-only' || !data?.updatedHtml;
 
-      if (!isStyleOnly) {
-        if (activeTarget && data?.updatedElementHtml) {
-          // Surgical single-element replacement
-          const replaced = service.replaceSelectedComponent(data.updatedElementHtml);
-          if (!replaced && data?.updatedHtml) {
+        if (!isStyleOnly) {
+          if (activeTarget && data?.updatedElementHtml) {
+            // Surgical single-element replacement
+            const replaced = service.replaceSelectedComponent(data.updatedElementHtml);
+            if (!replaced && data?.updatedHtml) {
+              service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
+            }
+          } else if (data?.updatedHtml) {
+            // Full HTML replacement (add-section appended HTML or full-rebuild)
             service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
+
+            const pLow = cleanPrompt.toLowerCase();
+            let targetSec = 'hero';
+            if (pLow.includes('booking') || pLow.includes('whatsapp')) targetSec = 'booking';
+            else if (pLow.includes('service') || pLow.includes('pricing') || pLow.includes('package')) targetSec = 'services';
+            else if (pLow.includes('portfolio') || pLow.includes('gallery') || pLow.includes('photo')) targetSec = 'portfolio';
+            else if (pLow.includes('about') || pLow.includes('story')) targetSec = 'about';
+            else if (pLow.includes('testimonial') || pLow.includes('review')) targetSec = 'testimonials';
+
+            setTimeout(() => {
+              service.highlightSection(targetSec);
+            }, 150);
           }
-        } else if (data?.updatedHtml) {
-          // Full HTML replacement (add-section appended HTML or full-rebuild)
-          service.loadHtml(data.updatedHtml, `AI: ${cleanPrompt.slice(0, 40)}`, 'ai_transform', newTheme);
-
-          const pLow = cleanPrompt.toLowerCase();
-          let targetSec = 'hero';
-          if (pLow.includes('booking') || pLow.includes('whatsapp')) targetSec = 'booking';
-          else if (pLow.includes('service') || pLow.includes('pricing') || pLow.includes('package')) targetSec = 'services';
-          else if (pLow.includes('portfolio') || pLow.includes('gallery') || pLow.includes('photo')) targetSec = 'portfolio';
-          else if (pLow.includes('about') || pLow.includes('story')) targetSec = 'about';
-          else if (pLow.includes('testimonial') || pLow.includes('review')) targetSec = 'testimonials';
-
-          setTimeout(() => {
-            service.highlightSection(targetSec);
-          }, 150);
         }
       }
-      // isStyleOnly: theme already applied above via handleThemeChange — canvas HTML untouched ✓
 
       if (data?.blueprintUpdates) {
         if (data.blueprintUpdates.profile) {
@@ -302,8 +328,10 @@ export function AIPanel() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         changesApplied: data.changesApplied || [],
         executionSteps,
+        toolCalls: Array.isArray(data.toolCalls) ? data.toolCalls : undefined,
         theme: data.theme,
         snapshotHtml: currentHtml,
+        snapshotBlueprint,
         resultHtml: data.updatedHtml,
         targetInfo: activeTarget
           ? {
@@ -337,10 +365,14 @@ export function AIPanel() {
   };
 
   // ── 5. Instant Snapshot Rollback ──────────────────────────────────────────
-  const handleRollback = (snapshotHtml?: string) => {
-    if (!service || !snapshotHtml) return;
+  const handleRollback = (snapshotHtml?: string, snapshotBp?: any) => {
+    if (!service || (!snapshotHtml && !snapshotBp)) return;
     try {
-      service.loadHtml(snapshotHtml, 'Restored Snapshot State', 'manual_edit', theme);
+      if (snapshotBp) {
+        service.applyExternalBlueprint(snapshotBp, projectId);
+      } else if (snapshotHtml) {
+        service.loadHtml(snapshotHtml, 'Restored Snapshot State', 'manual_edit', theme);
+      }
       service.saveToLocalStorage(projectId, theme, userId);
       service.saveToDatabase(projectId, { businessName, theme });
 
@@ -350,15 +382,45 @@ export function AIPanel() {
       const rollbackNotice: ChatMessage = {
         id: `rollback-${Date.now()}`,
         role: 'assistant',
-        content: '↺ Reverted canvas back to previous snapshot state.',
+        content: '↺ Reverted site back to previous snapshot state.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        executionSteps: ['Restored HTML snapshot into visual editor', 'Persisted restored state to database'],
+        executionSteps: [
+          snapshotBp ? 'Restored blueprint & re-rendered template' : 'Restored HTML snapshot into visual editor',
+          'Persisted restored state to database',
+        ],
       };
 
       saveMessages([...messages, rollbackNotice]);
     } catch (err) {
       console.error('[AIPanel] Rollback error:', err);
     }
+  };
+
+  const handleToggleMcp = async () => {
+    const nextOpen = !showMcpModal;
+    setShowMcpModal(nextOpen);
+    if (nextOpen && !mcpTokenData && !mcpLoading) {
+      setMcpLoading(true);
+      try {
+        const res = await fetch('/api/mcp/token');
+        if (res.ok) {
+          const json = await res.json();
+          setMcpTokenData(json);
+        }
+      } catch {
+        // ignore network errors
+      } finally {
+        setMcpLoading(false);
+      }
+    }
+  };
+
+  const handleCopyMcp = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setMcpCopied(label);
+      setTimeout(() => setMcpCopied(null), 2000);
+    } catch {}
   };
 
   const toggleSteps = (id: string) => {
@@ -379,6 +441,19 @@ export function AIPanel() {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
+            onClick={handleToggleMcp}
+            className={`px-2 py-1 rounded-md text-[10px] font-mono font-bold flex items-center gap-1 border transition-colors cursor-pointer ${
+              showMcpModal
+                ? 'bg-[#0D5771] text-white border-[#0D5771]'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-[#0D5771]/50 hover:text-[#0D5771]'
+            }`}
+            title="Connect ChatGPT, Claude, or Cursor via Cuzmify MCP Server"
+          >
+            <Code2 className="w-3 h-3" />
+            <span>MCP</span>
+          </button>
+          <button
+            type="button"
             onClick={handleClearHistory}
             className="w-6 h-6 rounded-md hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
             title="Clear Chat History"
@@ -387,6 +462,72 @@ export function AIPanel() {
           </button>
         </div>
       </div>
+
+      {/* ─── Optional Cuzmify MCP Server Connection Drawer ─── */}
+      {showMcpModal && (
+        <div className="px-3 py-2.5 bg-slate-900 text-slate-100 border-b border-slate-800 space-y-2 text-[11px] shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono font-bold text-cyan-300 flex items-center gap-1.5">
+              <Wrench className="w-3 h-3" />
+              Cuzmify MCP Server
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowMcpModal(false)}
+              className="text-slate-400 hover:text-white cursor-pointer"
+              title="Close MCP drawer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {mcpLoading ? (
+            <p className="text-[10px] text-slate-400">Generating your MCP credentials…</p>
+          ) : mcpTokenData ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2 bg-slate-800 px-2 py-1 rounded-lg">
+                <span className="truncate font-mono text-[10px] text-slate-200">{mcpTokenData.endpoint}</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyMcp('endpoint', mcpTokenData.endpoint)}
+                  className="text-[10px] font-semibold text-cyan-300 hover:text-white shrink-0 flex items-center gap-1 cursor-pointer"
+                >
+                  <Copy className="w-3 h-3" />
+                  {mcpCopied === 'endpoint' ? 'Copied' : 'URL'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2 bg-slate-800 px-2 py-1 rounded-lg">
+                <span className="truncate font-mono text-[10px] text-emerald-300">
+                  Bearer {mcpTokenData.token.slice(0, 14)}…
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyMcp('token', mcpTokenData.token)}
+                    className="text-[10px] font-semibold text-emerald-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                    {mcpCopied === 'token' ? 'Copied' : 'Token'}
+                  </button>
+                  {mcpTokenData.mcpConfigExample && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyMcp('json', JSON.stringify(mcpTokenData.mcpConfigExample, null, 2))}
+                      className="text-[10px] font-semibold text-amber-300 hover:text-white cursor-pointer"
+                    >
+                      {mcpCopied === 'json' ? 'Copied JSON' : 'Copy JSON'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-snug">
+                Paste URL + Bearer token into ChatGPT MCP, Claude, or Cursor to edit your site externally.
+              </p>
+            </div>
+          ) : (
+            <p className="text-[10px] text-amber-300">Sign in to generate a personal MCP API token.</p>
+          )}
+        </div>
+      )}
 
       {/* ─── Messages Feed (Bounded height so it never collapses inside scrollable sidebars) ─── */}
       <div className="min-h-[135px] max-h-[240px] overflow-y-auto custom-scrollbar space-y-3 p-3">
@@ -434,6 +575,26 @@ export function AIPanel() {
                 )}
 
                 <p className="whitespace-pre-wrap">{m.content}</p>
+
+                {/* MCP Tool Calls Pill Strip */}
+                {!isUser && Array.isArray(m.toolCalls) && m.toolCalls.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {m.toolCalls.map((tc, tIdx) => (
+                      <span
+                        key={`${tc.name}-${tIdx}`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono border ${
+                          tc.ok
+                            ? 'bg-cyan-50 text-[#0D5771] border-cyan-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}
+                        title={tc.summary || tc.error || tc.name}
+                      >
+                        <Wrench className="w-2.5 h-2.5 shrink-0" />
+                        <span>{tc.name}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Assistant Applied Changes Matrix */}
                 {!isUser && Array.isArray(m.changesApplied) && m.changesApplied.length > 0 && (
@@ -488,12 +649,12 @@ export function AIPanel() {
                 )}
 
                 {/* Assistant Snapshot Rollback Action */}
-                {!isUser && m.snapshotHtml && (
+                {!isUser && (m.snapshotHtml || m.snapshotBlueprint) && (
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                     <button
-                      onClick={() => handleRollback(m.snapshotHtml)}
+                      onClick={() => handleRollback(m.snapshotHtml, m.snapshotBlueprint)}
                       className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 transition-all cursor-pointer shadow-2xs hover:scale-[1.01] active:scale-[0.99]"
-                      title="Rollback canvas to the exact state before this edit"
+                      title="Rollback site to the exact state before this edit"
                     >
                       <RotateCcw className="w-3 h-3 text-[#0D5771]" />
                       <span>Restore Snapshot</span>

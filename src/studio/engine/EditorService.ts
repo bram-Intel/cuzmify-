@@ -600,6 +600,36 @@ export class EditorService {
     this.recordSnapshot('Deleted Media Asset', 'manual_edit');
   }
 
+  promoteMediaToHero(id: string): MediaVaultAsset | null {
+    const picked = this.blueprintManager.promoteMediaToHero(id);
+    if (picked) {
+      this.syncCanvasWithBlueprint();
+      this.recordSnapshot(`Set Hero Cover: ${picked.name}`, 'manual_edit');
+    }
+    return picked;
+  }
+
+  /**
+   * Atomically replaces the active blueprint (e.g. from AI / MCP tool calls)
+   * and re-renders the Template Engine + notifies Mobile/Desktop Studio listeners.
+   */
+  applyExternalBlueprint(nextBp: BusinessBlueprint, siteId?: string): void {
+    this.isSyncingFromCanvas = true;
+    try {
+      this.blueprintManager.hydrate(nextBp);
+      const tplId = resolveTemplateEngineId(nextBp.templateId);
+      this.blueprintManager.setTemplateId(tplId);
+      const rendered = renderTemplateEngine(tplId, this.blueprintManager.getBlueprint(), { siteId });
+      this.adapter.setHtmlContent(rendered.fullHtml);
+      this.adapter.sanitizeCanvas();
+      this.recordSnapshot('AI Assistant Update (MCP Tools)', 'ai_transform');
+    } finally {
+      this.isSyncingFromCanvas = false;
+    }
+    this.blueprintListeners.forEach((fn) => fn(this.blueprintManager.getBlueprint()));
+    this.notifyChange();
+  }
+
   applyMediaToSelected(url: string, alt?: string): boolean {
     const selected = this.adapter.getSelectedComponent();
     if (!selected) return false;
