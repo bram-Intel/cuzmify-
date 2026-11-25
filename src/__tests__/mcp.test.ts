@@ -308,6 +308,12 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(d.account.accountSites).toHaveLength(1);
     expect(d.html).toContain('Brandy Queen');
     expect(d.css).toContain('@media (max-width:767px)');
+
+    // Also verify WhatsApp button displays the WhatsApp brand SVG once WhatsApp is linked
+    const bpWithWa = executeBlueprintMcpTool('configure_whatsapp', { phoneNumber: '2348031234567' }, bp).blueprint;
+    const renderedWithWa = renderTemplateEngine('editorial-atelier', bpWithWa);
+    expect(renderedWithWa.html).toContain('<svg width="18" height="18"');
+    expect(renderedWithWa.html).toContain('via WhatsApp');
   });
 
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {

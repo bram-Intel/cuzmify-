@@ -21,6 +21,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     endpoint: `${origin}/api/mcp`,
     token,
+    connectorUrl: `${origin}/api/mcp?token=${encodeURIComponent(token)}`,
     mcpConfigExample: {
       mcpServers: {
         cuzmify: {

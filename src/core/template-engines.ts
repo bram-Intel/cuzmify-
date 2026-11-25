@@ -392,6 +392,9 @@ function renderSharedFaqSection(bp: BusinessBlueprint, isDark: boolean): string 
   </section>`;
 }
 
+const WHATSAPP_BRAND_SVG =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex-shrink:0;"><path d="M20.52 3.48A11.86 11.86 0 0 0 12.06 0C5.49 0 .14 5.34.14 11.92c0 2.1.55 4.15 1.59 5.96L0 24l6.33-1.66a11.9 11.9 0 0 0 5.73 1.46h.01c6.57 0 11.92-5.35 11.92-11.92 0-3.18-1.24-6.17-3.47-8.4Zm-8.46 18.3h-.01a9.89 9.89 0 0 1-5.04-1.38l-.36-.22-3.76.99 1-3.66-.24-.38a9.87 9.87 0 0 1-1.51-5.21c0-5.46 4.44-9.9 9.91-9.9 2.65 0 5.14 1.03 7.01 2.9a9.84 9.84 0 0 1 2.9 7c0 5.46-4.45 9.86-9.9 9.86Zm5.43-7.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.65.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.05-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.08-.79.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.06 2.88 1.21 3.08.15.2 2.09 3.2 5.07 4.48.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35Z"/></svg>';
+
 function buildWhatsAppDirectHref(phone: string, text: string): string {
   const clean = (phone || '').replace(/[^\d]/g, '');
   if (!clean) return '#booking';
@@ -472,6 +475,7 @@ function renderSharedEnquiryForm(
       class="cz-submit-btn"
       style="margin-top:6px;width:100%;padding:15px 20px;border-radius:14px;border:none;background:#25D366;color:#FFFFFF;font-weight:700;font-size:15px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 8px 24px rgba(37,211,102,0.25);"
     >
+      ${waPhone ? WHATSAPP_BRAND_SVG : ''}
       <span>${waPhone ? `${escapeHtml(bp.customCopy?.primaryCta || niche.vocabulary.primaryCta)} via WhatsApp →` : `Send Enquiry →`}</span>
     </button>
     <p data-cuzmify-enquiry-feedback="true" style="display:none;font-size:12px;text-align:center;margin:4px 0 0;color:#10B981;font-weight:600;"></p>
@@ -1193,7 +1197,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
           </p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
             <a href="#booking" style="padding:13px 22px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
-            ${waPhone ? `<a href="${escapeHtml(buildWhatsAppDirectHref(waPhone, `Hello ${profile.name}, I found your website and have a quick question.`))}" target="_blank" rel="noopener noreferrer" style="padding:13px 20px;border-radius:12px;background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;font-weight:700;font-size:13px;text-decoration:none;">Chat on WhatsApp</a>` : ''}
+            ${waPhone ? `<a href="${escapeHtml(buildWhatsAppDirectHref(waPhone, `Hello ${profile.name}, I found your website and have a quick question.`))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:13px 20px;border-radius:12px;background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;font-weight:700;font-size:13px;text-decoration:none;">${WHATSAPP_BRAND_SVG}<span>Chat on WhatsApp</span></a>` : ''}
           </div>
           ${stripHtml}
         </div>

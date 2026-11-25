@@ -14,6 +14,14 @@ async function resolveMcpUserId(req: Request): Promise<string | null> {
     if (verifiedUserId) return verifiedUserId;
   }
 
+  try {
+    const urlToken = new URL(req.url).searchParams.get('token')?.trim();
+    if (urlToken) {
+      const verifiedUserId = verifyUserMcpToken(urlToken);
+      if (verifiedUserId) return verifiedUserId;
+    }
+  } catch {}
+
   const session = await auth();
   if (session?.user?.id) return session.user.id;
   if (session?.user?.email) {
