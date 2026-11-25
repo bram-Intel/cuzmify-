@@ -244,10 +244,12 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
                   onChange={(e) => setNewCategory(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-xs bg-white focus:outline-none focus:border-[#0D5771]"
                 >
-                  <option value="Beauty & Wellness">Beauty &amp; Wellness</option>
-                  <option value="Music & Audio Studio">Music &amp; Audio Studio</option>
-                  <option value="Fashion & Apparel">Fashion &amp; Apparel</option>
-                  <option value="Creative Agency">Creative Agency</option>
+                  <option value="Makeup, Hair & Beauty">Makeup, Hair &amp; Beauty</option>
+                  <option value="Photography & Videography">Photography &amp; Videography</option>
+                  <option value="Event Planning & Decor">Event Planning &amp; Decor</option>
+                  <option value="Catering, Cakes & Chefs">Catering, Cakes &amp; Chefs</option>
+                  <option value="Fashion, Tailoring & Design">Fashion, Tailoring &amp; Design</option>
+                  <option value="Creative & Professional Services">Other Creative Services</option>
                   <option value="General">General Business</option>
                 </select>
               </div>

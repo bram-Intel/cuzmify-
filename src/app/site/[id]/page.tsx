@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import type { Metadata } from 'next';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine, resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
+import { PublicEnquiryRuntime } from '@/components/public-site/PublicEnquiryRuntime';
 
 interface SitePageProps {
   params: Promise<{ id: string }>;
@@ -57,6 +58,11 @@ export default async function PublicSitePage({ params }: SitePageProps) {
       <main
         className="min-h-screen w-full bg-white text-[#1A202C] antialiased"
         dangerouslySetInnerHTML={{ __html: finalHtml }}
+      />
+      <PublicEnquiryRuntime
+        siteId={site.id}
+        businessName={site.name}
+        whatsappPhone={site.whatsappPhone}
       />
     </>
   );

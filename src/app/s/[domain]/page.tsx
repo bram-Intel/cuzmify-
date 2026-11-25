@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import type { Metadata } from 'next';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine, resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
+import { PublicEnquiryRuntime } from '@/components/public-site/PublicEnquiryRuntime';
 import Link from 'next/link';
 import { Sparkles, ArrowRight, Globe } from 'lucide-react';
 
@@ -37,6 +38,7 @@ async function getSiteByDomain(domainSlug: string) {
         htmlContent: true,
         blueprintData: true,
         templateId: true,
+        whatsappPhone: true,
         plan: true,
         theme: true,
         category: true,
@@ -69,19 +71,33 @@ export async function generateMetadata({ params }: SubdomainPageProps): Promise<
     };
   }
 
+  let ogImage: string | undefined;
+  let metaTagline = `Portfolio, packages & direct WhatsApp enquiries for ${site.name}.`;
+  if ((site as any).blueprintData) {
+    try {
+      const bp = JSON.parse((site as any).blueprintData);
+      if (bp?.profile?.tagline) metaTagline = bp.profile.tagline;
+      const firstMedia = bp?.mediaVault?.[0];
+      const rawImg = firstMedia?.thumbnailUrl || firstMedia?.url;
+      if (rawImg && rawImg.startsWith('http')) ogImage = rawImg;
+    } catch {}
+  }
+
   return {
-    title: `${site.name} — Official Website`,
-    description: `Welcome to ${site.name}. Book instant appointments, explore services & shop online. Powered by Cuzmify.`,
+    title: `${site.name} — Official Portfolio & Bookings`,
+    description: metaTagline,
     openGraph: {
-      title: `${site.name} — Official Website`,
-      description: `Welcome to ${site.name}. Powered by Cuzmify.`,
+      title: `${site.name} — Official Portfolio & Bookings`,
+      description: metaTagline,
       siteName: site.name,
       type: 'website',
+      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${site.name} — Official Website`,
-      description: `Welcome to ${site.name}. Powered by Cuzmify.`,
+      title: `${site.name} — Official Portfolio & Bookings`,
+      description: metaTagline,
+      ...(ogImage ? { images: [ogImage] } : {}),
     },
   };
 }
@@ -159,6 +175,14 @@ export default async function SubdomainSitePage({ params }: SubdomainPageProps) 
         suppressHydrationWarning
         className="min-h-screen w-full bg-white text-[#1A202C] antialiased"
         dangerouslySetInnerHTML={{ __html: finalHtml }}
+      />
+
+      {/* Interactive Visitor Enquiry & WhatsApp Booking Runtime */}
+      <PublicEnquiryRuntime
+        siteId={site.id}
+        domain={domain}
+        businessName={site.name}
+        whatsappPhone={(site as any).whatsappPhone}
       />
 
       {/* Viral Growth Badge on Free Plan Sites (Removed automatically on Pro) */}
