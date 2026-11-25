@@ -1,4 +1,8 @@
-import type { BusinessBlueprint, DeviceDesignOverrides } from '@/core/blueprint-schema';
+import {
+  BLUEPRINT_INJECTION_SLOTS,
+  type BusinessBlueprint,
+  type DeviceDesignOverrides,
+} from '@/core/blueprint-schema';
 import {
   TEMPLATE_ENGINES,
   renderTemplateEngine,
@@ -27,7 +31,7 @@ export interface SiteAccountMeta {
 
 export interface QaFinding {
   severity: 'critical' | 'warning' | 'info';
-  area: 'contrast' | 'mobile_layout' | 'media' | 'copy' | 'conversion' | 'launch';
+  area: 'contrast' | 'mobile_layout' | 'media' | 'copy' | 'conversion' | 'launch' | 'seo';
   message: string;
   suggestedFix?: string;
 }
@@ -322,6 +326,61 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
     });
   }
 
+  // SEO Audit
+  const seoCfg = bp.seo || {};
+  const effectiveSeoTitle =
+    seoCfg.metaTitle?.trim() ||
+    `${bp.profile.name}${bp.profile.city ? ` in ${bp.profile.city}` : ''} — Official Portfolio & Bookings`;
+  const effectiveSeoDesc =
+    seoCfg.metaDescription?.trim() || headline || subheadline || '';
+  const hasKeywords = Array.isArray(seoCfg.keywords) && seoCfg.keywords.length > 0;
+  const hasPublicOgImg = Boolean(
+    (seoCfg.ogImageUrl && seoCfg.ogImageUrl.startsWith('http')) ||
+      (vault[0]?.thumbnailUrl || vault[0]?.url || '').startsWith('http')
+  );
+  let seoScore = 40;
+  if (effectiveSeoTitle.length >= 20 && effectiveSeoTitle.length <= 65) seoScore += 15;
+  if (effectiveSeoDesc.length >= 50 && effectiveSeoDesc.length <= 165) seoScore += 15;
+  if (hasKeywords) seoScore += 10;
+  if (seoCfg.schemaType) seoScore += 10;
+  if (seoCfg.areaServed || bp.profile.city) seoScore += 5;
+  if (hasPublicOgImg) seoScore += 5;
+  if (seoCfg.noIndex) seoScore = Math.max(0, seoScore - 30);
+
+  if (!seoCfg.metaDescription && effectiveSeoDesc.length < 50) {
+    qaFindings.push({
+      severity: 'info',
+      area: 'seo',
+      message: 'Meta description is short or using fallback; configure_seo can boost Google search click-through.',
+    });
+  }
+  if (!hasKeywords) {
+    qaFindings.push({
+      severity: 'info',
+      area: 'seo',
+      message: 'No target SEO keywords configured yet (configure_seo -> keywords).',
+    });
+  }
+
+  const seoAudit = {
+    seoScore: Math.min(100, seoScore),
+    effectiveTitle: effectiveSeoTitle,
+    titleChars: effectiveSeoTitle.length,
+    effectiveDescription: effectiveSeoDesc,
+    descriptionChars: effectiveSeoDesc.length,
+    keywords: seoCfg.keywords || [],
+    schemaType: seoCfg.schemaType || 'LocalBusiness',
+    canonicalUrl: seoCfg.canonicalUrl || null,
+    hasOgImage: hasPublicOgImg,
+    indexable: !seoCfg.noIndex,
+    openingHours: seoCfg.openingHours || null,
+    areaServed: seoCfg.areaServed || bp.profile.city || null,
+  };
+
+  const activeInjections = Object.entries(bp.injections || {})
+    .filter(([, val]) => typeof val === 'string' && val.trim().length > 0)
+    .map(([slot, val]) => ({ slot, chars: String(val).length }));
+
   return {
     account: {
       siteId: siteMeta?.id || null,
@@ -355,6 +414,9 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
       customCopyKeys: Object.keys(bp.customCopy || {}),
     },
     mediaInventory,
+    seoAudit,
+    activeInjections,
+    availableSlots: [...BLUEPRINT_INJECTION_SLOTS],
     qaFindings,
     renderedHtmlBytes: rendered.html.length,
     renderedCssBytes: rendered.css.length,

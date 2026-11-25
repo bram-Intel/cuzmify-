@@ -217,6 +217,36 @@ export interface BlueprintCustomSection {
   html?: string;
 }
 
+export const BLUEPRINT_INJECTION_SLOTS = [
+  'top_bar',
+  'nav_actions',
+  'hero_above',
+  'hero_cta_after',
+  'hero_below',
+  'services_above',
+  'services_below',
+  'booking_above',
+  'submit_button_prefix',
+  'submit_button_suffix',
+  'booking_below',
+  'footer',
+] as const;
+
+export type BlueprintSlotId = (typeof BLUEPRINT_INJECTION_SLOTS)[number];
+
+export interface BlueprintSeoConfig {
+  metaTitle?: string;
+  metaDescription?: string;
+  keywords?: string[];
+  canonicalUrl?: string;
+  ogImageUrl?: string;
+  noIndex?: boolean;
+  schemaType?: 'LocalBusiness' | 'BeautySalon' | 'PhotographyBusiness' | 'EventVenue' | 'Bakery' | 'ProfessionalService';
+  priceRange?: string;
+  openingHours?: string;
+  areaServed?: string;
+}
+
 export interface BlueprintTestimonialItem {
   id: string;
   clientName: string;
@@ -253,6 +283,8 @@ export interface BusinessBlueprint {
   designOverrides?: TemplateDesignOverrides;
   templateDesignOverrides?: Record<string, TemplateDesignOverrides>;
   customSections?: BlueprintCustomSection[];
+  injections?: Partial<Record<BlueprintSlotId, string>>;
+  seo?: BlueprintSeoConfig;
   testimonials?: BlueprintTestimonialItem[];
   faqs?: BlueprintFaqItem[];
   updatedAt: string;

@@ -1,6 +1,8 @@
 import { SchemaType, type FunctionDeclaration } from '@google/generative-ai';
 import {
+  BLUEPRINT_INJECTION_SLOTS,
   SUPPORTED_CURRENCIES,
+  type BlueprintSlotId,
   type BusinessBlueprint,
   type CurrencyCode,
   type ServicePriceMode,
@@ -280,6 +282,64 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         remove: { type: 'boolean', description: 'Set true to remove matching custom section by id or title.' },
       },
       required: ['title'],
+    },
+  },
+  {
+    name: 'inject_slot',
+    description:
+      'Inject or clear sanitized custom HTML/SVG into any immutable named slot across the template engine (top_bar, nav_actions, hero_above, hero_cta_after, hero_below, services_above, services_below, booking_above, submit_button_prefix, submit_button_suffix, booking_below, footer). Optionally append scoped customCss at the same time.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        slot: {
+          type: 'string',
+          description: 'Named injection anchor inside the active template.',
+          enum: [...BLUEPRINT_INJECTION_SLOTS],
+        },
+        html: {
+          type: 'string',
+          description: 'Sanitized HTML or inline SVG to inject into the slot (supports CSS vars like var(--cz-accent)).',
+        },
+        css: {
+          type: 'string',
+          description: 'Optional sanitized CSS rule(s) to append into the active template stylesheet.',
+        },
+        clear: {
+          type: 'boolean',
+          description: 'Set true to remove injected content from this slot cleanly.',
+        },
+      },
+      required: ['slot'],
+    },
+  },
+  {
+    name: 'configure_seo',
+    description:
+      'Configure search engine & social sharing metadata (metaTitle, metaDescription, keywords, canonicalUrl, ogImageUrl, noIndex) and LocalBusiness/Service JSON-LD schema attributes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        metaTitle: { type: 'string', description: 'Custom <title> tag (30-60 chars recommended).' },
+        metaDescription: { type: 'string', description: 'Custom meta description (70-160 chars recommended).' },
+        keywords: {
+          type: 'array',
+          description: 'Target search keywords (e.g. ["bridal makeup lagos", "editorial makeup artist"]).',
+          items: { type: 'string' },
+        },
+        canonicalUrl: { type: 'string', description: 'Custom canonical URL (https://...).' },
+        ogImageUrl: { type: 'string', description: 'Public https:// OpenGraph share image URL.' },
+        noIndex: { type: 'boolean', description: 'Set true to hide site from search engine indexing.' },
+        schemaType: {
+          type: 'string',
+          description: 'Schema.org JSON-LD entity type.',
+          enum: ['LocalBusiness', 'BeautySalon', 'PhotographyBusiness', 'EventVenue', 'Bakery', 'ProfessionalService'],
+        },
+        priceRange: { type: 'string', description: 'Schema priceRange indicator (e.g. ₦₦, $$$).' },
+        openingHours: { type: 'string', description: 'Schema openingHours (e.g. Tu-Sa 09:00-19:00).' },
+        areaServed: { type: 'string', description: 'Service area served (e.g. Lagos, Abuja, Worldwide).' },
+      },
     },
   },
   {
@@ -613,6 +673,9 @@ export function executeBlueprintMcpTool(
           effectiveDesign: inspection.effectiveDesign,
           renderedSections: inspection.renderedSections,
           skippedSections: inspection.skippedSections,
+          seoAudit: inspection.seoAudit,
+          activeInjections: inspection.activeInjections,
+          availableSlots: inspection.availableSlots,
           qaFindings: inspection.qaFindings,
         },
       };
@@ -646,6 +709,9 @@ export function executeBlueprintMcpTool(
           skippedSections: inspection.skippedSections,
           copyMetrics: inspection.copyMetrics,
           mediaInventory: inspection.mediaInventory,
+          seoAudit: inspection.seoAudit,
+          activeInjections: inspection.activeInjections,
+          availableSlots: inspection.availableSlots,
           qaFindings: inspection.qaFindings,
           renderedHtmlBytes: inspection.renderedHtmlBytes,
           renderedCssBytes: inspection.renderedCssBytes,
@@ -1032,6 +1098,148 @@ export function executeBlueprintMcpTool(
         blueprint: bp,
         changeSummary: `${idx >= 0 ? 'Updated' : 'Added'} custom section "${title}" (${layout})`,
         data: { section: entry },
+      };
+    }
+
+    case 'inject_slot': {
+      const slot = typeof args.slot === 'string' ? args.slot.trim() : '';
+      if (!(BLUEPRINT_INJECTION_SLOTS as readonly string[]).includes(slot)) {
+        return {
+          ok: false,
+          blueprint: bp,
+          changeSummary: `Invalid injection slot "${slot}". Allowed: ${BLUEPRINT_INJECTION_SLOTS.join(', ')}`,
+        };
+      }
+      const typedSlot = slot as BlueprintSlotId;
+      const nextInjections: Partial<Record<BlueprintSlotId, string>> = { ...(bp.injections || {}) };
+
+      if (args.clear === true) {
+        delete nextInjections[typedSlot];
+        bp.injections = nextInjections;
+        bp.updatedAt = new Date().toISOString();
+        return {
+          ok: true,
+          blueprint: bp,
+          changeSummary: `Cleared injection slot "${typedSlot}"`,
+          data: { slot: typedSlot, activeInjections: Object.keys(nextInjections) },
+        };
+      }
+
+      const rawHtml = typeof args.html === 'string' ? args.html.trim().slice(0, 12000) : '';
+      const rawCss = typeof args.css === 'string' ? args.css.trim().slice(0, 4000) : '';
+      if (!rawHtml && !rawCss) {
+        return {
+          ok: false,
+          blueprint: bp,
+          changeSummary: 'Provide sanitized HTML (`html`), CSS (`css`), or `clear: true`.',
+        };
+      }
+
+      if (rawHtml) {
+        nextInjections[typedSlot] = rawHtml;
+        bp.injections = nextInjections;
+      }
+
+      if (rawCss) {
+        const activeTpl = bp.templateId || 'editorial-atelier';
+        const prevGlobalCss = bp.designOverrides?.customCss || '';
+        const nextGlobalCss = [prevGlobalCss, rawCss].filter(Boolean).join('\n').slice(0, 6000);
+        bp.designOverrides = { ...(bp.designOverrides || {}), customCss: nextGlobalCss };
+
+        const prevTplOverrides = bp.templateDesignOverrides?.[activeTpl] || {};
+        const prevTplCss = prevTplOverrides.customCss || '';
+        const nextTplCss = [prevTplCss, rawCss].filter(Boolean).join('\n').slice(0, 6000);
+        bp.templateDesignOverrides = {
+          ...(bp.templateDesignOverrides || {}),
+          [activeTpl]: { ...prevTplOverrides, customCss: nextTplCss },
+        };
+      }
+
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: true,
+        blueprint: bp,
+        changeSummary: `Injected content into immutable slot "${typedSlot}"`,
+        data: {
+          slot: typedSlot,
+          activeInjections: Object.keys(nextInjections),
+          cssApplied: Boolean(rawCss),
+        },
+      };
+    }
+
+    case 'configure_seo': {
+      const ALLOWED_SCHEMA_TYPES = [
+        'LocalBusiness',
+        'BeautySalon',
+        'PhotographyBusiness',
+        'EventVenue',
+        'Bakery',
+        'ProfessionalService',
+      ] as const;
+      type SeoConfig = NonNullable<BusinessBlueprint['seo']>;
+      const prevSeo: SeoConfig = { ...(bp.seo || {}) };
+      const nextSeo: SeoConfig = { ...prevSeo };
+
+      if (typeof args.metaTitle === 'string') {
+        const val = args.metaTitle.trim().slice(0, 120);
+        if (val) nextSeo.metaTitle = val;
+        else delete nextSeo.metaTitle;
+      }
+      if (typeof args.metaDescription === 'string') {
+        const val = args.metaDescription.trim().slice(0, 320);
+        if (val) nextSeo.metaDescription = val;
+        else delete nextSeo.metaDescription;
+      }
+      if (Array.isArray(args.keywords)) {
+        const cleanKeywords = args.keywords
+          .filter((k: unknown): k is string => typeof k === 'string' && k.trim().length > 0)
+          .map((k: string) => k.trim().slice(0, 60))
+          .slice(0, 15);
+        nextSeo.keywords = cleanKeywords;
+      }
+      if (typeof args.canonicalUrl === 'string') {
+        const val = args.canonicalUrl.trim().slice(0, 300);
+        if (/^https?:\/\//i.test(val)) nextSeo.canonicalUrl = val;
+        else if (!val) delete nextSeo.canonicalUrl;
+      }
+      if (typeof args.ogImageUrl === 'string') {
+        const val = args.ogImageUrl.trim().slice(0, 300);
+        if (/^https?:\/\//i.test(val)) nextSeo.ogImageUrl = val;
+        else if (!val) delete nextSeo.ogImageUrl;
+      }
+      if (typeof args.noIndex === 'boolean') {
+        nextSeo.noIndex = args.noIndex;
+      }
+      if (typeof args.schemaType === 'string') {
+        const candidate = args.schemaType.trim();
+        if ((ALLOWED_SCHEMA_TYPES as readonly string[]).includes(candidate)) {
+          nextSeo.schemaType = candidate as (typeof ALLOWED_SCHEMA_TYPES)[number];
+        }
+      }
+      if (typeof args.priceRange === 'string') {
+        const val = args.priceRange.trim().slice(0, 20);
+        if (val) nextSeo.priceRange = val;
+        else delete nextSeo.priceRange;
+      }
+      if (typeof args.openingHours === 'string') {
+        const val = args.openingHours.trim().slice(0, 100);
+        if (val) nextSeo.openingHours = val;
+        else delete nextSeo.openingHours;
+      }
+      if (typeof args.areaServed === 'string') {
+        const val = args.areaServed.trim().slice(0, 120);
+        if (val) nextSeo.areaServed = val;
+        else delete nextSeo.areaServed;
+      }
+
+      bp.seo = nextSeo;
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: true,
+        blueprint: bp,
+        changeSummary: 'Updated SEO metadata & Schema.org configuration',
+        data: { seo: nextSeo },
       };
     }
 

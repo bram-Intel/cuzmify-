@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine, resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
 import { PublicEnquiryRuntime } from '@/components/public-site/PublicEnquiryRuntime';
+import { buildPublicSiteJsonLd, buildPublicSiteMetadata } from '@/lib/seo-metadata';
 
 interface SitePageProps {
   params: Promise<{ id: string }>;
@@ -14,17 +15,18 @@ export async function generateMetadata({ params }: SitePageProps): Promise<Metad
   const { id } = await params;
   const site = await prisma.site.findUnique({
     where: { id },
-    select: { name: true, category: true },
+    select: {
+      id: true,
+      name: true,
+      subdomain: true,
+      customDomain: true,
+      category: true,
+      whatsappPhone: true,
+      blueprintData: true,
+    },
   });
 
-  if (!site) {
-    return { title: 'Site Not Found — Cuzmify' };
-  }
-
-  return {
-    title: `${site.name} — Official Website`,
-    description: `Explore ${site.name} (${site.category}) — portfolio, packages & direct WhatsApp enquiries.`,
-  };
+  return buildPublicSiteMetadata(site);
 }
 
 export default async function PublicSitePage({ params }: SitePageProps) {
@@ -48,6 +50,7 @@ export default async function PublicSitePage({ params }: SitePageProps) {
   if (!finalHtml) notFound();
 
   const fontUrl = TEMPLATE_ENGINES[tplId]?.googleFontsUrl || TEMPLATE_ENGINES['editorial-atelier'].googleFontsUrl;
+  const jsonLd = buildPublicSiteJsonLd(site);
 
   return (
     <>
@@ -55,6 +58,10 @@ export default async function PublicSitePage({ params }: SitePageProps) {
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href={fontUrl} rel="stylesheet" />
       <style dangerouslySetInnerHTML={{ __html: RESPONSIVE_CORE_CSS }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <main
         className="min-h-screen w-full bg-white text-[#1A202C] antialiased"
         dangerouslySetInnerHTML={{ __html: finalHtml }}

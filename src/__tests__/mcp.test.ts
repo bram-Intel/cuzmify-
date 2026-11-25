@@ -8,6 +8,7 @@ import {
   toGeminiFunctionDeclarations,
 } from '@/lib/mcp/cuzmify-tools';
 import { generateUserMcpToken, verifyUserMcpToken } from '@/lib/mcp/mcp-auth';
+import { buildPublicSiteJsonLd, buildPublicSiteMetadata } from '@/lib/seo-metadata';
 
 describe('Cuzmify MCP Tool Registry & Execution', () => {
   it('exposes full autonomous MCP schemas and Gemini function declarations including publish & enquiries', () => {
@@ -348,6 +349,79 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(freeRendered.css).not.toContain('</style>');
     expect(freeRendered.html).toContain('Same-Day Replies');
     expect(freeRendered.html).not.toContain('<script>');
+  });
+
+  it('supports generic immutable slot injections (inject_slot) and SEO configuration + JSON-LD SSR (configure_seo)', () => {
+    let bp = createDefaultBlueprint({
+      name: 'Zuri Atelier',
+      city: 'Lagos',
+      country: 'Nigeria',
+      templateId: 'editorial-atelier',
+    });
+
+    bp = executeBlueprintMcpTool(
+      'inject_slot',
+      {
+        slot: 'top_bar',
+        html: '<div style="text-align:center;padding:6px;font-size:12px;">December Bookings Open</div><script>evil()</script>',
+      },
+      bp
+    ).blueprint;
+
+    bp = executeBlueprintMcpTool(
+      'inject_slot',
+      {
+        slot: 'submit_button_prefix',
+        html: '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2L2 22h20z"/></svg>',
+      },
+      bp
+    ).blueprint;
+
+    bp = executeBlueprintMcpTool(
+      'inject_slot',
+      {
+        slot: 'footer',
+        html: '<p style="text-align:center;padding:24px;">© Zuri Atelier Lagos</p>',
+      },
+      bp
+    ).blueprint;
+
+    bp = executeBlueprintMcpTool(
+      'configure_seo',
+      {
+        metaTitle: 'Zuri Atelier — Bridal & Editorial Glam in Lagos',
+        metaDescription: 'Book luxury bridal makeup and editorial beauty sessions with Zuri Atelier in Lagos.',
+        keywords: ['bridal makeup lagos', 'luxury beauty studio'],
+        schemaType: 'BeautySalon',
+        priceRange: '₦₦',
+        openingHours: 'Tu-Sa 09:00-19:00',
+        areaServed: 'Lagos, Nigeria',
+      },
+      bp
+    ).blueprint;
+
+    const rendered = renderTemplateEngine('editorial-atelier', bp);
+    expect(rendered.html).toContain('data-cuzmify-slot="top_bar"');
+    expect(rendered.html).toContain('December Bookings Open');
+    expect(rendered.html).not.toContain('<script>');
+    expect(rendered.html).toContain('M12 2L2 22h20z');
+    expect(rendered.html).toContain('data-cuzmify-slot="footer"');
+    expect(rendered.html).toContain('© Zuri Atelier Lagos');
+
+    const siteRec = {
+      id: 'site_seo_1',
+      name: 'Zuri Atelier',
+      subdomain: 'zuriatelier',
+      blueprintData: JSON.stringify(bp),
+    };
+    const meta = buildPublicSiteMetadata(siteRec);
+    expect(meta.title).toBe('Zuri Atelier — Bridal & Editorial Glam in Lagos');
+    expect(meta.keywords).toEqual(['bridal makeup lagos', 'luxury beauty studio']);
+
+    const jsonLd = buildPublicSiteJsonLd(siteRec);
+    expect(jsonLd['@type']).toBe('BeautySalon');
+    expect(jsonLd.areaServed).toBe('Lagos, Nigeria');
+    expect(jsonLd.openingHours).toBe('Tu-Sa 09:00-19:00');
   });
 
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {

@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine, resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
 import { PublicEnquiryRuntime } from '@/components/public-site/PublicEnquiryRuntime';
+import { buildPublicSiteJsonLd, buildPublicSiteMetadata } from '@/lib/seo-metadata';
 import Link from 'next/link';
 import { Sparkles, ArrowRight, Globe } from 'lucide-react';
 
@@ -63,43 +64,7 @@ async function getSiteByDomain(domainSlug: string) {
 export async function generateMetadata({ params }: SubdomainPageProps): Promise<Metadata> {
   const { domain } = await params;
   const site = await getSiteByDomain(domain);
-
-  if (!site) {
-    return {
-      title: `${domain} — Powered by Cuzmify`,
-      description: `Explore ${domain} on Cuzmify. Fast, responsive, and composable online business experience.`,
-    };
-  }
-
-  let ogImage: string | undefined;
-  let metaTagline = `Portfolio, packages & direct WhatsApp enquiries for ${site.name}.`;
-  if ((site as any).blueprintData) {
-    try {
-      const bp = JSON.parse((site as any).blueprintData);
-      if (bp?.profile?.tagline) metaTagline = bp.profile.tagline;
-      const firstMedia = bp?.mediaVault?.[0];
-      const rawImg = firstMedia?.thumbnailUrl || firstMedia?.url;
-      if (rawImg && rawImg.startsWith('http')) ogImage = rawImg;
-    } catch {}
-  }
-
-  return {
-    title: `${site.name} — Official Portfolio & Bookings`,
-    description: metaTagline,
-    openGraph: {
-      title: `${site.name} — Official Portfolio & Bookings`,
-      description: metaTagline,
-      siteName: site.name,
-      type: 'website',
-      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${site.name} — Official Portfolio & Bookings`,
-      description: metaTagline,
-      ...(ogImage ? { images: [ogImage] } : {}),
-    },
-  };
+  return buildPublicSiteMetadata(site as any, domain);
 }
 
 export default async function SubdomainSitePage({ params }: SubdomainPageProps) {
@@ -158,6 +123,7 @@ export default async function SubdomainSitePage({ params }: SubdomainPageProps) 
 
   const fontUrl = TEMPLATE_ENGINES[resolvedTplId]?.googleFontsUrl || TEMPLATE_ENGINES['editorial-atelier'].googleFontsUrl;
   const isProSite = (site as any).plan === 'pro';
+  const jsonLd = buildPublicSiteJsonLd(site as any);
 
   return (
     <>
@@ -168,6 +134,10 @@ export default async function SubdomainSitePage({ params }: SubdomainPageProps) 
         dangerouslySetInnerHTML={{
           __html: RESPONSIVE_CORE_CSS,
         }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
       {/* Live Site Canvas */}

@@ -315,6 +315,7 @@ ACTIVE TEMPLATE AWARENESS:
   * Colors/fonts/buttons/CSS: accentColor, backgroundColor, surfaceColor, textColor, buttonRadius ("pill"|"rounded"|"sharp"), submitButtonIcon ("auto"|"whatsapp"|"sparkles"|"calendar"|"none"), submitButtonColor (#hex), customCss (safe scoped CSS rules), fontMood ("editorial_serif"|"modern_sans"|"bold_display").
   * Structural layouts & responsive tokens: heroLayout ("split"|"centered"|"full_bleed"|"minimal_card"), servicesLayout ("editorial_list"|"card_grid"|"compact_menu"), heroTextAlign ("left"|"center"), hideHeroImage (boolean), fontScale ("compact"|"normal"|"large"), pagePaddingX ("compact"|"normal"|"spacious"), sectionSpacing ("compact"|"normal"|"airy"), heroImageAspect, heroImageMaxHeight (140..680), heroImageShape, heroImageFit ("cover"|"contain"), galleryColumns (1..4), servicesColumns (1..3).
 - Section Ordering & Custom Blocks: reorder_sections(order) arranges sections (hero, services, portfolio, custom, testimonials, faq, booking); upsert_custom_section builds bespoke cards, checklists, hours, CTA banners, OR sanitized custom_html blocks inside the active template engine.
+- Immutable Injection Slots & SEO: inject_slot injects sanitized HTML/SVG into any named template slot (top_bar, nav_actions, hero_above, hero_cta_after, hero_below, services_above, services_below, booking_above, submit_button_prefix, submit_button_suffix, booking_below, footer); configure_seo configures search title, description, keywords, canonical URL, OpenGraph & LocalBusiness/Service JSON-LD schema.
 - Editable template copy slots (customize_template_copy): heroBadge, primaryCta, submitButtonText, servicesEyebrow, servicesHeading, serviceItemCta, portfolioEyebrow, portfolioHeading, enquiryEyebrow, enquiryHeading, enquirySubheading, testimonialsHeading, faqHeading (plus headline/bio/name via update_business_profile).
 
 STRICT AUTONOMY & SAFETY RULES:
@@ -345,6 +346,8 @@ STRICT AUTONOMY & SAFETY RULES:
 - Rendered DOM Order: ${siteInspection.renderedSections.map((s) => `${s.id}[${s.type}]`).join(' -> ')}
 - Skipped Sections: ${JSON.stringify(siteInspection.skippedSections)}
 - Auto Visual & Launch QA Findings: ${JSON.stringify(siteInspection.qaFindings)}
+- SEO Audit: ${JSON.stringify(siteInspection.seoAudit)}
+- Active Injection Slots: ${JSON.stringify(siteInspection.activeInjections)} (available: ${siteInspection.availableSlots.join(', ')})
 - Active Niche: "${workingBlueprint.nicheId}"
 - Profile Name: "${workingBlueprint.profile.name}"
 - Headline: "${workingBlueprint.customCopy?.headline || workingBlueprint.profile.tagline || ''}"

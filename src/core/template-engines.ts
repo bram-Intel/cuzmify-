@@ -11,6 +11,7 @@
 
 import {
   SUPPORTED_CURRENCIES,
+  type BlueprintSlotId,
   type BusinessBlueprint,
   type DeviceDesignOverrides,
   type MediaVaultAsset,
@@ -263,14 +264,20 @@ function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBluepr
     .join('\n');
 }
 
-function sanitizeCustomSectionHtml(raw: string): string {
+function sanitizeInjectableHtml(raw: string, maxLen = 12000): string {
   return raw
     .trim()
-    .slice(0, 12000)
+    .slice(0, maxLen)
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<\/?(?:script|iframe|object|embed|link|meta|style)\b[^>]*>/gi, '')
     .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/(?:javascript|vbscript):/gi, '');
+}
+
+function renderSlotHtml(bp: BusinessBlueprint, slot: BlueprintSlotId, maxLen = 6000): string {
+  const raw = bp.injections?.[slot];
+  if (typeof raw !== 'string' || !raw.trim()) return '';
+  return sanitizeInjectableHtml(raw, maxLen);
 }
 
 function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateEngineId): string {
@@ -292,7 +299,7 @@ function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateE
       let bodyHtml = '';
 
       if (sec.layout === 'custom_html' && sec.html?.trim()) {
-        bodyHtml = sanitizeCustomSectionHtml(sec.html);
+        bodyHtml = sanitizeInjectableHtml(sec.html);
       } else if (sec.layout === 'banner_cta') {
         bodyHtml = `<div style="padding:28px 24px;border-radius:20px;border:1px solid ${border};background:${surface};display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;">
           <div style="max-width:620px;">
@@ -448,7 +455,9 @@ function renderSharedEnquiryForm(
   const waPhone = (bp.modules?.whatsapp?.phoneNumber || bp.profile?.whatsapp || '').replace(/[^\d]/g, '');
   const activeOv = getActiveDesignOverrides(resolveTemplateEngineId(bp.templateId), bp);
   const submitColor = getSafeHexColor(activeOv?.submitButtonColor) || '#25D366';
-  const submitIconHtml = renderSubmitButtonIconHtml(activeOv?.submitButtonIcon, Boolean(waPhone));
+  const injectedPrefix = renderSlotHtml(bp, 'submit_button_prefix', 3000);
+  const injectedSuffix = renderSlotHtml(bp, 'submit_button_suffix', 3000);
+  const submitIconHtml = injectedPrefix || renderSubmitButtonIconHtml(activeOv?.submitButtonIcon, Boolean(waPhone));
   const submitLabel =
     bp.customCopy?.submitButtonText ||
     (waPhone
@@ -521,6 +530,7 @@ function renderSharedEnquiryForm(
     >
       ${submitIconHtml}
       <span>${escapeHtml(submitLabel)}</span>
+      ${injectedSuffix}
     </button>
     <p data-cuzmify-enquiry-feedback="true" style="display:none;font-size:12px;text-align:center;margin:4px 0 0;color:#10B981;font-weight:600;"></p>
   </form>`;
@@ -1304,6 +1314,62 @@ export interface RenderedTemplateOutput {
   googleFontsUrl: string;
 }
 
+function applyTemplateSlotInjections(rootHtml: string, bp: BusinessBlueprint): string {
+  const inj = bp.injections;
+  if (!inj) return rootHtml;
+
+  let out = rootHtml;
+
+  const topBar = renderSlotHtml(bp, 'top_bar', 4000);
+  if (topBar) {
+    out = out.replace(
+      /(<div\b[^>]*data-cuzmify-template="[^"]*"[^>]*>)/i,
+      `$1\n  <div data-cuzmify-slot="top_bar">${topBar}</div>`
+    );
+  }
+
+  const navActions = renderSlotHtml(bp, 'nav_actions', 3000);
+  if (navActions) {
+    out = out.replace(
+      /(<nav\b[^>]*data-cuzmify-type="navbar"[\s\S]*?)(<\/div>\s*<\/nav>)/i,
+      `$1<span data-cuzmify-slot="nav_actions" style="display:inline-flex;align-items:center;gap:8px;flex-shrink:0;">${navActions}</span>$2`
+    );
+  }
+
+  const heroCtaAfter = renderSlotHtml(bp, 'hero_cta_after', 3000);
+  if (heroCtaAfter) {
+    out = out.replace(
+      /(<div\b[^>]*class="[^"]*cz-hero-actions[^"]*"[^>]*>[\s\S]*?)(<\/div>)/i,
+      `$1<span data-cuzmify-slot="hero_cta_after" style="display:inline-flex;align-items:center;gap:8px;">${heroCtaAfter}</span>$2`
+    );
+  }
+
+  const wrapSection = (secId: string, aboveSlot: BlueprintSlotId, belowSlot: BlueprintSlotId) => {
+    const above = renderSlotHtml(bp, aboveSlot, 4000);
+    const below = renderSlotHtml(bp, belowSlot, 4000);
+    if (!above && !below) return;
+    const re = new RegExp(`(<section\\b[^>]*\\bid="${secId}"[^>]*>[\\s\\S]*?<\\/section>)`, 'i');
+    out = out.replace(
+      re,
+      `${above ? `<div data-cuzmify-slot="${aboveSlot}">${above}</div>` : ''}$1${below ? `<div data-cuzmify-slot="${belowSlot}">${below}</div>` : ''}`
+    );
+  };
+
+  wrapSection('hero', 'hero_above', 'hero_below');
+  wrapSection('services', 'services_above', 'services_below');
+  wrapSection('booking', 'booking_above', 'booking_below');
+
+  const footer = renderSlotHtml(bp, 'footer', 6000);
+  if (footer) {
+    const lastDivIdx = out.lastIndexOf('</div>');
+    if (lastDivIdx !== -1) {
+      out = `${out.slice(0, lastDivIdx)}\n  <footer data-cuzmify-type="footer" data-cuzmify-slot="footer">${footer}</footer>\n${out.slice(lastDivIdx)}`;
+    }
+  }
+
+  return out;
+}
+
 /**
  * Renders a `BusinessBlueprint` through the chosen `TemplateEngineId` with 0% data loss.
  */
@@ -1325,13 +1391,14 @@ export function renderTemplateEngine(
 
   const overrideCss = buildDesignOverrideCss(templateId, blueprint);
   const combinedCss = [rendered.css, overrideCss].filter(Boolean).join('\n');
+  const injectedHtml = applyTemplateSlotInjections(rendered.html, blueprint);
 
   return {
     templateId,
     nicheId: niche.id,
     css: combinedCss,
-    html: rendered.html,
-    fullHtml: `<style>${combinedCss}</style>\n${rendered.html}`,
+    html: injectedHtml,
+    fullHtml: `<style>${combinedCss}</style>\n${injectedHtml}`,
     googleFontsUrl: meta.googleFontsUrl,
   };
 }
