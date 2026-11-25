@@ -113,7 +113,9 @@ function getSafeHexColor(val?: string | null): string | null {
 }
 
 function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBlueprint): string {
-  const ov = bp.designOverrides;
+  const ov = bp.templateDesignOverrides
+    ? bp.templateDesignOverrides[templateId]
+    : bp.designOverrides;
   if (!ov) return '';
 
   const accent = getSafeHexColor(ov.accentColor);

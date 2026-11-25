@@ -55,6 +55,15 @@ export class BlueprintManager {
   }
 
   public setTemplateId(templateId: string): void {
+    const prevTpl = this.blueprint.templateId || 'editorial-atelier';
+    if (prevTpl !== templateId) {
+      const scoped = { ...(this.blueprint.templateDesignOverrides || {}) };
+      if (this.blueprint.designOverrides && Object.keys(this.blueprint.designOverrides).length > 0) {
+        scoped[prevTpl] = { ...this.blueprint.designOverrides };
+      }
+      this.blueprint.templateDesignOverrides = scoped;
+      this.blueprint.designOverrides = scoped[templateId] ? { ...scoped[templateId] } : {};
+    }
     this.blueprint.templateId = templateId;
     this.touch();
   }

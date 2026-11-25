@@ -539,17 +539,23 @@ export function executeBlueprintMcpTool(
     }
 
     case 'customize_template_design': {
+      const activeTpl = resolveTemplateEngineId(bp.templateId);
+      const scopedMap: Record<string, TemplateDesignOverrides> = { ...(bp.templateDesignOverrides || {}) };
       if (args.resetToDefaults) {
+        scopedMap[activeTpl] = {};
+        bp.templateDesignOverrides = scopedMap;
         bp.designOverrides = {};
         bp.updatedAt = new Date().toISOString();
         return {
           ok: true,
           blueprint: bp,
-          changeSummary: 'Restored template default colors & typography',
-          data: { designOverrides: {} },
+          changeSummary: `Restored ${TEMPLATE_ENGINES[activeTpl].name} native defaults (other templates untouched)`,
+          data: { templateId: activeTpl, designOverrides: {}, templateDesignOverrides: scopedMap },
         };
       }
-      const nextDesign: TemplateDesignOverrides = { ...(bp.designOverrides || {}) };
+      const nextDesign: TemplateDesignOverrides = {
+        ...(scopedMap[activeTpl] || bp.designOverrides || {}),
+      };
       const changed: string[] = [];
       const accent = normalizeSafeHex(args.accentColor);
       if (accent) {
@@ -620,6 +626,8 @@ export function executeBlueprintMcpTool(
         nextDesign.galleryColumns = cols;
         changed.push(`galleryCols=${cols}`);
       }
+      scopedMap[activeTpl] = nextDesign;
+      bp.templateDesignOverrides = scopedMap;
       bp.designOverrides = nextDesign;
       bp.updatedAt = new Date().toISOString();
       return {
@@ -627,12 +635,12 @@ export function executeBlueprintMcpTool(
         blueprint: bp,
         changeSummary:
           changed.length > 0
-            ? `Customized template design (${changed.join(', ')})`
+            ? `Customized ${TEMPLATE_ENGINES[activeTpl].name} design (${changed.join(', ')})`
             : 'No valid design or layout tokens specified',
         ...(changed.length === 0
           ? { error: 'Pass hex colors, buttonRadius, fontMood, pagePaddingX, sectionSpacing, heroImage*, or galleryColumns.' }
           : {}),
-        data: { designOverrides: nextDesign },
+        data: { templateId: activeTpl, designOverrides: nextDesign },
       };
     }
 
@@ -863,14 +871,27 @@ export function executeBlueprintMcpTool(
     }
 
     case 'switch_template_style': {
+      const prevTpl = resolveTemplateEngineId(bp.templateId);
       const resolved = resolveTemplateEngineId(String(args.templateId || 'editorial-atelier'));
+      const scopedMap: Record<string, TemplateDesignOverrides> = { ...(bp.templateDesignOverrides || {}) };
+      if (prevTpl !== resolved) {
+        if (bp.designOverrides && Object.keys(bp.designOverrides).length > 0 && !scopedMap[prevTpl]) {
+          scopedMap[prevTpl] = { ...bp.designOverrides };
+        }
+        bp.templateDesignOverrides = scopedMap;
+        bp.designOverrides = scopedMap[resolved] ? { ...scopedMap[resolved] } : {};
+      }
       bp.templateId = resolved;
       bp.updatedAt = new Date().toISOString();
       return {
         ok: true,
         blueprint: bp,
         changeSummary: `Switched template style to ${TEMPLATE_ENGINES[resolved].name}`,
-        data: { templateId: resolved, templateName: TEMPLATE_ENGINES[resolved].name },
+        data: {
+          templateId: resolved,
+          templateName: TEMPLATE_ENGINES[resolved].name,
+          designOverrides: bp.designOverrides || {},
+        },
       };
     }
 

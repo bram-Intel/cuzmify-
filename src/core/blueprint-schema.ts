@@ -221,6 +221,7 @@ export interface BusinessBlueprint {
   customCopy?: Record<string, string>;
   sectionVisibility?: Record<string, boolean>;
   designOverrides?: TemplateDesignOverrides;
+  templateDesignOverrides?: Record<string, TemplateDesignOverrides>;
   testimonials?: BlueprintTestimonialItem[];
   faqs?: BlueprintFaqItem[];
   updatedAt: string;

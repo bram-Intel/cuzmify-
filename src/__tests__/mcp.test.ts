@@ -156,6 +156,30 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(rendered.fullHtml).not.toContain('id="portfolio"');
   });
 
+  it('isolates designOverrides per template and preserves custom tweaks when switching or resetting', () => {
+    let bp = createDefaultBlueprint({ name: 'Brandy Queen', templateId: 'editorial-atelier' });
+
+    bp = executeBlueprintMcpTool(
+      'customize_template_design',
+      { accentColor: '#9A6B4C', heroImageMaxHeight: 280, heroImageFit: 'contain' },
+      bp
+    ).blueprint;
+
+    // Switching to modern-studio loads native clean defaults without leaking editorial overrides
+    bp = executeBlueprintMcpTool('switch_template_style', { templateId: 'modern-studio' }, bp).blueprint;
+    expect(bp.designOverrides).toEqual({});
+    const modernRendered = renderTemplateEngine('modern-studio', bp);
+    expect(modernRendered.css).not.toContain('max-height:280px');
+
+    // Resetting modern-studio does NOT wipe editorial-atelier's saved tweaks
+    bp = executeBlueprintMcpTool('customize_template_design', { resetToDefaults: true }, bp).blueprint;
+    bp = executeBlueprintMcpTool('switch_template_style', { templateId: 'editorial-atelier' }, bp).blueprint;
+    expect(bp.designOverrides?.heroImageMaxHeight).toBe(280);
+    expect(bp.designOverrides?.heroImageFit).toBe('contain');
+    const editorialRendered = renderTemplateEngine('editorial-atelier', bp);
+    expect(editorialRendered.css).toContain('max-height:280px');
+  });
+
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {
     const token = generateUserMcpToken('user_abc_123');
     expect(verifyUserMcpToken(token)).toBe('user_abc_123');
