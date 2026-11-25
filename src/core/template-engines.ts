@@ -379,7 +379,7 @@ function renderSharedTestimonialsSection(bp: BusinessBlueprint, isDark: boolean)
   const muted = isDark ? '#A1A1AA' : '#57534E';
   return `<section id="testimonials" data-cuzmify-type="testimonials" style="padding:52px 0;border-top:1px solid ${border};">
     <div style="max-width:1080px;margin:0 auto;padding:0 20px;box-sizing:border-box;">
-      <h2 style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0 0 24px;">${escapeHtml(heading)}</h2>
+      <h2 data-cuzmify-field="testimonials-heading" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0 0 24px;">${escapeHtml(heading)}</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
         ${items
           .slice(0, 6)
@@ -404,7 +404,7 @@ function renderSharedFaqSection(bp: BusinessBlueprint, isDark: boolean): string 
   const muted = isDark ? '#A1A1AA' : '#57534E';
   return `<section id="faq" data-cuzmify-type="faq" style="padding:52px 0;border-top:1px solid ${border};">
     <div style="max-width:820px;margin:0 auto;padding:0 20px;box-sizing:border-box;">
-      <h2 style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0 0 22px;">${escapeHtml(heading)}</h2>
+      <h2 data-cuzmify-field="faq-heading" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0 0 22px;">${escapeHtml(heading)}</h2>
       <div style="display:flex;flex-direction:column;gap:12px;">
         ${items
           .slice(0, 10)
@@ -529,7 +529,7 @@ function renderSharedEnquiryForm(
       style="margin-top:6px;width:100%;padding:15px 20px;border-radius:14px;border:none;background:${submitColor};color:#FFFFFF;font-weight:700;font-size:15px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 8px 24px rgba(37,211,102,0.25);"
     >
       ${submitIconHtml}
-      <span>${escapeHtml(submitLabel)}</span>
+      <span data-cuzmify-field="submit-button-text">${escapeHtml(submitLabel)}</span>
       ${injectedSuffix}
     </button>
     <p data-cuzmify-enquiry-feedback="true" style="display:none;font-size:12px;text-align:center;margin:4px 0 0;color:#10B981;font-weight:600;"></p>
@@ -567,14 +567,14 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
     return `<section id="hero" data-cuzmify-type="hero" style="padding:48px 0;">
       <div class="${containerCls}" style="max-width:860px;">
         <div class="cz-hero-text" style="text-align:center;display:flex;flex-direction:column;align-items:center;">
-          <span style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
+          <span data-cuzmify-field="hero-badge" style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
           <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.5rem);font-weight:700;line-height:1.1;margin:0 0 16px;color:${ink};max-width:720px;">${escapeHtml(headline)}</h1>
           <p data-cuzmify-field="subheadline" style="font-size:15px;line-height:1.68;color:${muted};margin:0 0 26px;max-width:560px;">${escapeHtml(subheadline)}</p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px;">
-            <a href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
             ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
           </div>
-          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:32px;width:100%;max-width:620px;border-radius:22px;overflow:hidden;aspect-ratio:16/10;max-height:420px;border:1px solid ${border};background:${surface};"><img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:32px;width:100%;max-width:620px;border-radius:22px;overflow:hidden;aspect-ratio:16/10;max-height:420px;border:1px solid ${border};background:${surface};"><img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
         </div>
       </div>
     </section>`;
@@ -582,13 +582,13 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
 
   if (layout === 'full_bleed') {
     return `<section id="hero" data-cuzmify-type="hero" style="position:relative;${heroAsset ? 'min-height:460px;display:flex;align-items:flex-end;' : 'padding:64px 0;'}background:linear-gradient(135deg,#0F172A,#1E293B);overflow:hidden;">
-      ${heroAsset ? `<img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.48;"/><div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(9,9,11,0.88) 12%,rgba(9,9,11,0.45) 60%,rgba(9,9,11,0.28) 100%);"></div>` : ''}
+      ${heroAsset ? `<img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.48;"/><div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(9,9,11,0.88) 12%,rgba(9,9,11,0.45) 60%,rgba(9,9,11,0.28) 100%);"></div>` : ''}
       <div class="${containerCls} cz-hero-text" style="position:relative;z-index:2;padding-top:72px;padding-bottom:52px;width:100%;">
-        <span style="display:inline-block;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,0.14);color:#FAFAFA;font-size:11px;font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
+        <span data-cuzmify-field="hero-badge" style="display:inline-block;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,0.14);color:#FAFAFA;font-size:11px;font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
         <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.6rem);font-weight:800;line-height:1.08;margin:0 0 14px;max-width:700px;color:#FAFAFA;">${escapeHtml(headline)}</h1>
         <p data-cuzmify-field="subheadline" style="font-size:15px;color:#E4E4E7;line-height:1.65;margin:0 0 26px;max-width:540px;">${escapeHtml(subheadline)}</p>
         <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-          <a href="#booking" style="padding:13px 26px;border-radius:12px;background:${accent};color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:12px;background:${accent};color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
           ${hasGallery ? `<a href="#portfolio" style="padding:13px 22px;border-radius:12px;background:rgba(255,255,255,0.12);color:#FAFAFA;font-weight:700;font-size:13px;text-decoration:none;">View Work</a>` : ''}
         </div>
       </div>
@@ -599,13 +599,13 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
     return `<section id="hero" data-cuzmify-type="hero" style="padding:36px 0;">
       <div class="${containerCls}">
         <div class="cz-hero-text" style="background:${surface};border:1px solid ${border};border-radius:24px;padding:30px 24px;">
-          <span style="display:inline-block;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:10px;">${escapeHtml(heroBadge)}</span>
+          <span data-cuzmify-field="hero-badge" style="display:inline-block;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:10px;">${escapeHtml(heroBadge)}</span>
           <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(1.85rem,4.5vw,2.9rem);font-weight:800;line-height:1.12;margin:0 0 12px;color:${ink};">${escapeHtml(headline)}</h1>
           <p data-cuzmify-field="subheadline" style="font-size:14px;line-height:1.65;color:${muted};margin:0 0 22px;max-width:600px;">${escapeHtml(subheadline)}</p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
-            <a href="#booking" style="padding:12px 22px;border-radius:12px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:12px 22px;border-radius:12px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
           </div>
-          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:24px;border-radius:18px;overflow:hidden;aspect-ratio:16/9;max-height:360px;background:${surface};border:1px solid ${border};"><img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:24px;border-radius:18px;overflow:hidden;aspect-ratio:16/9;max-height:360px;background:${surface};border:1px solid ${border};"><img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
         </div>
       </div>
     </section>`;
@@ -615,15 +615,15 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
   return `<section id="hero" data-cuzmify-type="hero">
     <div class="${containerCls} cz-ea-hero-grid">
       <div class="cz-hero-text">
-        <span style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
+        <span data-cuzmify-field="hero-badge" style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
         <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.2rem,5vw,3.6rem);font-weight:700;line-height:1.08;margin:0 0 16px;color:${ink};">${escapeHtml(headline)}</h1>
         <p data-cuzmify-field="subheadline" style="font-size:15px;line-height:1.68;color:${muted};margin:0 0 26px;max-width:480px;">${escapeHtml(subheadline)}</p>
         <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-          <a href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
           ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
         </div>
       </div>
-      ${heroAsset ? `<div class="cz-hero-media" style="border-radius:24px;overflow:hidden;aspect-ratio:4/5;max-height:480px;width:100%;border:1px solid ${border};background:${surface};"><img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+      ${heroAsset ? `<div class="cz-hero-media" style="border-radius:24px;overflow:hidden;aspect-ratio:4/5;max-height:480px;width:100%;border:1px solid ${border};background:${surface};"><img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
     </div>
   </section>`;
 }
@@ -654,8 +654,8 @@ function renderCustomServicesLayout(
     return `<section id="services" data-cuzmify-type="services" style="padding:52px 0;border-top:1px solid ${border};">
       <div class="${containerCls}">
         <div style="margin-bottom:24px;">
-          <span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
-          <h2 class="${headingCls}" style="font-size:clamp(1.6rem,3.5vw,2.25rem);font-weight:700;margin:6px 0 0;">${escapeHtml(heading)}</h2>
+          <span data-cuzmify-field="services-eyebrow" style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
+          <h2 data-cuzmify-field="services-heading" class="${headingCls}" style="font-size:clamp(1.6rem,3.5vw,2.25rem);font-weight:700;margin:6px 0 0;">${escapeHtml(heading)}</h2>
         </div>
         <div class="services-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;">
           ${services
@@ -663,13 +663,13 @@ function renderCustomServicesLayout(
               const pText = formatServicePrice(srv, currencySymbol);
               return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:16px 18px;border-radius:14px;border:1px solid ${border};background:${surface};display:flex;align-items:center;justify-content:space-between;gap:12px;">
                 <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">
-                  ${srv.imageUrl ? `<img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;"/>` : ''}
+                  ${srv.imageUrl ? `<img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;"/>` : ''}
                   <div style="min-width:0;">
                     <h3 data-cuzmify-field="service-name" style="margin:0;font-size:15px;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
-                    ${srv.description ? `<p style="margin:4px 0 0;font-size:12px;color:${muted};line-height:1.45;">${escapeHtml(srv.description)}</p>` : ''}
+                    ${srv.description ? `<p data-cuzmify-field="service-description" style="margin:4px 0 0;font-size:12px;color:${muted};line-height:1.45;">${escapeHtml(srv.description)}</p>` : ''}
                   </div>
                 </div>
-                <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="font-size:13px;font-weight:800;color:${accent};text-decoration:none;white-space:nowrap;">${escapeHtml(pText)}</a>
+                <a href="#booking" data-cuzmify-field="service-price" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="font-size:13px;font-weight:800;color:${accent};text-decoration:none;white-space:nowrap;">${escapeHtml(pText)}</a>
               </div>`;
             })
             .join('')}
@@ -682,8 +682,8 @@ function renderCustomServicesLayout(
     return `<section id="services" data-cuzmify-type="services" style="padding:56px 0;border-top:1px solid ${border};">
       <div class="${containerCls}">
         <div style="margin-bottom:28px;">
-          <span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
-          <h2 class="${headingCls}" style="font-size:clamp(1.65rem,3.5vw,2.35rem);font-weight:700;margin:6px 0 0;">${escapeHtml(heading)}</h2>
+          <span data-cuzmify-field="services-eyebrow" style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
+          <h2 data-cuzmify-field="services-heading" class="${headingCls}" style="font-size:clamp(1.65rem,3.5vw,2.35rem);font-weight:700;margin:6px 0 0;">${escapeHtml(heading)}</h2>
         </div>
         <div class="services-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;">
           ${services
@@ -691,14 +691,14 @@ function renderCustomServicesLayout(
               const pText = formatServicePrice(srv, currencySymbol);
               return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:${surface};border:1px solid ${border};border-radius:18px;padding:22px;display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
                 <div>
-                  ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;aspect-ratio:16/10;margin-bottom:14px;background:rgba(128,128,128,0.08);"><img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+                  ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;aspect-ratio:16/10;margin-bottom:14px;background:rgba(128,128,128,0.08);"><img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
                   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                     <h3 data-cuzmify-field="service-name" class="${headingCls}" style="margin:0;font-size:1.15rem;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
                     <span data-cuzmify-field="service-price" style="font-weight:800;font-size:0.95rem;color:${accent};white-space:nowrap;">${escapeHtml(pText)}</span>
                   </div>
-                  ${srv.description ? `<p style="margin:8px 0 0;font-size:13px;color:${muted};line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
+                  ${srv.description ? `<p data-cuzmify-field="service-description" style="margin:8px 0 0;font-size:13px;color:${muted};line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
                 </div>
-                <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:${accent};color:${isDark ? '#09090B' : '#FFFFFF'};font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(itemCta)} →</a>
+                <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:${accent};color:${isDark ? '#09090B' : '#FFFFFF'};font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(itemCta)} →</a>
               </div>`;
             })
             .join('')}
@@ -711,8 +711,8 @@ function renderCustomServicesLayout(
   return `<section id="services" data-cuzmify-type="services" style="padding:56px 0;border-top:1px solid ${border};">
     <div class="${containerCls}">
       <div style="margin-bottom:32px;">
-        <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
-        <h2 class="${headingCls}" style="font-size:clamp(1.75rem,3.8vw,2.5rem);font-weight:600;margin:8px 0 0;">${escapeHtml(heading)}</h2>
+        <span data-cuzmify-field="services-eyebrow" style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:${accent};font-weight:700;">${escapeHtml(eyebrow)}</span>
+        <h2 data-cuzmify-field="services-heading" class="${headingCls}" style="font-size:clamp(1.75rem,3.8vw,2.5rem);font-weight:600;margin:8px 0 0;">${escapeHtml(heading)}</h2>
       </div>
       <div class="services-grid" style="display:flex;flex-direction:column;">
         ${services
@@ -721,15 +721,15 @@ function renderCustomServicesLayout(
             return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:22px 0;border-bottom:1px solid ${border};display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;">
               <div style="display:flex;gap:14px;align-items:flex-start;flex:1 1 250px;">
                 <span style="font-size:1.1rem;color:${accent};font-weight:700;min-width:26px;">0${idx + 1}</span>
-                ${srv.imageUrl ? `<img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;"/>` : ''}
+                ${srv.imageUrl ? `<img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;"/>` : ''}
                 <div>
                   <h3 data-cuzmify-field="service-name" class="${headingCls}" style="font-size:1.25rem;font-weight:700;margin:0;color:${ink};">${escapeHtml(srv.name)}</h3>
-                  ${srv.description ? `<p style="font-size:13px;color:${muted};margin:5px 0 0;line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
+                  ${srv.description ? `<p data-cuzmify-field="service-description" style="font-size:13px;color:${muted};margin:5px 0 0;line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
                 </div>
               </div>
               <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
                 <span data-cuzmify-field="service-price" style="font-weight:700;color:${ink};">${escapeHtml(pText)}</span>
-                <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="padding:9px 16px;border-radius:999px;border:1px solid ${border};color:${ink};text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap;">${escapeHtml(itemCta)}</a>
+                <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="padding:9px 16px;border-radius:999px;border:1px solid ${border};color:${ink};text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap;">${escapeHtml(itemCta)}</a>
               </div>
             </div>`;
           })
@@ -790,8 +790,8 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
         : `<section id="services" data-cuzmify-type="services" style="padding:64px 0;border-top:1px solid var(--cz-border);">
           <div class="cz-ea-container">
             <div style="margin-bottom:36px;">
-              <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
-              <h2 class="cz-ea-serif" style="font-size:clamp(2rem,4vw,2.75rem);font-weight:600;margin:8px 0 0;line-height:1.15;">${escapeHtml(copy.servicesHeading || niche.vocabulary.servicesHeading)}</h2>
+              <span data-cuzmify-field="services-eyebrow" style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
+              <h2 data-cuzmify-field="services-heading" class="cz-ea-serif" style="font-size:clamp(2rem,4vw,2.75rem);font-weight:600;margin:8px 0 0;line-height:1.15;">${escapeHtml(copy.servicesHeading || niche.vocabulary.servicesHeading)}</h2>
             </div>
             <div class="services-grid" style="display:flex;flex-direction:column;">
               ${services
@@ -800,15 +800,15 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
                   return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:24px 0;border-bottom:1px solid var(--cz-border);display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;">
                     <div style="display:flex;gap:16px;align-items:flex-start;flex:1 1 260px;">
                       <span class="cz-ea-serif" style="font-size:1.25rem;color:var(--cz-accent);font-style:italic;min-width:28px;">0${idx + 1}</span>
-                      ${srv.imageUrl ? `<img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;"/>` : ''}
+                      ${srv.imageUrl ? `<img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;"/>` : ''}
                       <div>
                         <h3 data-cuzmify-field="service-name" class="cz-ea-serif" style="font-size:1.45rem;font-weight:600;margin:0;color:var(--cz-ink);">${escapeHtml(srv.name)}</h3>
-                        ${srv.description ? `<p style="font-size:13px;color:var(--cz-muted);margin:6px 0 0;line-height:1.6;max-width:540px;">${escapeHtml(srv.description)}</p>` : ''}
+                        ${srv.description ? `<p data-cuzmify-field="service-description" style="font-size:13px;color:var(--cz-muted);margin:6px 0 0;line-height:1.6;max-width:540px;">${escapeHtml(srv.description)}</p>` : ''}
                       </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:18px;margin-left:auto;">
                       <span data-cuzmify-field="service-price" style="font-size:1.05rem;font-weight:700;color:var(--cz-ink);">${escapeHtml(pText)}</span>
-                      <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="padding:9px 16px;border-radius:999px;border:1px solid var(--cz-ink);color:var(--cz-ink);text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap;">${escapeHtml(serviceItemCta)}</a>
+                      <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="padding:9px 16px;border-radius:999px;border:1px solid var(--cz-ink);color:var(--cz-ink);text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap;">${escapeHtml(serviceItemCta)}</a>
                     </div>
                   </div>`;
                 })
@@ -824,7 +824,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
           <div class="cz-ea-container">
             <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:32px;">
               <div>
-                <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;">${escapeHtml(copy.portfolioEyebrow || niche.vocabulary.portfolioEyebrow)}</span>
+                <span data-cuzmify-field="portfolio-eyebrow" style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;">${escapeHtml(copy.portfolioEyebrow || niche.vocabulary.portfolioEyebrow)}</span>
                 <h2 class="cz-ea-serif" data-cuzmify-field="portfolio-headline" style="font-size:clamp(2rem,4vw,2.75rem);font-weight:600;margin:8px 0 0;">${escapeHtml(copy.portfolioHeading || niche.vocabulary.portfolioHeading)}</h2>
               </div>
               ${igHandle ? `<a href="https://instagram.com/${escapeHtml(igHandle)}" target="_blank" rel="noopener noreferrer" style="font-size:12px;font-weight:600;color:var(--cz-accent);text-decoration:none;">@${escapeHtml(igHandle)} ↗</a>` : ''}
@@ -834,7 +834,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
                 .slice(0, 12)
                 .map(
                   (m) => `<div style="border-radius:16px;overflow:hidden;aspect-ratio:4/5;background:#EFEAE1;">
-                    <img src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                    <img data-cuzmify-img-role="gallery" data-cuzmify-asset-id="${escapeHtml(m.id)}" src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
                   </div>`
                 )
                 .join('')}
@@ -860,7 +860,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
       : `<section id="hero" data-cuzmify-type="hero">
       <div class="cz-ea-container cz-ea-hero-grid">
         <div class="cz-hero-text">
-          <span style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;margin-bottom:14px;">
+          <span data-cuzmify-field="hero-badge" style="display:inline-block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;margin-bottom:14px;">
             ${escapeHtml(heroBadge)}
           </span>
           <h1 data-cuzmify-field="headline" class="cz-ea-serif cz-hero-title" style="font-size:clamp(2.35rem,5.5vw,3.85rem);font-weight:600;line-height:1.08;margin:0 0 18px;color:var(--cz-ink);">
@@ -870,14 +870,14 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
             ${escapeHtml(subheadline)}
           </p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-            <a href="#booking" style="padding:14px 26px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-weight:600;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:14px 26px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-weight:600;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
             ${services.length > 0 && isSectionVisible(bp, 'services') ? `<a href="#services" style="padding:14px 22px;border-radius:999px;border:1px solid var(--cz-border);background:var(--cz-surface);color:var(--cz-ink);font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
           </div>
         </div>
         ${
           heroAsset
             ? `<div class="cz-hero-media" style="border-radius:220px 220px 24px 24px;overflow:hidden;aspect-ratio:4/5;max-height:520px;width:100%;box-shadow:0 24px 60px rgba(28,25,23,0.12);background:#EFEAE1;">
-                <img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                <img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
               </div>`
             : `<div class="cz-hero-media" style="border-radius:28px;padding:40px 28px;background:var(--cz-surface);border:1px solid var(--cz-border);text-align:center;">
                 <span class="cz-ea-serif" style="font-size:1.75rem;font-style:italic;color:var(--cz-accent);display:block;margin-bottom:8px;">${escapeHtml(profile.name)}</span>
@@ -893,9 +893,9 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
       <div class="cz-ea-container" style="max-width:640px;">
         <div style="background:var(--cz-surface);border:1px solid var(--cz-border);border-radius:24px;padding:32px 24px;box-shadow:0 16px 48px rgba(28,25,23,0.06);">
           <div style="text-align:center;margin-bottom:24px;">
-            <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;">${escapeHtml(copy.enquiryEyebrow || niche.vocabulary.enquiryEyebrow)}</span>
-            <h2 class="cz-ea-serif" style="font-size:clamp(1.85rem,4vw,2.35rem);font-weight:600;margin:8px 0;">${escapeHtml(copy.enquiryHeading || niche.vocabulary.enquiryHeading)}</h2>
-            <p style="font-size:13px;color:var(--cz-muted);margin:0;">${escapeHtml(copy.enquirySubheading || niche.vocabulary.enquirySubheading)}</p>
+            <span data-cuzmify-field="enquiry-eyebrow" style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--cz-accent);font-weight:700;">${escapeHtml(copy.enquiryEyebrow || niche.vocabulary.enquiryEyebrow)}</span>
+            <h2 data-cuzmify-field="enquiry-heading" class="cz-ea-serif" style="font-size:clamp(1.85rem,4vw,2.35rem);font-weight:600;margin:8px 0;">${escapeHtml(copy.enquiryHeading || niche.vocabulary.enquiryHeading)}</h2>
+            <p data-cuzmify-field="enquiry-subheading" style="font-size:13px;color:var(--cz-muted);margin:0;">${escapeHtml(copy.enquirySubheading || niche.vocabulary.enquirySubheading)}</p>
           </div>
           ${renderSharedEnquiryForm(bp, niche, services, currencySymbol, siteId, false)}
         </div>
@@ -982,7 +982,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                 .slice(0, 12)
                 .map(
                   (m) => `<div style="border-radius:12px;overflow:hidden;aspect-ratio:3/4;background:#18181B;">
-                    <img src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                    <img data-cuzmify-img-role="gallery" data-cuzmify-asset-id="${escapeHtml(m.id)}" src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
                   </div>`
                 )
                 .join('')}
@@ -1005,8 +1005,8 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
         : `<section id="services" data-cuzmify-type="services" style="padding:56px 0;border-top:1px solid rgba(255,255,255,0.08);">
           <div class="cz-nr-container">
             <div style="margin-bottom:28px;">
-              <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.16em;color:var(--cz-noir-accent);font-weight:700;">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
-              <h2 class="cz-nr-display" style="font-size:clamp(1.6rem,3.5vw,2.25rem);font-weight:700;margin:8px 0 0;">${escapeHtml(copy.servicesHeading || niche.vocabulary.servicesHeading)}</h2>
+              <span data-cuzmify-field="services-eyebrow" style="font-size:11px;text-transform:uppercase;letter-spacing:0.16em;color:var(--cz-noir-accent);font-weight:700;">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
+              <h2 data-cuzmify-field="services-heading" class="cz-nr-display" style="font-size:clamp(1.6rem,3.5vw,2.25rem);font-weight:700;margin:8px 0 0;">${escapeHtml(copy.servicesHeading || niche.vocabulary.servicesHeading)}</h2>
             </div>
             <div class="cz-nr-services services-grid">
               ${services
@@ -1014,14 +1014,14 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                   const pText = formatServicePrice(srv, currencySymbol);
                   return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:var(--cz-noir-card);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
                     <div>
-                      ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;height:180px;margin-bottom:16px;"><img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+                      ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;height:180px;margin-bottom:16px;"><img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
                       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
                         <h3 data-cuzmify-field="service-name" class="cz-nr-display" style="font-size:1.15rem;font-weight:700;margin:0;color:var(--cz-noir-text);">${escapeHtml(srv.name)}</h3>
                         <span data-cuzmify-field="service-price" style="font-size:1rem;font-weight:700;color:var(--cz-noir-accent);white-space:nowrap;">${escapeHtml(pText)}</span>
                       </div>
-                      ${srv.description ? `<p style="font-size:13px;color:var(--cz-noir-muted);line-height:1.65;margin:10px 0 0;">${escapeHtml(srv.description)}</p>` : ''}
+                      ${srv.description ? `<p data-cuzmify-field="service-description" style="font-size:13px;color:var(--cz-noir-muted);line-height:1.65;margin:10px 0 0;">${escapeHtml(srv.description)}</p>` : ''}
                     </div>
-                    <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:inline-flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:var(--cz-noir-text);font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(serviceItemCta)} →</a>
+                    <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:inline-flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:var(--cz-noir-text);font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(serviceItemCta)} →</a>
                   </div>`;
                 })
                 .join('')}
@@ -1047,12 +1047,12 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       : `<section id="hero" data-cuzmify-type="hero" style="position:relative;${heroAsset ? 'min-height:440px;display:flex;align-items:flex-end;' : ''}background:radial-gradient(ellipse at 50% 0%,#1E2430 0%,var(--cz-noir-bg) 72%);overflow:hidden;border-bottom:1px solid rgba(255,255,255,0.08);">
       ${
         heroAsset
-          ? `<img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.46;"/>
-             <div style="position:absolute;inset:0;background:linear-gradient(to top,var(--cz-noir-bg) 14%,rgba(9,9,11,0.55) 60%,rgba(9,9,11,0.35) 100%);"></div>`
+          ? `<img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.46;"/>
+             <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,var(--cz-noir-bg) 14%,rgba(9,9,11,0.55) 60%,rgba(9,9,11,0.35) 100%);"></div>`
           : ''
       }
       <div class="cz-nr-container cz-hero-text" style="position:relative;z-index:2;padding:${heroAsset ? '88px 20px 52px' : '56px 20px 56px'};width:100%;">
-        <span style="display:inline-block;padding:5px 12px;border-radius:999px;background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.35);color:var(--cz-noir-accent);font-size:11px;font-weight:700;margin-bottom:16px;">
+        <span data-cuzmify-field="hero-badge" style="display:inline-block;padding:5px 12px;border-radius:999px;background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.35);color:var(--cz-noir-accent);font-size:11px;font-weight:700;margin-bottom:16px;">
           ${escapeHtml(heroBadge)}
         </span>
         <h1 data-cuzmify-field="headline" class="cz-nr-display cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.5rem);font-weight:800;line-height:1.08;margin:0 0 14px;max-width:720px;color:var(--cz-noir-text);">
@@ -1062,7 +1062,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
           ${escapeHtml(subheadline)}
         </p>
         <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-          <a href="#booking" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:12px;background:var(--cz-noir-accent);color:#09090B;font-weight:800;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          <a data-cuzmify-field="primary-cta" href="#booking" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:12px;background:var(--cz-noir-accent);color:#09090B;font-weight:800;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
           ${galleryAssets.length > 0 && isSectionVisible(bp, 'portfolio') ? `<a href="#portfolio" style="display:inline-flex;align-items:center;padding:13px 22px;border-radius:12px;background:rgba(255,255,255,0.1);color:var(--cz-noir-text);font-weight:700;font-size:13px;text-decoration:none;backdrop-filter:blur(8px);">View Work</a>` : ''}
         </div>
       </div>
@@ -1074,9 +1074,9 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       <div class="cz-nr-container" style="max-width:640px;">
         <div style="background:var(--cz-noir-card);border:1px solid rgba(255,255,255,0.12);border-radius:24px;padding:32px 24px;">
           <div style="text-align:center;margin-bottom:24px;">
-            <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.16em;color:var(--cz-noir-accent);font-weight:700;">${escapeHtml(copy.enquiryEyebrow || niche.vocabulary.enquiryEyebrow)}</span>
-            <h2 class="cz-nr-display" style="font-size:clamp(1.6rem,3.5vw,2.1rem);font-weight:700;margin:8px 0;">${escapeHtml(copy.enquiryHeading || niche.vocabulary.enquiryHeading)}</h2>
-            <p style="font-size:13px;color:var(--cz-noir-muted);margin:0;">${escapeHtml(copy.enquirySubheading || niche.vocabulary.enquirySubheading)}</p>
+            <span data-cuzmify-field="enquiry-eyebrow" style="font-size:11px;text-transform:uppercase;letter-spacing:0.16em;color:var(--cz-noir-accent);font-weight:700;">${escapeHtml(copy.enquiryEyebrow || niche.vocabulary.enquiryEyebrow)}</span>
+            <h2 data-cuzmify-field="enquiry-heading" class="cz-nr-display" style="font-size:clamp(1.6rem,3.5vw,2.1rem);font-weight:700;margin:8px 0;">${escapeHtml(copy.enquiryHeading || niche.vocabulary.enquiryHeading)}</h2>
+            <p data-cuzmify-field="enquiry-subheading" style="font-size:13px;color:var(--cz-noir-muted);margin:0;">${escapeHtml(copy.enquirySubheading || niche.vocabulary.enquirySubheading)}</p>
           </div>
           ${renderSharedEnquiryForm(bp, niche, services, currencySymbol, siteId, true)}
         </div>
@@ -1155,8 +1155,8 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       ? `<div style="display:grid;grid-template-columns:repeat(${stripAssets.length},1fr);gap:10px;margin-top:28px;">
           ${stripAssets
             .map(
-              (a) => `<div class="cz-hero-media" style="border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:#E2E8F0;">
-                <img src="${escapeHtml(getMediaDisplayUrl(a))}" alt="${escapeHtml(a.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+              (a, idx) => `<div class="cz-hero-media" style="border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:#E2E8F0;">
+                <img data-cuzmify-img-role="${idx === 0 ? 'hero' : 'gallery'}" data-cuzmify-asset-id="${escapeHtml(a.id)}" src="${escapeHtml(getMediaDisplayUrl(a))}" alt="${escapeHtml(a.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
               </div>`
             )
             .join('')}
@@ -1177,8 +1177,8 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
         : `<section id="services" data-cuzmify-type="services" style="padding:48px 0;">
           <div class="cz-ms-container">
             <div style="margin-bottom:24px;">
-              <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--cz-ms-primary);">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
-              <h2 class="cz-ms-heading" style="font-size:clamp(1.5rem,3vw,2rem);font-weight:800;margin:6px 0 0;">${escapeHtml(copy.servicesHeading || niche.vocabulary.servicesHeading)}</h2>
+              <span data-cuzmify-field="services-eyebrow" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--cz-ms-primary);">${escapeHtml(copy.servicesEyebrow || niche.vocabulary.servicesEyebrow)}</span>
+              <h2 data-cuzmify-field="services-heading" class="cz-ms-heading" style="font-size:clamp(1.5rem,3vw,2rem);font-weight:800;margin:6px 0 0;">${escapeHtml(copy.servicesHeading || niche.vocabulary.servicesHeading)}</h2>
             </div>
             <div class="cz-ms-services services-grid">
               ${services
@@ -1186,17 +1186,17 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                   const pText = formatServicePrice(srv, currencySymbol);
                   return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:var(--cz-ms-card);border:1px solid var(--cz-ms-border);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 4px 16px rgba(15,23,42,0.04);">
                     <div>
-                      ${srv.imageUrl ? `<div style="aspect-ratio:16/10;background:#F1F5F9;overflow:hidden;"><img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+                      ${srv.imageUrl ? `<div style="aspect-ratio:16/10;background:#F1F5F9;overflow:hidden;"><img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
                       <div style="padding:20px 20px 12px;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                           <h3 data-cuzmify-field="service-name" class="cz-ms-heading" style="font-size:1.05rem;font-weight:700;margin:0;color:var(--cz-ms-ink);">${escapeHtml(srv.name)}</h3>
                           <span data-cuzmify-field="service-price" style="font-size:0.95rem;font-weight:800;color:#059669;background:#ECFDF5;padding:4px 10px;border-radius:999px;white-space:nowrap;">${escapeHtml(pText)}</span>
                         </div>
-                        ${srv.description ? `<p style="font-size:13px;color:var(--cz-ms-muted);line-height:1.6;margin:10px 0 0;">${escapeHtml(srv.description)}</p>` : ''}
+                        ${srv.description ? `<p data-cuzmify-field="service-description" style="font-size:13px;color:var(--cz-ms-muted);line-height:1.6;margin:10px 0 0;">${escapeHtml(srv.description)}</p>` : ''}
                       </div>
                     </div>
                     <div style="padding:0 20px 20px;">
-                      <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:flex;align-items:center;justify-content:center;width:100%;padding:11px 14px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-size:12px;font-weight:700;text-decoration:none;box-sizing:border-box;">${escapeHtml(serviceItemCta)}</a>
+                      <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:flex;align-items:center;justify-content:center;width:100%;padding:11px 14px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-size:12px;font-weight:700;text-decoration:none;box-sizing:border-box;">${escapeHtml(serviceItemCta)}</a>
                     </div>
                   </div>`;
                 })
@@ -1219,7 +1219,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                 .slice(0, 12)
                 .map(
                   (m) => `<div style="border-radius:14px;overflow:hidden;aspect-ratio:1/1;background:#E2E8F0;">
-                    <img src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                    <img data-cuzmify-img-role="gallery" data-cuzmify-asset-id="${escapeHtml(m.id)}" src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
                   </div>`
                 )
                 .join('')}
@@ -1245,7 +1245,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       : `<section id="hero" data-cuzmify-type="hero" style="padding:36px 0 24px;">
       <div class="cz-ms-container">
         <div class="cz-hero-text" style="background:var(--cz-ms-card);border:1px solid var(--cz-ms-border);border-radius:24px;padding:28px 22px;box-shadow:0 8px 30px rgba(13,87,113,0.05);">
-          <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(13,87,113,0.08);color:var(--cz-ms-primary);font-size:11px;font-weight:700;margin-bottom:12px;">
+          <span data-cuzmify-field="hero-badge" style="display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(13,87,113,0.08);color:var(--cz-ms-primary);font-size:11px;font-weight:700;margin-bottom:12px;">
             ${escapeHtml(heroBadge)}
           </span>
           <h1 data-cuzmify-field="headline" class="cz-ms-heading cz-hero-title" style="font-size:clamp(1.75rem,4.2vw,2.75rem);font-weight:800;line-height:1.15;margin:0 0 12px;">
@@ -1255,7 +1255,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
             ${escapeHtml(subheadline)}
           </p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
-            <a href="#booking" style="padding:13px 22px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 22px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
             ${waPhone ? `<a href="${escapeHtml(buildWhatsAppDirectHref(waPhone, `Hello ${profile.name}, I found your website and have a quick question.`))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:13px 20px;border-radius:12px;background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;font-weight:700;font-size:13px;text-decoration:none;">${WHATSAPP_BRAND_SVG}<span>Chat on WhatsApp</span></a>` : ''}
           </div>
           ${stripHtml}
@@ -1269,9 +1269,9 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       <div class="cz-ms-container" style="max-width:620px;">
         <div style="background:var(--cz-ms-card);border:1px solid var(--cz-ms-border);border-radius:24px;padding:28px 22px;box-shadow:0 12px 36px rgba(15,23,42,0.06);">
           <div style="text-align:center;margin-bottom:22px;">
-            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--cz-ms-primary);">${escapeHtml(copy.enquiryEyebrow || niche.vocabulary.enquiryEyebrow)}</span>
-            <h2 class="cz-ms-heading" style="font-size:clamp(1.45rem,3.5vw,1.95rem);font-weight:800;margin:6px 0;">${escapeHtml(copy.enquiryHeading || niche.vocabulary.enquiryHeading)}</h2>
-            <p style="font-size:13px;color:var(--cz-ms-muted);margin:0;">${escapeHtml(copy.enquirySubheading || niche.vocabulary.enquirySubheading)}</p>
+            <span data-cuzmify-field="enquiry-eyebrow" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--cz-ms-primary);">${escapeHtml(copy.enquiryEyebrow || niche.vocabulary.enquiryEyebrow)}</span>
+            <h2 data-cuzmify-field="enquiry-heading" class="cz-ms-heading" style="font-size:clamp(1.45rem,3.5vw,1.95rem);font-weight:800;margin:6px 0;">${escapeHtml(copy.enquiryHeading || niche.vocabulary.enquiryHeading)}</h2>
+            <p data-cuzmify-field="enquiry-subheading" style="font-size:13px;color:var(--cz-ms-muted);margin:0;">${escapeHtml(copy.enquirySubheading || niche.vocabulary.enquirySubheading)}</p>
           </div>
           ${renderSharedEnquiryForm(bp, niche, services, currencySymbol, siteId, false)}
         </div>
