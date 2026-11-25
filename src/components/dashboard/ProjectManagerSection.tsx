@@ -116,7 +116,8 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
         {sites.map((site) => {
           const cleanSubdomain = (site.subdomain || site.name.toLowerCase().replace(/[^a-z0-9]/g, '')).slice(0, 30);
           const isLive = site.status === 'live';
-          const displayUrl = `${cleanSubdomain}.cuzmify.com`;
+          const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+          const displayUrl = rootDomain ? `${cleanSubdomain}.${rootDomain}` : `/s/${cleanSubdomain}`;
           const isSyncing = syncingId === site.id;
 
           return (

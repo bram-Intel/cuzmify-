@@ -1246,9 +1246,9 @@ function NoSelectionPanel() {
           <button
             type="button"
             onClick={() => setActiveModuleModal('payments')}
-            className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-800 cursor-pointer text-left"
+            className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-800 cursor-pointer text-left truncate"
           >
-            🌐 Custom Domain
+            🌐 Domain &amp; Pro
           </button>
         </div>
       </div>

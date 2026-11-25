@@ -15,14 +15,14 @@ import {
 
 export const HeroVisualAccents: React.FC = () => {
   return (
-    <div className="relative w-full max-w-md mx-auto xl:max-w-none flex justify-center xl:justify-end [perspective:1400px] pb-6 sm:pb-4">
+    <div className="relative w-full max-w-md mx-auto xl:max-w-none flex justify-center xl:justify-end [perspective:1400px] pb-8 sm:pb-7">
       {/* Soft Ambient Surface Glow */}
       <div className="absolute -inset-6 sm:-inset-8 bg-gradient-to-tr from-[#3498E3]/20 via-[#0D5771]/15 to-transparent blur-[65px] rounded-full pointer-events-none" />
 
       {/* Primary 3D Perspective Card Container */}
       <div className="relative w-full max-w-[330px] sm:max-w-sm">
         {/* 1. PRIMARY TRANSFORMATION ENGINE CARD */}
-        <div className="relative rounded-3xl bg-[#FFFFFF]/90 backdrop-blur-2xl border border-[#E2E8F0] shadow-[0_4px_12px_rgba(13,87,113,0.04),0_16px_36px_rgba(13,87,113,0.09),0_28px_60px_rgba(13,87,113,0.12)] p-5 sm:p-6 text-[#0F172A] transition-all duration-700 ease-out xl:[transform:rotateY(-8deg)_rotateX(3deg)] hover:[transform:rotateY(-2deg)_rotateX(1deg)] hover:scale-[1.01] overflow-hidden group z-10">
+        <div className="relative rounded-3xl bg-[#FFFFFF]/90 backdrop-blur-2xl border border-[#E2E8F0] shadow-[0_4px_12px_rgba(13,87,113,0.04),0_16px_36px_rgba(13,87,113,0.09),0_28px_60px_rgba(13,87,113,0.12)] p-5 sm:p-6 pb-8 sm:pb-8 text-[#0F172A] transition-all duration-700 ease-out xl:[transform:rotateY(-8deg)_rotateX(3deg)] hover:[transform:rotateY(-2deg)_rotateX(1deg)] hover:scale-[1.01] overflow-hidden group z-10">
           <BorderBeam size={160} duration={9} colorFrom="#0D5771" colorTo="#3498E3" />
 
           {/* Header with Official Trademark Emblem */}
@@ -94,8 +94,8 @@ export const HeroVisualAccents: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. SECONDARY SATELLITE BADGE — Framed cleanly inside mobile & desktop */}
-        <div className="absolute left-2 sm:-left-8 -bottom-4 z-20 w-56 rounded-2xl bg-[#FFFFFF]/98 backdrop-blur-2xl border border-[#E2E8F0] shadow-[0_14px_32px_rgba(13,87,113,0.16)] p-3 text-[#0F172A] transition-transform duration-500 hover:scale-105 animate-float pointer-events-auto">
+        {/* 2. SECONDARY SATELLITE BADGE — Framed cleanly below footer text */}
+        <div className="absolute left-3 sm:-left-8 -bottom-6 z-20 w-56 rounded-2xl bg-[#FFFFFF]/98 backdrop-blur-2xl border border-[#E2E8F0] shadow-[0_14px_32px_rgba(13,87,113,0.16)] p-3 text-[#0F172A] transition-transform duration-500 hover:scale-105 animate-float pointer-events-auto">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20 shrink-0">

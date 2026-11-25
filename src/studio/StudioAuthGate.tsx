@@ -129,7 +129,7 @@ export function StudioAuthGate({ callbackUrl }: { callbackUrl: string }) {
         <div className="pt-3 text-center border-t border-[#E2E8F0] space-y-2">
           <p className="text-xs text-[#475569]">
             Creating a brand new website?{' '}
-            <Link href="/onboarding" className="text-[#0D5771] font-bold hover:underline">
+            <Link href="/onboarding" className="text-[#0D5771] font-bold hover:underline whitespace-nowrap">
               Start 3-Minute Setup →
             </Link>
           </p>

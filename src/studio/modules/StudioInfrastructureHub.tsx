@@ -900,17 +900,18 @@ export function StudioInfrastructureHub({
           {/* ── 4. MEDIA VAULT & EXTRACTED ASSETS TAB ── */}
           {activeTab === 'media' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-extrabold text-slate-900 font-display">Media Vault &amp; Asset Library</h2>
-                  <p className="text-xs text-slate-500 font-mono">Instagram media, uploaded visuals, videos &amp; brand photography</p>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-base font-extrabold text-slate-900 font-display">Portfolio &amp; Media Vault</h2>
+                  <p className="text-xs text-slate-500">Sync Instagram posts or upload photos from your phone</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowAddMedia(!showAddMedia)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm whitespace-nowrap shrink-0"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Media</span>
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span>Upload Photo</span>
                 </button>
               </div>
 
@@ -1003,18 +1004,17 @@ export function StudioInfrastructureHub({
                 )}
               </div>
 
-              {/* Context Banner */}
-              <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-900 space-y-1">
-                  <span className="font-bold block">AI Visual Intelligence &amp; 1-Click Replacement</span>
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
-                    Assets stored here are automatically injected into Cuzmify AI prompts as your business&apos;s authentic media. The AI prioritizes your real client photography and product shots, but can also generate supporting SVGs, icons, and curated graphics where needed.
+              {mediaVault.length === 0 && !showAddMedia && (
+                <div className="p-8 rounded-2xl bg-white border border-dashed border-slate-300 text-center space-y-2">
+                  <ImageIcon className="w-8 h-8 text-[#0D5771]/60 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-800 font-display">No portfolio photos yet</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    Authorize Instagram above to pull your latest client posts automatically, or tap <strong>Upload Photo</strong> to add shots from your gallery.
                   </p>
                 </div>
-              </div>
+              )}
 
-              {/* Add Media Form */}
+              {/* Media Cards Grid */}
               {showAddMedia && (
                 <form onSubmit={handleAddMedia} className="p-6 rounded-2xl bg-white border border-[#0D5771]/30 shadow-md space-y-4 animate-in fade-in">
                   <div className="flex items-center justify-between">
@@ -1185,7 +1185,7 @@ export function StudioInfrastructureHub({
               )}
 
               {/* Filter Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
                 {[
                   { id: 'all' as const, label: `All (${mediaVault.length})` },
                   { id: 'instagram' as const, label: `📷 Instagram (${mediaVault.filter((m) => m.source === 'instagram').length})` },

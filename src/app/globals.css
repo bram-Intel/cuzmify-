@@ -67,22 +67,32 @@ h1, h2, h3, h4, h5, h6, .font-display {
   animation: float-slow 6s ease-in-out infinite;
 }
 
-/* Custom Eccentric, Cool & Minimalistic Scrollbar */
+/* Subtle Studio Scrollbar + Hidden Scrollbar Utility */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
 .custom-scrollbar::-webkit-scrollbar {
-  width: 3px;
+  width: 4px;
+  height: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(226, 232, 240, 0.4);
-  border-radius: 9999px;
+  background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #0D5771 0%, #3498E3 100%);
+  background: #CBD5E1;
   border-radius: 9999px;
-  box-shadow: 0 0 8px rgba(52, 152, 227, 0.4);
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #3498E3 0%, #72B9F3 100%);
-  box-shadow: 0 0 12px rgba(52, 152, 227, 0.8);
+  background: #94A3B8;
 }
 
 /* Global Scrollbar */

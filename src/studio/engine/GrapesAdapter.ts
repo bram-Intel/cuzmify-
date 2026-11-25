@@ -174,36 +174,39 @@ export class GrapesAdapter implements EditorAdapter {
         }
         style.innerHTML = RESPONSIVE_CORE_CSS;
 
-        // 2. Automatically upgrade Navbar elements with responsive helper classes
-        const nav = doc.querySelector('nav, [data-cuzmify-type="navbar"]');
-        if (nav) {
-          const brand = nav.querySelector('[data-cuzmify-field="business-name"], span:first-of-type');
-          if (brand && !brand.classList.contains('brand-name')) {
-            brand.classList.add('brand-name');
+        // Skip legacy DOM mutations if canvas uses a modern Lossless Template Engine
+        if (!doc.querySelector('[data-cuzmify-template]')) {
+          // 2. Automatically upgrade Navbar elements with responsive helper classes
+          const nav = doc.querySelector('nav, [data-cuzmify-type="navbar"]');
+          if (nav) {
+            const brand = nav.querySelector('[data-cuzmify-field="business-name"], span:first-of-type');
+            if (brand && !brand.classList.contains('brand-name')) {
+              brand.classList.add('brand-name');
+            }
+            const linksContainer = nav.querySelector('div:nth-child(2), div[style*="gap"]');
+            if (linksContainer && !linksContainer.classList.contains('nav-links')) {
+              linksContainer.classList.add('nav-links');
+            }
+            const cta = nav.querySelector('a[href*="booking"], a[data-cuzmify-action], a:last-child');
+            if (cta && !cta.classList.contains('nav-cta')) {
+              cta.classList.add('nav-cta');
+            }
           }
-          const linksContainer = nav.querySelector('div:nth-child(2), div[style*="gap"]');
-          if (linksContainer && !linksContainer.classList.contains('nav-links')) {
-            linksContainer.classList.add('nav-links');
-          }
-          const cta = nav.querySelector('a[href*="booking"], a[data-cuzmify-action], a:last-child');
-          if (cta && !cta.classList.contains('nav-cta')) {
-            cta.classList.add('nav-cta');
-          }
-        }
 
-        // 3. Upgrade announcement bar
-        const announcement = doc.querySelector('div[style*="background:#083D50"], div[style*="background: #083D50"]');
-        if (announcement && !announcement.classList.contains('cuzmify-announcement-bar')) {
-          announcement.classList.add('cuzmify-announcement-bar');
-        }
-
-        // 4. Upgrade any legacy multi-column grids to fluid auto-fit
-        const grids = doc.querySelectorAll('div[style*="grid-template-columns"]');
-        grids.forEach((el: any) => {
-          if (el.style && el.style.gridTemplateColumns && (el.style.gridTemplateColumns.includes('repeat(2') || el.style.gridTemplateColumns.includes('repeat(3') || el.style.gridTemplateColumns.includes('1fr 1fr'))) {
-            el.style.gridTemplateColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
+          // 3. Upgrade announcement bar
+          const announcement = doc.querySelector('div[style*="background:#083D50"], div[style*="background: #083D50"]');
+          if (announcement && !announcement.classList.contains('cuzmify-announcement-bar')) {
+            announcement.classList.add('cuzmify-announcement-bar');
           }
-        });
+
+          // 4. Upgrade any legacy multi-column grids to fluid auto-fit
+          const grids = doc.querySelectorAll('div[style*="grid-template-columns"]');
+          grids.forEach((el: any) => {
+            if (el.style && el.style.gridTemplateColumns && (el.style.gridTemplateColumns.includes('repeat(2') || el.style.gridTemplateColumns.includes('repeat(3') || el.style.gridTemplateColumns.includes('1fr 1fr'))) {
+              el.style.gridTemplateColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
+            }
+          });
+        }
       }
 
       // 5. Remove unwanted block raw strings

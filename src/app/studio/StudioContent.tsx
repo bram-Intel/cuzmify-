@@ -42,7 +42,12 @@ export default function StudioContent() {
     ? resolveTemplateEngineId(templateParam)
     : resolvedNiche.recommendedTemplate;
   const initialTheme: ThemeName = resolvedTemplate === 'noir-showcase' ? 'dark-obsidian' : 'bram-light';
-  const userAccountName = session?.user?.name ? `${session.user.name}'s Studio` : 'My Studio';
+  const cleanAccountFirst = session?.user?.name
+    ? session.user.name
+        .split(/[@._\s]+/)[0]
+        .replace(/^\w/, (c) => c.toUpperCase())
+    : '';
+  const userAccountName = cleanAccountFirst ? `${cleanAccountFirst}'s Studio` : 'My Studio';
   const initialBusinessName = nameParam || userAccountName;
 
   return (

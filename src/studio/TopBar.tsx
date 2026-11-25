@@ -19,7 +19,6 @@ import {
   PanelRight,
   Layers,
   Sliders,
-  Image as ImageIcon,
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import type { Breakpoint } from './engine/EditorContext';
@@ -135,11 +134,11 @@ export function TopBar({
 
   return (
     <header
-      className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 lg:px-5 shrink-0 z-50 select-none"
+      className="h-14 bg-white border-b border-slate-200 flex items-center justify-between gap-3 px-3 sm:px-4 shrink-0 z-50 select-none"
       suppressHydrationWarning
     >
-      {/* ─── LEFT: Panel Toggle + Brand + Project Title ─── */}
-      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+      {/* ─── LEFT: Panel Toggle + Logo + Project Title (Never Overlaps Center!) ─── */}
+      <div className="flex items-center gap-2 min-w-0">
         <button
           type="button"
           onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
@@ -148,36 +147,33 @@ export function TopBar({
               ? 'bg-[#0D5771]/10 text-[#0D5771]'
               : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
           }`}
-          title={isLeftPanelOpen ? 'Hide Tools Sidebar' : 'Show Tools Sidebar'}
+          title={isLeftPanelOpen ? 'Hide Left Sidebar' : 'Show Left Sidebar'}
         >
           <PanelLeft className="w-4 h-4" />
         </button>
 
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 py-1 text-slate-800 hover:text-[#0D5771] transition-colors shrink-0"
+          className="flex items-center py-1 text-slate-800 hover:opacity-85 transition-opacity shrink-0"
           title="Back to My Dashboard"
         >
           <CuzmifyLogo className="w-7 h-7" />
-          <span className="hidden xl:inline text-sm font-extrabold tracking-tight text-[#0F172A] font-display">
-            CUZM<span className="text-[#0D5771]">IFY</span>
-          </span>
         </Link>
 
-        <span className="text-slate-300 text-sm">/</span>
+        <span className="text-slate-300 text-sm shrink-0">/</span>
 
         <div className="flex flex-col min-w-0">
-          <span className="text-[13px] font-bold text-[#0F172A] truncate max-w-[145px] sm:max-w-[200px] leading-tight font-display">
+          <span className="text-[13px] font-bold text-[#0F172A] truncate max-w-[140px] sm:max-w-[180px] xl:max-w-[220px] leading-tight font-display">
             {businessName || 'My Studio'}
           </span>
           <SaveIndicator />
         </div>
       </div>
 
-      {/* ─── CENTER: Desktop Visual Editor Controls (Hidden on Mobile so Mobile TopBar stays airy) ─── */}
-      <div className="hidden lg:flex items-center gap-2">
+      {/* ─── CENTER: Desktop Visual Controls (Compact & Balanced) ─── */}
+      <div className="hidden lg:flex items-center gap-2 shrink-0">
         {/* Undo / Redo */}
-        <div className="flex items-center gap-0.5 bg-slate-50 p-0.5 rounded-lg border border-slate-200/80">
+        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/80">
           <button
             type="button"
             onClick={handleUndo}
@@ -223,7 +219,7 @@ export function TopBar({
                 }`}
               >
                 <span
-                  className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                  className="w-2 h-2 rounded-full border border-black/15 shrink-0"
                   style={{ backgroundColor: tpl.swatches[0] === '#09090B' ? '#09090B' : tpl.swatches[2] }}
                 />
                 <span>{shortName}</span>
@@ -232,8 +228,8 @@ export function TopBar({
           })}
         </div>
 
-        {/* Viewport Breakpoint Switcher */}
-        <div className="hidden xl:flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+        {/* Compact Icon Viewport Switcher */}
+        <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
           {BREAKPOINTS.map((bp) => {
             const isActive = breakpoint === bp.id;
             return (
@@ -241,84 +237,60 @@ export function TopBar({
                 key={bp.id}
                 type="button"
                 onClick={() => handleDeviceChange(bp.id)}
-                title={`${bp.label} (${bp.widthLabel})`}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  isActive ? 'bg-white text-[#0D5771] shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-900'
+                title={`${bp.label} View (${bp.widthLabel})`}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  isActive ? 'bg-white text-[#0D5771] shadow-2xs' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 {bp.icon}
-                <span className="text-[11px]">{bp.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ─── RIGHT: Actions & Publish ─── */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Desktop Quick Hub Triggers */}
+      {/* ─── RIGHT: Setup, Save, Preview & Publish ─── */}
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
           onClick={() => setActiveModuleModal('media')}
-          className="hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer"
-          title="Instagram Sync & Media Vault"
-        >
-          <ImageIcon className="w-3.5 h-3.5 text-pink-600" />
-          <span>IG &amp; Media</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModuleModal('services')}
           className="hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 bg-[#0D5771]/8 hover:bg-[#0D5771]/15 text-[#0D5771] border border-[#0D5771]/20 transition-all cursor-pointer"
-          title="Services, WhatsApp, Niche & Custom Domain"
+          title="Manage Instagram Photos, Services, WhatsApp & Custom Domain"
         >
           <Sliders className="w-3.5 h-3.5 text-[#0D5771]" />
-          <span>Business Setup</span>
+          <span>Content &amp; Domain</span>
         </button>
 
-        {/* Save Button */}
         <button
           type="button"
           onClick={handleSaveClick}
           disabled={saveState === 'saving'}
-          className={`p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+          className={`p-2 xl:px-2.5 xl:py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
             justSaved ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
           title="Save changes (Ctrl+S)"
         >
-          {justSaved ? (
-            <>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span className="hidden md:inline">Saved</span>
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 text-slate-500" />
-              <span className="hidden md:inline">Save</span>
-            </>
-          )}
+          {justSaved ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Save className="w-4 h-4 text-slate-500" />}
+          <span className="hidden xl:inline">{justSaved ? 'Saved' : 'Save'}</span>
         </button>
 
-        {/* Desktop Preview Toggle */}
         <button
           type="button"
           onClick={handlePreviewToggle}
-          className={`hidden lg:flex px-3 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 transition-colors cursor-pointer ${
+          className={`hidden lg:flex p-2 xl:px-2.5 xl:py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 transition-colors cursor-pointer ${
             isPreviewMode ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
           title="Full-screen preview"
         >
           {isPreviewMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-slate-500" />}
-          <span>Preview</span>
+          <span className="hidden xl:inline">Preview</span>
         </button>
 
-        {/* Primary Publish Button */}
         <button
           type="button"
           onClick={onPublish}
           disabled={isPublishing}
-          className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full lg:rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-60 whitespace-nowrap"
+          className="px-3.5 sm:px-4 py-1.5 rounded-full lg:rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-60 whitespace-nowrap"
         >
           {isPublishing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -328,7 +300,6 @@ export function TopBar({
           <span>Publish</span>
         </button>
 
-        {/* Desktop Right Inspector Toggle */}
         {onToggleRightPanel && (
           <button
             type="button"
@@ -338,13 +309,12 @@ export function TopBar({
                 ? 'bg-[#0D5771]/10 text-[#0D5771]'
                 : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
             }`}
-            title={isRightPanelOpen ? 'Hide Style Inspector' : 'Show Style Inspector'}
+            title={isRightPanelOpen ? 'Hide Right Inspector' : 'Show Right Inspector'}
           >
             <PanelRight className="w-4 h-4" />
           </button>
         )}
 
-        {/* More Menu */}
         <div className="relative" ref={menuRef}>
           <button
             type="button"

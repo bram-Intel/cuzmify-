@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Instagram, Scissors, Phone, CheckCircle2, Lock, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
+import { Instagram, Scissors, Phone, CheckCircle2, Lock, SlidersHorizontal, ChevronDown, ChevronUp, Sparkles, X } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import { renderTemplateEngine, TEMPLATE_ENGINES, TEMPLATE_ENGINE_LIST } from '@/core/template-engines';
 import { createDefaultBlueprint } from '@/core/blueprint-schema';
+import { AIPanel } from './ai/AIPanel';
 
 /**
  * Touch-safe, 60fps Mobile Owner Studio (<1024px).
@@ -23,6 +24,7 @@ export function MobilePreviewPane() {
   } = useEditor();
 
   const [checklistCollapsed, setChecklistCollapsed] = useState(false);
+  const [mobileAiOpen, setMobileAiOpen] = useState(false);
 
   const activeBp = useMemo(() => {
     if (blueprint) return blueprint;
@@ -47,12 +49,9 @@ export function MobilePreviewPane() {
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F1F5F9] lg:hidden">
       {fontUrl && <link rel="stylesheet" href={fontUrl} />}
 
-      {/* 1. Dedicated Mobile Style Switcher Strip — Thumb-Friendly & Zero Crowding */}
-      <div className="bg-white border-b border-slate-200 px-3 py-2 shrink-0 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
-          Style
-        </span>
-        <div className="flex-1 max-w-xs grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70">
+      {/* 1. Dedicated Mobile Style Switcher + AI Assistant Trigger */}
+      <div className="bg-white border-b border-slate-200 px-3 py-2 shrink-0 flex items-center gap-2">
+        <div className="flex-1 grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70">
           {TEMPLATE_ENGINE_LIST.map((tpl) => {
             const isSelected = templateId === tpl.id;
             const shortName =
@@ -75,7 +74,41 @@ export function MobilePreviewPane() {
             );
           })}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setMobileAiOpen(!mobileAiOpen)}
+          className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 transition-all cursor-pointer border ${
+            mobileAiOpen
+              ? 'bg-[#0D5771] text-white border-[#0D5771]'
+              : 'bg-[#0D5771]/8 text-[#0D5771] border-[#0D5771]/20'
+          }`}
+          title="Open AI Website Assistant"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>AI</span>
+        </button>
       </div>
+
+      {/* Collapsible Mobile AI Assistant Sheet */}
+      {mobileAiOpen && (
+        <div className="bg-slate-50 border-b border-slate-200 p-3 shrink-0">
+          <div className="flex items-center justify-between mb-1.5 px-1">
+            <span className="text-[11px] font-bold text-[#0D5771] uppercase tracking-wider font-mono">
+              AI Website Assistant
+            </span>
+            <button
+              type="button"
+              onClick={() => setMobileAiOpen(false)}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+            >
+              <span>Close</span>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <AIPanel />
+        </div>
+      )}
 
       {/* Scrollable Workspace Body */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
