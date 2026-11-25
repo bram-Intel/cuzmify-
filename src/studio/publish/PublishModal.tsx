@@ -2,7 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Rocket, CheckCircle2, ExternalLink, X, Globe, ShieldCheck, Loader2, Copy, Check, QrCode, Smartphone } from 'lucide-react';
+import {
+  Rocket,
+  CheckCircle2,
+  ExternalLink,
+  Copy,
+  Check,
+  X,
+  Globe,
+  Loader2,
+  Smartphone,
+} from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
 
@@ -13,56 +23,36 @@ interface PublishModalProps {
 
 type PublishState = 'ready' | 'publishing' | 'success' | 'error';
 
-const PUBLISH_CHECKLIST = [
-  { label: 'Responsive Layout & Multi-Breakpoints', check: true },
-  { label: 'Design Tokens & Bespoke Typography', check: true },
-  { label: '1-Click WhatsApp Booking Hooks', check: true },
-  { label: 'Global Edge CDN & SSL Encryption', check: true },
-];
-
-const DEPLOY_STEPS = [
-  'Packaging visual layout & assets…',
-  'Compiling CSS design tokens & typography…',
-  'Deploying to Vercel Global Edge Network…',
-  'Provisioning SSL / TLS certificate…',
-  'Registering public route at /site/…',
-  'Website published & ready for visitors!',
-];
-
 export function PublishModal({ onClose, onPublish }: PublishModalProps) {
+  const { businessName } = useEditor();
   const [mounted, setMounted] = useState(false);
+  const [state, setState] = useState<PublishState>('ready');
+  const [publishedUrl, setPublishedUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const { businessName, projectId } = useEditor();
-  const [state, setState] = useState<PublishState>('ready');
-  const [logs, setLogs] = useState<string[]>([]);
-  const [publishedUrl, setPublishedUrl] = useState('');
-  const [copied, setCopied] = useState(false);
+  const cleanBusinessSlug =
+    (businessName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30) || 'studio';
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://cuzmify.vercel.app';
+  const rootWildcard = process.env.NEXT_PUBLIC_ROOT_DOMAIN; // e.g. 'cuzmify.com' once domain is purchased
 
-  const cleanBusinessSlug = (businessName || 'my-studio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'studio';
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
-
-  const subdomainUrl = isLocal
-    ? `http://${cleanBusinessSlug}.localhost:3000`
-    : `https://${cleanBusinessSlug}.cuzmify.com`;
-
-  const directPathUrl = `${origin}/s/${cleanBusinessSlug}`;
+  const primaryLiveUrl = rootWildcard
+    ? `https://${cleanBusinessSlug}.${rootWildcard}`
+    : `${origin}/s/${cleanBusinessSlug}`;
 
   const handlePublish = async () => {
     setState('publishing');
-    setLogs([]);
-
-    for (let i = 0; i < DEPLOY_STEPS.length; i++) {
-      await new Promise((r) => setTimeout(r, 350));
-      setLogs((prev) => [...prev, DEPLOY_STEPS[i]]);
-    }
-
     try {
-      await onPublish();
-      setPublishedUrl(subdomainUrl);
+      const returnedPath = await onPublish();
+      const finalUrl = rootWildcard
+        ? primaryLiveUrl
+        : returnedPath?.startsWith('http')
+          ? returnedPath
+          : `${origin}${returnedPath || `/s/${cleanBusinessSlug}`}`;
+      setPublishedUrl(finalUrl);
       setState('success');
     } catch {
       setState('error');
@@ -75,194 +65,150 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(directPathUrl)}&color=0D5771&bgcolor=FFFFFF`;
+  const activeShareUrl = publishedUrl || primaryLiveUrl;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(activeShareUrl)}&color=0D5771&bgcolor=FFFFFF`;
 
   if (!mounted) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-150"
       style={{ isolation: 'isolate' }}
     >
-      <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E2E8F0] rounded-3xl shadow-2xl overflow-hidden text-[#1A202C] animate-in zoom-in-95 duration-200 relative z-[10000000]">
-
-        {/* Studio-Matched Clean Header */}
-        <div className="px-6 py-4 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CuzmifyLogo className="w-9 h-9 shrink-0 rounded-xl shadow-xs" />
-            <div>
+      <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E2E8F0] rounded-3xl shadow-2xl overflow-hidden text-[#1A202C] relative z-[10000000]">
+        <div className="px-5 py-4 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <CuzmifyLogo className="w-9 h-9 shrink-0 rounded-xl" />
+            <div className="min-w-0">
               <h2 className="text-sm font-bold text-[#1A202C] font-display">
-                {state === 'success' ? '🎉 Website is Live!' : state === 'publishing' ? 'Launching to Edge…' : 'Ready to Launch?'}
+                {state === 'success'
+                  ? '🎉 Your Website is Live!'
+                  : state === 'publishing'
+                    ? 'Publishing Your Site…'
+                    : 'Publish Your Website'}
               </h2>
-              <p className="text-[11px] text-[#64748B] font-mono truncate max-w-[240px]">
-                {subdomainUrl.replace(/^https?:\/\//, '')}
+              <p className="text-[11px] text-[#64748B] font-mono truncate">
+                {activeShareUrl.replace(/^https?:\/\//, '')}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#64748B] hover:text-[#1A202C] hover:bg-[#E2E8F0] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[#64748B] hover:text-[#1A202C] hover:bg-[#E2E8F0] cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-5 sm:p-6 space-y-5">
           {state === 'ready' && (
             <>
-              {/* Domain & URL preview */}
               <div className="p-3.5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-[#64748B] uppercase font-mono tracking-wider">
-                    Assigned Subdomain
+                  <span className="text-[10px] font-bold text-[#64748B] uppercase font-mono">
+                    Shareable Bio Link
                   </span>
                   <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold font-mono">
-                    Free SSL Active
+                    HTTPS Active
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#0D5771] truncate">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#0D5771] break-all">
                   <Globe className="w-4 h-4 shrink-0 text-[#0D5771]" />
-                  <span className="truncate">{subdomainUrl}</span>
+                  <span>{primaryLiveUrl}</span>
                 </div>
               </div>
 
-              {/* Edge checklist */}
-              <div className="space-y-2.5">
-                <span className="text-[10px] font-bold text-[#64748B] uppercase font-mono tracking-wider">
-                  Edge Pre-Flight Verification
-                </span>
-                <div className="space-y-1.5">
-                  {PUBLISH_CHECKLIST.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2.5 text-xs text-[#1A202C]">
-                      <div className="w-4 h-4 rounded-full bg-emerald-50 border border-emerald-300 flex items-center justify-center shrink-0">
-                        <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[3]" />
-                      </div>
-                      <span className="font-medium text-[11px]">{item.label}</span>
-                    </div>
-                  ))}
+              <div className="space-y-2 text-xs text-[#475569]">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Saves your latest portfolio photos, rates &amp; look</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Enables live client enquiries &amp; WhatsApp booking</span>
                 </div>
               </div>
 
-              {/* Action buttons */}
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-1">
                 <button
                   onClick={onClose}
-                  className="flex-1 py-3 rounded-xl border border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B] font-bold text-xs transition-colors cursor-pointer"
+                  className="flex-1 py-3 rounded-xl border border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B] font-bold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handlePublish}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#0D5771] to-[#3498E3] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#0D5771]/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.01]"
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#0D5771] to-[#3498E3] hover:opacity-95 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Rocket className="w-4 h-4" />
-                  <span>Publish Website</span>
+                  <span>Publish Now</span>
                 </button>
               </div>
             </>
           )}
 
           {state === 'publishing' && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Loader2 className="w-4 h-4 text-[#0D5771] animate-spin" />
-                <span className="text-xs font-bold text-[#0D5771] font-mono">Deploying to Cuzmify Edge Network…</span>
-              </div>
-              <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-[#E2E8F0] font-mono text-[11px] space-y-2 min-h-[140px]">
-                {logs.map((log, i) => (
-                  <div key={i} className="flex items-center gap-2 text-emerald-700 animate-in fade-in duration-150">
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                    <span>{log}</span>
-                  </div>
-                ))}
-                {logs.length < DEPLOY_STEPS.length && (
-                  <div className="flex items-center gap-2 text-[#0D5771]">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                    <span className="animate-pulse">Processing…</span>
-                  </div>
-                )}
-              </div>
+            <div className="py-8 flex flex-col items-center justify-center gap-3 text-center">
+              <Loader2 className="w-8 h-8 text-[#0D5771] animate-spin" />
+              <p className="text-xs font-bold text-[#1A202C]">Saving &amp; publishing your live website…</p>
             </div>
           )}
 
           {state === 'success' && (
-            <div className="space-y-4 text-center animate-in fade-in duration-200">
-              <div className="space-y-1">
-                <p className="text-base font-extrabold text-[#1A202C] font-display">
-                  Your website is live and public!
-                </p>
-                <p className="text-xs text-[#64748B]">
-                  Deployed with SSL encryption, fast edge caching, and mobile WhatsApp booking.
-                </p>
+            <div className="space-y-4 text-center animate-in fade-in duration-150">
+              <p className="text-xs text-[#64748B]">
+                Paste this link into your <strong>Instagram Bio</strong> or share it directly on WhatsApp:
+              </p>
+
+              <div className="p-3.5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] flex flex-col items-center gap-2">
+                <img
+                  src={qrCodeUrl}
+                  alt="Website QR Code"
+                  className="w-28 h-28 rounded-lg bg-white p-1.5 border border-[#E2E8F0]"
+                />
+                <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-[#0D5771]">
+                  <Smartphone className="w-3 h-3" /> Scan or copy bio link below
+                </span>
               </div>
 
-              {/* Instant Mobile QR Code */}
-              <div className="p-4 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] flex flex-col items-center gap-2 shadow-2xs">
-                <div className="p-2 bg-white rounded-xl border border-[#E2E8F0] shadow-sm">
-                  <img
-                    src={qrCodeUrl}
-                    alt="Mobile Preview QR Code"
-                    className="w-32 h-32 object-contain"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-[#0D5771]">
-                  <Smartphone className="w-3.5 h-3.5" />
-                  <span>Scan to test on your phone camera</span>
-                </div>
-              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleCopyLink(activeShareUrl)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs shadow-md cursor-pointer"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      <span>Copied for Instagram Bio!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Copy Link for Instagram Bio</span>
+                    </>
+                  )}
+                </button>
 
-              <div className="flex flex-col gap-2 pt-1">
                 <a
-                  href={subdomainUrl}
+                  href={activeShareUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#0D5771] to-[#3498E3] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#3498E3]/20 transition-all cursor-pointer hover:scale-[1.01]"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#F8FAFC] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#1A202C] font-bold text-xs cursor-pointer"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Open {subdomainUrl.replace(/^https?:\/\//, '')}</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-[#0D5771]" />
+                  <span>Open Live Site</span>
                 </a>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleCopyLink(subdomainUrl)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#F8FAFC] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#1A202C] font-bold text-xs transition-all cursor-pointer"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-emerald-600">Copied Link!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-[#64748B]" />
-                        <span>Copy Link</span>
-                      </>
-                    )}
-                  </button>
-                  <a
-                    href={directPathUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#F8FAFC] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#64748B] font-bold text-xs transition-all cursor-pointer"
-                    title="Open via direct path /s/[subdomain]"
-                  >
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Direct Path</span>
-                  </a>
-                </div>
               </div>
             </div>
           )}
 
           {state === 'error' && (
-            <div className="space-y-4 text-center">
-              <div className="text-3xl">⚠️</div>
-              <p className="text-sm font-bold text-red-600">Failed to publish website</p>
-              <p className="text-xs text-[#64748B]">Please verify your network connection and try again.</p>
+            <div className="space-y-3 text-center">
+              <p className="text-sm font-bold text-red-600">Could not publish right now</p>
+              <p className="text-xs text-[#64748B]">Please check your internet connection and try again.</p>
               <button
                 onClick={() => setState('ready')}
-                className="w-full py-2.5 rounded-xl bg-[#0D5771] text-white font-bold text-xs"
+                className="w-full py-2.5 rounded-xl bg-[#0D5771] text-white font-bold text-xs cursor-pointer"
               >
                 Try Again
               </button>

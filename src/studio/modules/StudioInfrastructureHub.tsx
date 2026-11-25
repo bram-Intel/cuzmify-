@@ -33,6 +33,8 @@ import { useEditor } from '../engine/EditorContext';
 import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ServicePriceMode, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
 import { NICHE_LIST, resolveNicheBlueprint } from '@/core/niche-blueprints';
 import { compressImageFileToWebP } from '@/lib/image-compress';
+import { DomainAndProPanel } from './DomainAndProPanel';
+import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing';
 
 export function StudioInfrastructureHub({
   onClose,
@@ -48,6 +50,7 @@ export function StudioInfrastructureHub({
   }, []);
 
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'services' | 'products' | 'media' | 'profile' | 'payments'>(initialTab);
+  const [sitePlan, setSitePlan] = useState<'free' | 'pro'>('free');
   const [isSyncingIg, setIsSyncingIg] = useState(false);
   const [igHandleInput, setIgHandleInput] = useState(blueprint?.profile?.instagram || '');
   const [showIgConnect, setShowIgConnect] = useState(false);
@@ -57,6 +60,16 @@ export function StudioInfrastructureHub({
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    fetch(`/api/domains?siteId=${encodeURIComponent(projectId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.plan === 'pro') setSitePlan('pro');
+      })
+      .catch(() => {});
+  }, [projectId]);
 
   // New Service Form State (Zero invented prices)
   const [newServiceName, setNewServiceName] = useState('');
@@ -173,6 +186,13 @@ export function StudioInfrastructureHub({
   };
 
   const handleConfirmConvert = (asset: MediaVaultAsset) => {
+    if (sitePlan !== 'pro' && services.length >= FREE_PLAN_SERVICE_LIMIT) {
+      setConvertingAssetId(null);
+      setSaveToast(`Free plan includes up to ${FREE_PLAN_SERVICE_LIMIT} services. Upgrade to Pro for unlimited packages!`);
+      setActiveTab('payments');
+      setTimeout(() => setSaveToast(null), 3500);
+      return;
+    }
     const finalName = convertTitle.trim() || asset.name || 'Service Package';
     const numericPrice = convertPriceMode === 'quote' ? 0 : (parseFloat(convertPrice) || 0);
     const finalMode: ServicePriceMode = numericPrice <= 0 ? 'quote' : convertPriceMode;
@@ -201,6 +221,13 @@ export function StudioInfrastructureHub({
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newServiceName.trim()) return;
+    if (sitePlan !== 'pro' && services.length >= FREE_PLAN_SERVICE_LIMIT) {
+      setShowAddService(false);
+      setSaveToast(`Free plan includes up to ${FREE_PLAN_SERVICE_LIMIT} services. Upgrade to Pro for unlimited packages!`);
+      setActiveTab('payments');
+      setTimeout(() => setSaveToast(null), 3500);
+      return;
+    }
     const parsedPrice = newServicePriceMode === 'quote' ? 0 : (parseFloat(newServicePrice) || 0);
     const mode: ServicePriceMode = parsedPrice <= 0 ? 'quote' : newServicePriceMode;
     service.addServiceItem({
@@ -512,18 +539,34 @@ export function StudioInfrastructureHub({
           {/* ── 2. SERVICES TAB ── */}
           {activeTab === 'services' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-extrabold text-slate-900 font-display">Services &amp; Pricing Catalog</h2>
-                  <p className="text-xs text-slate-500 font-mono">Manage luxury packages, appointments, pricing, and duration tiers</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-extrabold text-slate-900 font-display">Services &amp; Pricing Catalog</h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      {sitePlan === 'pro' ? `${services.length} (Unlimited Pro)` : `${services.length}/${FREE_PLAN_SERVICE_LIMIT} Free`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-mono">Manage packages, starting rates, and custom quote services</p>
                 </div>
-                <button
-                  onClick={() => setShowAddService(!showAddService)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Service</span>
-                </button>
+                {sitePlan !== 'pro' && services.length >= FREE_PLAN_SERVICE_LIMIT ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('payments')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold transition-all cursor-pointer shadow-sm"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Upgrade to Pro for Unlimited Services</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowAddService(!showAddService)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D5771] text-white text-xs font-bold hover:bg-[#083D50] transition-all cursor-pointer shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New Service</span>
+                  </button>
+                )}
               </div>
 
               {/* Add Service Form */}
@@ -1450,36 +1493,17 @@ export function StudioInfrastructureHub({
             </div>
           )}
 
-          {/* ── 5. PAYMENTS TAB ── */}
+          {/* ── 5. CUSTOM DOMAIN & PRO TAB ── */}
           {activeTab === 'payments' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900 font-display">Online Payments &amp; Direct Checkout</h2>
-                <p className="text-xs text-slate-500 font-mono">Automated card payments, mobile bank transfers &amp; deposits</p>
-              </div>
-
-              <div className="p-6 rounded-2xl bg-indigo-50 border border-indigo-200/80 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-bold text-indigo-950 font-display">
-                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                  <span>PCI-DSS Compliant Payment Gateways</span>
-                </div>
-                <p className="text-xs text-indigo-800 leading-relaxed max-w-2xl">
-                  Connect Paystack, Flutterwave, or Stripe to collect online payments, bridal deposits, or instant product purchases.
-                </p>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900 font-mono uppercase tracking-wider">Active Mode</span>
-                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    ✓ WhatsApp Hybrid Checkout Active
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Customers can review their orders or booking details and complete the checkout directly on WhatsApp or connect automated payment webhooks.
-                </p>
-              </div>
-            </div>
+            <DomainAndProPanel
+              siteId={projectId}
+              businessName={profile.name || 'My Studio'}
+              onPlanChange={(nextPlan) => setSitePlan(nextPlan)}
+              onToast={(msg) => {
+                setSaveToast(msg);
+                setTimeout(() => setSaveToast(null), 3000);
+              }}
+            />
           )}
         </main>
       </div>
