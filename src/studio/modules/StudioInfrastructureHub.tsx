@@ -30,7 +30,9 @@ import {
   Play,
 } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
-import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
+import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ServicePriceMode, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
+import { NICHE_LIST, resolveNicheBlueprint } from '@/core/niche-blueprints';
+import { compressImageFileToWebP } from '@/lib/image-compress';
 
 export function StudioInfrastructureHub({
   onClose,
@@ -39,7 +41,7 @@ export function StudioInfrastructureHub({
   onClose: () => void;
   initialTab?: 'whatsapp' | 'services' | 'products' | 'media' | 'profile' | 'payments';
 }) {
-  const { service, setSaveToast, handleSave, projectId, blueprint } = useEditor();
+  const { service, setSaveToast, handleSave, projectId, blueprint, nicheId, handleNicheSwitch } = useEditor();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -56,9 +58,10 @@ export function StudioInfrastructureHub({
     }
   }, [initialTab]);
 
-  // New Service Form State
+  // New Service Form State (Zero invented prices)
   const [newServiceName, setNewServiceName] = useState('');
-  const [newServicePrice, setNewServicePrice] = useState('150');
+  const [newServicePrice, setNewServicePrice] = useState('');
+  const [newServicePriceMode, setNewServicePriceMode] = useState<ServicePriceMode>('fixed');
   const [newServiceDuration, setNewServiceDuration] = useState('60');
   const [newServiceTag, setNewServiceTag] = useState('SIGNATURE');
   const [newServiceDesc, setNewServiceDesc] = useState('');
@@ -71,11 +74,12 @@ export function StudioInfrastructureHub({
   const [newProductDesc, setNewProductDesc] = useState('');
   const [showAddProduct, setShowAddProduct] = useState(false);
 
-  // 1-Tap Instagram Media -> Product / Service Conversion State
+  // 1-Tap Instagram Media -> Service Conversion State
   const [convertingAssetId, setConvertingAssetId] = useState<string | null>(null);
-  const [convertMode, setConvertMode] = useState<'product' | 'service'>('product');
+  const [convertMode, setConvertMode] = useState<'product' | 'service'>('service');
   const [convertTitle, setConvertTitle] = useState('');
   const [convertPrice, setConvertPrice] = useState('');
+  const [convertPriceMode, setConvertPriceMode] = useState<ServicePriceMode>('fixed');
 
   // Media Vault State
   const [newMediaUrl, setNewMediaUrl] = useState('');
@@ -90,22 +94,29 @@ export function StudioInfrastructureHub({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 15 * 1024 * 1024) {
-      alert('File size exceeds 15MB. Please choose a smaller image or compressed video clip.');
+      alert('File size exceeds 15MB. Please choose a smaller image.');
       return;
     }
 
     setIsUploading(true);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setUploadedFilePreview(dataUrl);
-      setNewMediaUrl(dataUrl);
+    try {
       const isVideo = file.type.startsWith('video/');
+      const compressedDataUrl = isVideo
+        ? await new Promise<string>((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.onerror = rej;
+            r.readAsDataURL(file);
+          })
+        : await compressImageFileToWebP(file, 1200, 0.8);
+
+      setUploadedFilePreview(compressedDataUrl);
+      setNewMediaUrl(compressedDataUrl);
       if (!newMediaName) {
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
         setNewMediaName(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
@@ -114,13 +125,11 @@ export function StudioInfrastructureHub({
         setNewMediaType('video');
       }
       setNewMediaSource('upload');
+    } catch {
+      alert('Failed to process image file.');
+    } finally {
       setIsUploading(false);
-    };
-    reader.onerror = () => {
-      setIsUploading(false);
-      alert('Failed to read file.');
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   if (!mounted || !service) return null;
@@ -136,13 +145,15 @@ export function StudioInfrastructureHub({
 
   const openConvertAsset = (asset: MediaVaultAsset, mode: 'product' | 'service') => {
     const rawCaption = (asset.caption || asset.name || '').replace(/#[a-zA-Z0-9_]+/g, '').trim();
-    const firstLine = rawCaption.split('\n')[0]?.trim() || asset.name || 'Featured Item';
+    const firstLine = rawCaption.split('\n')[0]?.trim() || asset.name || 'Service Package';
     const cleanTitle = firstLine.replace(/\(Slide \d+\/\d+\)/i, '').trim().slice(0, 48) || asset.name;
 
-    // Smart price extraction from Instagram caption (e.g., "₦25,000", "25k", "$120")
-    let detectedPrice = currency === 'NGN' ? '15000' : '65';
-    const priceMatch = (asset.caption || '').match(/(?:₦|NGN|\$|£|€)\s*(\d{1,3}(?:,\d{3})+|\d+)(k)?/i) ||
-                       (asset.caption || '').match(/\b(\d+)\s*k\b/i);
+    // Extract real price ONLY if present in Instagram caption; otherwise default to Custom Quote (zero invented prices!)
+    let detectedPrice = '';
+    let detectedMode: ServicePriceMode = 'quote';
+    const priceMatch =
+      (asset.caption || '').match(/(?:₦|NGN|\$|£|€)\s*(\d{1,3}(?:,\d{3})+|\d+)(k)?/i) ||
+      (asset.caption || '').match(/\b(\d+)\s*k\b/i);
     if (priceMatch) {
       let num = parseFloat(priceMatch[1].replace(/,/g, ''));
       if (priceMatch[2]?.toLowerCase() === 'k' || (asset.caption || '').toLowerCase().includes(`${priceMatch[1]}k`)) {
@@ -150,6 +161,7 @@ export function StudioInfrastructureHub({
       }
       if (!isNaN(num) && num > 0) {
         detectedPrice = String(num);
+        detectedMode = 'fixed';
       }
     }
 
@@ -157,42 +169,30 @@ export function StudioInfrastructureHub({
     setConvertMode(mode);
     setConvertTitle(cleanTitle);
     setConvertPrice(detectedPrice);
+    setConvertPriceMode(detectedMode);
   };
 
   const handleConfirmConvert = (asset: MediaVaultAsset) => {
-    const finalName = convertTitle.trim() || asset.name || 'Featured Item';
-    const finalPrice = parseFloat(convertPrice) || (currency === 'NGN' ? 15000 : 50);
+    const finalName = convertTitle.trim() || asset.name || 'Service Package';
+    const numericPrice = convertPriceMode === 'quote' ? 0 : (parseFloat(convertPrice) || 0);
+    const finalMode: ServicePriceMode = numericPrice <= 0 ? 'quote' : convertPriceMode;
     const displayImg = asset.thumbnailUrl || asset.url;
-    const cleanDesc = (asset.caption || '').replace(/#[a-zA-Z0-9_]+/g, '').trim().slice(0, 140) || `Authentic ${finalName} from @${profile.instagram || 'studio'}.`;
+    const cleanDesc = (asset.caption || '').replace(/#[a-zA-Z0-9_]+/g, '').trim().slice(0, 140);
 
-    if (convertMode === 'product') {
-      service.addProductItem({
-        name: finalName,
-        price: finalPrice,
-        category: 'Featured',
-        description: cleanDesc,
-        imageUrl: displayImg,
-        inStock: true,
-        enabled: true,
-      });
-      service.syncCanvasWithBlueprint();
-      handleSave(true);
-      setSaveToast(`🛍️ Added "${finalName}" (${currencySymbol}${finalPrice.toLocaleString()}) to Products & Live Site!`);
-    } else {
-      service.addServiceItem({
-        name: finalName,
-        price: finalPrice,
-        durationMinutes: 60,
-        locationType: 'in_studio',
-        description: cleanDesc,
-        tag: 'POPULAR',
-        imageUrl: displayImg,
-        enabled: true,
-      });
-      service.syncCanvasWithBlueprint();
-      handleSave(true);
-      setSaveToast(`✨ Added "${finalName}" (${currencySymbol}${finalPrice.toLocaleString()}) to Services & Live Site!`);
-    }
+    service.addServiceItem({
+      name: finalName,
+      price: numericPrice,
+      priceMode: finalMode,
+      durationMinutes: 60,
+      locationType: 'in_studio',
+      description: cleanDesc,
+      tag: 'POPULAR',
+      imageUrl: displayImg,
+      enabled: true,
+    });
+    service.syncCanvasWithBlueprint();
+    handleSave(true);
+    setSaveToast(`✨ Added "${finalName}" to Services & Live Site!`);
 
     setConvertingAssetId(null);
     setTimeout(() => setSaveToast(null), 3200);
@@ -201,17 +201,21 @@ export function StudioInfrastructureHub({
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newServiceName.trim()) return;
+    const parsedPrice = newServicePriceMode === 'quote' ? 0 : (parseFloat(newServicePrice) || 0);
+    const mode: ServicePriceMode = parsedPrice <= 0 ? 'quote' : newServicePriceMode;
     service.addServiceItem({
       name: newServiceName.trim(),
-      price: parseFloat(newServicePrice) || 50,
-      durationMinutes: parseInt(newServiceDuration, 10) || 60,
+      price: parsedPrice,
+      priceMode: mode,
+      durationMinutes: parseInt(newServiceDuration, 10) || undefined,
       locationType: 'in_studio',
-      description: newServiceDesc.trim() || 'Professional luxury artistry service.',
+      description: newServiceDesc.trim(),
       tag: newServiceTag,
       enabled: true,
     });
     service.syncCanvasWithBlueprint();
     setNewServiceName('');
+    setNewServicePrice('');
     setNewServiceDesc('');
     setShowAddService(false);
     setSaveToast(`✦ Added Service: ${newServiceName}`);
@@ -302,12 +306,11 @@ export function StudioInfrastructureHub({
   };
 
   const MODULE_TABS = [
-    { id: 'media' as const, shortLabel: `📷 IG Vault (${mediaVault.length})`, label: `Media Vault (${mediaVault.length})`, desc: 'Instagram imports, 1-tap products & videos', icon: <ImageIcon className="w-4 h-4" /> },
-    { id: 'products' as const, shortLabel: `🛍️ Products (${products.length})`, label: `Products Catalog (${products.length})`, desc: 'E-commerce items & stock tracking', icon: <ShoppingBag className="w-4 h-4" /> },
-    { id: 'services' as const, shortLabel: `✨ Services (${services.length})`, label: `Services Catalog (${services.length})`, desc: 'Durations, pricing & booking tiers', icon: <Scissors className="w-4 h-4" /> },
-    { id: 'whatsapp' as const, shortLabel: '💬 WhatsApp', label: 'WhatsApp Booking Engine', desc: 'Pre-filled format & phone routing', icon: <Phone className="w-4 h-4" /> },
-    { id: 'profile' as const, shortLabel: `🏪 Profile (${currencySymbol})`, label: 'Business Profile & Currency', desc: 'Identity, contacts & currency symbol', icon: <Store className="w-4 h-4" /> },
-    { id: 'payments' as const, shortLabel: '💳 Payments', label: 'Online Payments & Checkout', desc: 'Paystack, Flutterwave & Stripe', icon: <CreditCard className="w-4 h-4" /> },
+    { id: 'media' as const, shortLabel: `📷 IG & Photos (${mediaVault.length})`, label: `Portfolio & IG (${mediaVault.length})`, desc: 'Instagram sync, uploads & 1-tap services', icon: <ImageIcon className="w-4 h-4" /> },
+    { id: 'services' as const, shortLabel: `✨ Services (${services.length})`, label: `Services & Rates (${services.length})`, desc: 'Packages, starting rates & custom quotes', icon: <Scissors className="w-4 h-4" /> },
+    { id: 'whatsapp' as const, shortLabel: '💬 WhatsApp', label: 'WhatsApp Enquiries', desc: 'Phone routing & booking message format', icon: <Phone className="w-4 h-4" /> },
+    { id: 'profile' as const, shortLabel: `🏪 Brand & Niche`, label: 'Brand, Niche & Bio', desc: 'Business name, niche, city & currency', icon: <Store className="w-4 h-4" /> },
+    { id: 'payments' as const, shortLabel: '🌐 Domain & Pro', label: 'Custom Domain & Pro', desc: 'Connect .com / .com.ng & remove badge', icon: <Globe className="w-4 h-4" /> },
   ];
 
   return createPortal(
@@ -540,22 +543,29 @@ export function StudioInfrastructureHub({
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-700">Price ({currencySymbol})</label>
-                      <input
-                        type="number"
-                        required
-                        value={newServicePrice}
-                        onChange={(e) => setNewServicePrice(e.target.value)}
+                      <label className="text-[11px] font-bold text-slate-700">Pricing Type</label>
+                      <select
+                        value={newServicePriceMode}
+                        onChange={(e) => setNewServicePriceMode(e.target.value as ServicePriceMode)}
                         className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
-                      />
+                      >
+                        <option value="fixed">Fixed Price ({currencySymbol})</option>
+                        <option value="starting_at">Starting From ({currencySymbol})</option>
+                        <option value="quote">Request Custom Quote</option>
+                      </select>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-700">Duration (Minutes)</label>
+                      <label className="text-[11px] font-bold text-slate-700">
+                        {newServicePriceMode === 'quote' ? 'Price (Custom Quote)' : `Amount (${currencySymbol})`}
+                      </label>
                       <input
                         type="number"
-                        value={newServiceDuration}
-                        onChange={(e) => setNewServiceDuration(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                        disabled={newServicePriceMode === 'quote'}
+                        required={newServicePriceMode !== 'quote'}
+                        value={newServicePriceMode === 'quote' ? '' : newServicePrice}
+                        onChange={(e) => setNewServicePrice(e.target.value)}
+                        placeholder={newServicePriceMode === 'quote' ? 'Client requests quote' : 'Enter your real rate'}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771] disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -641,23 +651,36 @@ export function StudioInfrastructureHub({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
-                      <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-                        <span className="text-xs font-mono font-bold text-slate-500">{currencySymbol}</span>
-                        <input
-                          type="number"
-                          value={srv.price}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (!isNaN(val)) {
-                              service.updateServiceItem(srv.id, { price: val });
+                    <div className="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                      <select
+                        value={srv.priceMode || (srv.price > 0 ? 'fixed' : 'quote')}
+                        onChange={(e) => {
+                          const mode = e.target.value as ServicePriceMode;
+                          service.updateServiceItem(srv.id, { priceMode: mode, ...(mode === 'quote' ? { price: 0 } : {}) });
+                          service.syncCanvasWithBlueprint();
+                        }}
+                        className="text-[11px] font-bold bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-slate-700"
+                      >
+                        <option value="fixed">Fixed</option>
+                        <option value="starting_at">From</option>
+                        <option value="quote">Quote</option>
+                      </select>
+                      {(srv.priceMode || (srv.price > 0 ? 'fixed' : 'quote')) !== 'quote' && (
+                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+                          <span className="text-xs font-mono font-bold text-slate-500">{currencySymbol}</span>
+                          <input
+                            type="number"
+                            value={srv.price || ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              service.updateServiceItem(srv.id, { price: isNaN(val) ? 0 : val });
                               service.syncCanvasWithBlueprint();
-                            }
-                          }}
-                          className="w-20 text-sm font-mono font-extrabold text-[#0D5771] bg-transparent focus:outline-none"
-                          title="Tap to edit price"
-                        />
-                      </div>
+                            }}
+                            className="w-20 text-sm font-mono font-extrabold text-[#0D5771] bg-transparent focus:outline-none"
+                            title="Tap to edit price"
+                          />
+                        </div>
+                      )}
                       <button
                         onClick={() => {
                           service.deleteServiceItem(srv.id);
@@ -1212,12 +1235,12 @@ export function StudioInfrastructureHub({
                           )}
                         </div>
 
-                        {/* 1-Tap Convert to Product / Service Bar */}
+                        {/* 1-Tap Convert to Service Package Bar */}
                         {convertingAssetId === asset.id ? (
                           <div className="p-2.5 rounded-xl bg-slate-50 border border-[#0D5771]/30 space-y-2 animate-in fade-in duration-150">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-mono font-bold text-[#0D5771] uppercase">
-                                {convertMode === 'product' ? '🛍️ Turn into Product' : '✨ Turn into Service'}
+                                ✨ Turn into Service Package
                               </span>
                               <button
                                 type="button"
@@ -1231,48 +1254,50 @@ export function StudioInfrastructureHub({
                               type="text"
                               value={convertTitle}
                               onChange={(e) => setConvertTitle(e.target.value)}
-                              placeholder="Item Name"
+                              placeholder="Service / Package Name"
                               className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0D5771] font-medium"
                             />
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-                                <span className="text-xs font-mono font-bold text-slate-500">{currencySymbol}</span>
-                                <input
-                                  type="number"
-                                  value={convertPrice}
-                                  onChange={(e) => setConvertPrice(e.target.value)}
-                                  placeholder="Price"
-                                  className="w-full text-xs font-mono font-bold text-slate-900 focus:outline-none"
-                                />
-                              </div>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={convertPriceMode}
+                                onChange={(e) => setConvertPriceMode(e.target.value as ServicePriceMode)}
+                                className="px-2 py-1.5 text-[11px] font-bold bg-white border border-slate-200 rounded-lg"
+                              >
+                                <option value="fixed">Fixed</option>
+                                <option value="starting_at">From</option>
+                                <option value="quote">Quote</option>
+                              </select>
+                              {convertPriceMode !== 'quote' && (
+                                <div className="flex-1 flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 min-w-0">
+                                  <span className="text-xs font-mono font-bold text-slate-500">{currencySymbol}</span>
+                                  <input
+                                    type="number"
+                                    value={convertPrice}
+                                    onChange={(e) => setConvertPrice(e.target.value)}
+                                    placeholder="Rate"
+                                    className="w-full text-xs font-mono font-bold text-slate-900 focus:outline-none min-w-0"
+                                  />
+                                </div>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleConfirmConvert(asset)}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all cursor-pointer shrink-0 shadow-xs"
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all cursor-pointer shrink-0 shadow-xs ml-auto"
                               >
-                                ✓ Add to Site
+                                ✓ Add
                               </button>
                             </div>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-2 gap-1.5 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => openConvertAsset(asset, 'product')}
-                              className="py-1.5 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-200 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                              title="Turn this post into a buyable Product in 1 tap"
-                            >
-                              <ShoppingBag className="w-3 h-3" />
-                              <span>+ Product</span>
-                            </button>
+                          <div className="pt-1">
                             <button
                               type="button"
                               onClick={() => openConvertAsset(asset, 'service')}
-                              className="py-1.5 px-2 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white border border-amber-200 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                              title="Turn this post into a bookable Service in 1 tap"
+                              className="w-full py-1.5 px-2.5 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-900 hover:text-white border border-amber-200 text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              title="Turn this post into a bookable Service / Package in 1 tap"
                             >
                               <Scissors className="w-3 h-3" />
-                              <span>+ Service</span>
+                              <span>+ Turn Post into Service / Package</span>
                             </button>
                           </div>
                         )}
@@ -1361,12 +1386,41 @@ export function StudioInfrastructureHub({
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 font-mono uppercase tracking-wider">Service Vendor Niche</label>
+                    <select
+                      value={resolveNicheBlueprint(nicheId || profile.nicheId || profile.category).id}
+                      onChange={(e) => handleNicheSwitch(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771] font-semibold"
+                    >
+                      {NICHE_LIST.map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {n.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 font-mono uppercase tracking-wider">Hero Headline / Tagline</label>
+                    <input
+                      type="text"
+                      value={profile.tagline}
+                      placeholder="e.g. Bespoke Bridal Glam & Editorial Styling"
+                      onChange={(e) => service.updateProfile({ tagline: e.target.value })}
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-800 font-mono uppercase tracking-wider">Tagline / Mission</label>
-                  <input
-                    type="text"
-                    value={profile.tagline}
-                    onChange={(e) => service.updateProfile({ tagline: e.target.value })}
+                  <label className="text-xs font-bold text-slate-800 font-mono uppercase tracking-wider">Short Bio / Subheadline</label>
+                  <textarea
+                    rows={2}
+                    value={profile.bio || ''}
+                    placeholder="A short introduction about your work, location, and how clients can book you."
+                    onChange={(e) => service.updateProfile({ bio: e.target.value })}
                     className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
                   />
                 </div>

@@ -6,9 +6,9 @@ import {
   EyeOff,
   Smartphone,
   Instagram,
-  ShoppingBag,
   Scissors,
-  Sparkles,
+  Store,
+  Rocket,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { TopBar } from './TopBar';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { BottomBar } from './BottomBar';
+import { MobilePreviewPane } from './MobilePreviewPane';
 import { PublishModal } from './publish/PublishModal';
 import { StudioInfrastructureHub } from './modules/StudioInfrastructureHub';
 import { useEditor } from './engine/EditorContext';
@@ -168,8 +169,13 @@ function EditorShellInner() {
           </>
         )}
 
-        {/* GrapesJS Canvas — always mounted in memory */}
-        <Canvas />
+        {/* Touch-Safe 60fps Mobile Preview (<1024px) */}
+        <MobilePreviewPane />
+
+        {/* GrapesJS Advanced Visual Studio (>=1024px Desktop; stays mounted silently on mobile for state/publish engine) */}
+        <div className="hidden lg:flex flex-1 h-full min-w-0">
+          <Canvas />
+        </div>
 
         {/* Right Panel: Automatic on Desktop, On-Demand Drawer on Mobile */}
         {!isPreviewMode && selectedComponent.type && (
@@ -201,24 +207,9 @@ function EditorShellInner() {
           </>
         )}
 
-        {/* Mobile Floating Action Pill when a Canvas element is tapped */}
+        {/* Mobile Floating Action Pill (only shown if Desktop/Tablet GrapesJS canvas is active) */}
         {!isPreviewMode && selectedComponent.type && !mobileInspectorOpen && !isLeftPanelOpen && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 md:hidden animate-in slide-in-from-bottom-3">
-            <button
-              onClick={() => setMobileInspectorOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#0D5771] text-white text-xs font-bold shadow-xl border border-white/20"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Edit Selected ({selectedComponent.type})</span>
-            </button>
-            <button
-              onClick={() => setActiveModuleModal('media')}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-white text-[#0D5771] text-xs font-bold shadow-xl border border-slate-200"
-            >
-              <Instagram className="w-3.5 h-3.5 text-pink-600" />
-              <span>Swap Photo</span>
-            </button>
-          </div>
+          <div className="hidden" />
         )}
       </div>
 
@@ -256,23 +247,23 @@ function EditorShellInner() {
         </div>
       )}
 
-      {/* Mobile-First Thumb Navigation Dock (<768px) */}
+      {/* Mobile-First Thumb Navigation Dock (<1024px) */}
       {!isPreviewMode && !activeModuleModal && !showPublish && (
-        <nav className="md:hidden h-16 bg-white border-t border-slate-200 px-2 flex items-center justify-around shrink-0 z-[60] shadow-[0_-4px_20px_rgba(0,0,0,0.05)] select-none">
+        <nav className="lg:hidden h-16 bg-white border-t border-slate-200 px-2 flex items-center justify-around shrink-0 z-[60] shadow-[0_-4px_20px_rgba(0,0,0,0.05)] select-none">
           <button
             onClick={() => {
               setIsLeftPanelOpen(false);
               setMobileInspectorOpen(false);
               setActiveModuleModal(null);
             }}
-            className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl transition-all cursor-pointer ${
+            className={`flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl transition-all cursor-pointer ${
               !isLeftPanelOpen && !activeModuleModal
                 ? 'text-[#0D5771] font-extrabold'
                 : 'text-slate-500'
             }`}
           >
             <Smartphone className="w-4 h-4" />
-            <span className="text-[10px]">Canvas</span>
+            <span className="text-[10px]">Preview</span>
           </button>
 
           <button
@@ -280,21 +271,10 @@ function EditorShellInner() {
               setIsLeftPanelOpen(false);
               setActiveModuleModal('media');
             }}
-            className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
           >
             <Instagram className="w-4 h-4 text-pink-600" />
-            <span className="text-[10px] font-bold">IG Vault</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setIsLeftPanelOpen(false);
-              setActiveModuleModal('products');
-            }}
-            className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
-          >
-            <ShoppingBag className="w-4 h-4 text-emerald-600" />
-            <span className="text-[10px] font-bold">Products</span>
+            <span className="text-[10px] font-bold">IG &amp; Photos</span>
           </button>
 
           <button
@@ -302,7 +282,7 @@ function EditorShellInner() {
               setIsLeftPanelOpen(false);
               setActiveModuleModal('services');
             }}
-            className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
           >
             <Scissors className="w-4 h-4 text-amber-600" />
             <span className="text-[10px] font-bold">Services</span>
@@ -310,17 +290,21 @@ function EditorShellInner() {
 
           <button
             onClick={() => {
-              setMobileInspectorOpen(false);
-              setIsLeftPanelOpen(!isLeftPanelOpen);
+              setIsLeftPanelOpen(false);
+              setActiveModuleModal('profile');
             }}
-            className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl transition-all cursor-pointer ${
-              isLeftPanelOpen
-                ? 'bg-[#0D5771]/10 text-[#0D5771] font-extrabold'
-                : 'text-slate-600'
-            }`}
+            className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-slate-600 hover:text-[#0D5771] transition-all cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-[#0D5771]" />
-            <span className="text-[10px] font-bold">AI &amp; Theme</span>
+            <Store className="w-4 h-4 text-[#0D5771]" />
+            <span className="text-[10px] font-bold">Brand &amp; WA</span>
+          </button>
+
+          <button
+            onClick={() => setShowPublish(true)}
+            className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-xl bg-[#0D5771] text-white font-extrabold transition-all cursor-pointer shadow-xs"
+          >
+            <Rocket className="w-4 h-4 text-emerald-300" />
+            <span className="text-[10px]">Publish</span>
           </button>
         </nav>
       )}
