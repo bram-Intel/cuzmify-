@@ -2,21 +2,22 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { InstagramImporter } from '@/services/importer/instagram-importer';
+import { createDefaultBlueprint, type CurrencyCode } from '@/core/blueprint-schema';
+
+async function resolveUserId() {
+  const session = await auth();
+  if (session?.user?.id) return session.user.id;
+  if (session?.user?.email) {
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    return user?.id || null;
+  }
+  return null;
+}
 
 export async function GET() {
   try {
-    const session = await auth();
-    let userId = session?.user?.id;
-
-    if (!userId && session?.user?.email) {
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
-      });
-      userId = user?.id;
-    }
-
+    const userId = await resolveUserId();
     if (!userId) {
-      // Unauthenticated callers receive an empty list without exposing multi-tenant data
       return NextResponse.json({ sites: [] });
     }
 
@@ -34,63 +35,34 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    let userId = session?.user?.id;
-
-    if (!userId && session?.user?.email) {
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
-      });
-      userId = user?.id;
-    }
-
+    const userId = await resolveUserId();
     if (!userId) {
-      const defaultUser = await prisma.user.upsert({
-        where: { email: 'creator@cuzmify.local' },
-        update: {},
-        create: {
-          email: 'creator@cuzmify.local',
-          name: 'Cuzmify Creator',
-          onboardingDone: true,
-        },
-      });
-      userId = defaultUser.id;
+      return NextResponse.json({ error: 'Unauthorized: Please sign in first.' }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));
     const siteName = (body.name || 'My New Studio').trim();
-    const category = body.category || 'Beauty & Wellness';
-    const template = body.template || 'Modern Business Template';
-    const theme = body.theme || 'bram-light';
+    const category = body.category || 'Service Business';
+    const nicheId = body.nicheId || 'beauty_makeup';
+    const templateId = body.templateId || 'editorial-atelier';
+    const template = body.template || 'Editorial Atelier';
+    const currency: CurrencyCode = body.currency || 'NGN';
+    const whatsappPhone = (body.whatsappPhone || body.whatsapp || '').replace(/[^\d]/g, '');
     const rawIg = body.instagramHandle ? InstagramImporter.cleanHandle(body.instagramHandle) : undefined;
 
-    let blueprintData: string | undefined = undefined;
-    if (rawIg) {
-      const importResult = await InstagramImporter.ingestProfile(rawIg, 'USD');
-      blueprintData = JSON.stringify({
-        profile: {
-          name: siteName,
-          category,
-          instagram: rawIg,
-          tagline: importResult.tagline,
-          currency: 'USD',
-          currencySymbol: '$',
-        },
-        modules: {
-          services: {
-            enabled: true,
-            items: importResult.services,
-          },
-          whatsapp: {
-            enabled: true,
-            phoneNumber: importResult.whatsapp,
-          },
-        },
-        mediaVault: importResult.mediaVault,
-      });
-    }
+    const cachedMedia = rawIg ? (InstagramImporter.getCachedMedia(rawIg) || []) : [];
 
-    // Generate unique subdomain slug
+    const initialBp = createDefaultBlueprint({
+      name: siteName,
+      category,
+      nicheId,
+      templateId,
+      currency,
+      whatsapp: whatsappPhone,
+      instagramHandle: rawIg,
+      mediaVault: cachedMedia,
+    });
+
     let baseSlug = siteName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24) || 'studio';
     let uniqueSubdomain = baseSlug;
     let counter = 1;
@@ -104,14 +76,18 @@ export async function POST(req: Request) {
         userId,
         name: siteName,
         category,
+        nicheId,
+        templateId,
         template,
-        theme,
+        theme: body.theme || 'bram-light',
+        currency,
+        whatsappPhone: whatsappPhone || undefined,
         subdomain: uniqueSubdomain,
         domain: `${uniqueSubdomain}.cuzmify.com`,
         status: 'draft',
         liveUrl: `/s/${uniqueSubdomain}`,
         instagramHandle: rawIg || undefined,
-        blueprintData,
+        blueprintData: JSON.stringify(initialBp),
       },
     });
 
@@ -124,16 +100,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const session = await auth();
-    let userId = session?.user?.id;
-
-    if (!userId && session?.user?.email) {
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
-      });
-      userId = user?.id;
-    }
-
+    const userId = await resolveUserId();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized: You must be logged in to delete sites.' }, { status: 401 });
     }
@@ -142,7 +109,6 @@ export async function DELETE(req: Request) {
     const siteId = url.searchParams.get('siteId');
 
     if (siteId) {
-      // Delete single site owned by user
       await prisma.site.deleteMany({
         where: { id: siteId, userId },
       });

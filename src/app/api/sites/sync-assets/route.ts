@@ -17,82 +17,58 @@ export async function POST(req: Request) {
     }
 
     if (!userId) {
-      const defaultUser = await prisma.user.upsert({
-        where: { email: 'creator@cuzmify.local' },
-        update: {},
-        create: {
-          email: 'creator@cuzmify.local',
-          name: 'Cuzmify Creator',
-          onboardingDone: true,
-        },
-      });
-      userId = defaultUser.id;
+      return NextResponse.json({ error: 'Unauthorized: Please sign in first.' }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const siteId = body.siteId;
-    const providedHandle = body.handle ? InstagramImporter.cleanHandle(body.handle) : undefined;
+    const body = await req.json();
+    const { siteId, handle: rawHandle } = body;
+    const providedHandle = rawHandle ? InstagramImporter.cleanHandle(rawHandle) : undefined;
 
-    // 1. Resolve site (support proj_default, explicit ID, or most recent site)
     let site = siteId && siteId !== 'proj_default'
       ? await prisma.site.findUnique({ where: { id: siteId } })
       : null;
 
-    if (!site && userId) {
+    if (site && site.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!site) {
       site = await prisma.site.findFirst({
         where: { userId },
         orderBy: { updatedAt: 'desc' },
       });
     }
 
-    if (!site) {
-      // Create initial site for user so assets can be attached immediately
-      const initialSubdomain = `studio-${Date.now().toString().slice(-4)}`;
-      site = await prisma.site.create({
-        data: {
-          id: siteId && siteId !== 'proj_default' ? siteId : undefined,
-          userId,
-          name: 'My Business Studio',
-          subdomain: initialSubdomain,
-          domain: `${initialSubdomain}.cuzmify.com`,
-          status: 'draft',
-          liveUrl: `/s/${initialSubdomain}`,
+    if (!site || !site.instagramToken || site.instagramToken === 'demo_token_authenticated') {
+      return NextResponse.json(
+        {
+          error: 'Instagram is not authorized yet. Tap "Authorize & Import Real Posts" to connect your Instagram Business or Creator account.',
+          requiresOAuth: true,
         },
-      });
+        { status: 400 }
+      );
     }
 
-    const targetHandle = providedHandle || site.instagramHandle;
-
-    if (!targetHandle) {
-      return NextResponse.json({
-        error: 'Please provide an Instagram handle to sync.',
-      }, { status: 400 });
-    }
-
+    const targetHandle = providedHandle || site.instagramHandle || 'creator';
     let freshAssets: MediaVaultAsset[] = [];
 
-    // If we have an active Meta token and not demo
-    if (site.instagramToken && site.instagramToken !== 'demo_token_authenticated') {
-      try {
-        const mediaRes = await fetch(
-          `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{id,media_type,media_url,thumbnail_url}&access_token=${site.instagramToken}&limit=30`
-        );
-        if (mediaRes.ok) {
-          const mediaData = await mediaRes.json();
-          freshAssets = InstagramImporter.parseInstagramGraphMedia(mediaData.data || [], targetHandle);
-        }
-      } catch (metaErr) {
-        console.warn('[Sync Assets Meta Graph Warning]:', metaErr);
-      }
+    const mediaRes = await fetch(
+      `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{id,media_type,media_url,thumbnail_url}&access_token=${site.instagramToken}&limit=30`
+    );
+
+    if (!mediaRes.ok) {
+      return NextResponse.json(
+        {
+          error: 'Your Instagram connection expired. Please tap "Authorize & Import Real Posts" to reconnect.',
+          requiresOAuth: true,
+        },
+        { status: 401 }
+      );
     }
 
-    // Fallback if token expired or demo mode
-    if (freshAssets.length === 0) {
-      const importResult = await InstagramImporter.ingestProfile(targetHandle, (site.currency as any) || 'USD');
-      freshAssets = importResult.mediaVault;
-    }
+    const mediaData = await mediaRes.json();
+    freshAssets = InstagramImporter.parseInstagramGraphMedia(mediaData.data || [], targetHandle, site.id);
 
-    // Merge fresh assets into existing blueprintData.mediaVault
     let currentBlueprint: any = {};
     if (site.blueprintData) {
       try {
@@ -100,12 +76,15 @@ export async function POST(req: Request) {
       } catch {}
     }
 
-    const existingVault: MediaVaultAsset[] = currentBlueprint.mediaVault || [];
-    // Retain custom uploads while replacing / updating Instagram assets
-    const nonIgAssets = existingVault.filter((a) => a.source !== 'instagram');
-    const updatedVault = [...freshAssets, ...nonIgAssets];
+    const existingUploads = (currentBlueprint.mediaVault || []).filter(
+      (m: MediaVaultAsset) => m.source !== 'instagram' && m.source !== 'template'
+    );
+    const mergedVault = [...freshAssets, ...existingUploads];
 
-    currentBlueprint.mediaVault = updatedVault;
+    currentBlueprint.mediaVault = mergedVault;
+    if (!currentBlueprint.profile) currentBlueprint.profile = {};
+    currentBlueprint.profile.instagram = targetHandle;
+    currentBlueprint.profile.instagramHandle = targetHandle;
 
     await prisma.site.update({
       where: { id: site.id },
@@ -120,11 +99,14 @@ export async function POST(req: Request) {
       success: true,
       handle: targetHandle,
       syncedCount: freshAssets.length,
-      mediaVault: updatedVault,
-      message: `Successfully synced ${freshAssets.length} assets for @${targetHandle}!`,
+      mediaVault: mergedVault,
+      syncedAt: new Date().toISOString(),
     });
   } catch (err: any) {
     console.error('[API /api/sites/sync-assets Error]:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to sync project assets' }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || 'Failed to refresh Instagram assets' },
+      { status: 500 }
+    );
   }
 }

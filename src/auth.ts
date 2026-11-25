@@ -3,20 +3,31 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
+import { hashPassword, verifyPassword } from '@/lib/password';
 
-// Ensure NEXTAUTH_URL and AUTH_URL are valid or omitted for trustHost
+// Sanitize malformed NEXTAUTH_URL / AUTH_URL placeholders if present
 if (typeof process !== 'undefined' && process.env) {
-  if (process.env.NEXTAUTH_URL && (process.env.NEXTAUTH_URL.includes('<') || process.env.NEXTAUTH_URL.includes('>') || !process.env.NEXTAUTH_URL.startsWith('http'))) {
+  if (
+    process.env.NEXTAUTH_URL &&
+    (process.env.NEXTAUTH_URL.includes('<') ||
+      process.env.NEXTAUTH_URL.includes('>') ||
+      !process.env.NEXTAUTH_URL.startsWith('http'))
+  ) {
     delete process.env.NEXTAUTH_URL;
   }
-  if (process.env.AUTH_URL && (process.env.AUTH_URL.includes('<') || process.env.AUTH_URL.includes('>') || !process.env.AUTH_URL.startsWith('http'))) {
+  if (
+    process.env.AUTH_URL &&
+    (process.env.AUTH_URL.includes('<') ||
+      process.env.AUTH_URL.includes('>') ||
+      !process.env.AUTH_URL.startsWith('http'))
+  ) {
     delete process.env.AUTH_URL;
   }
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || 'cuzmify-bram-intel-secret-production-32-chars',
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   adapter: PrismaAdapter(prisma),
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -37,31 +48,77 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       : []),
     Credentials({
       id: 'credentials',
-      name: 'Email or Fast Login',
+      name: 'Email & Password',
       credentials: {
-        email: { label: 'Email', type: 'email', placeholder: 'you@example.com' },
-        name: { label: 'Name', type: 'text', placeholder: 'Your Name' },
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+        name: { label: 'Name', type: 'text' },
       },
       async authorize(credentials) {
-        const email = (credentials?.email as string)?.trim() || 'creator@cuzmify.local';
-        const name = (credentials?.name as string)?.trim() || 'Cuzmify Creator';
+        const email = (credentials?.email as string)?.trim().toLowerCase();
+        const password = (credentials?.password as string) || '';
+        const nameInput = (credentials?.name as string)?.trim();
 
-        // Upsert user in database
-        const user = await prisma.user.upsert({
+        if (!email || !email.includes('@') || password.length < 6) {
+          return null;
+        }
+
+        const existing = await prisma.user.findUnique({
           where: { email },
-          update: { name },
-          create: {
+          include: {
+            accounts: { select: { provider: true } },
+            _count: { select: { sites: true } },
+          },
+        });
+
+        if (existing) {
+          if (existing.passwordHash) {
+            const valid = verifyPassword(password, existing.passwordHash);
+            if (!valid) return null;
+            return {
+              id: existing.id,
+              name: existing.name,
+              email: existing.email,
+              image: existing.image,
+            };
+          }
+
+          // Existing OAuth account or account with sites cannot be claimed via password without an existing hash
+          if (existing.accounts.length > 0 || existing._count.sites > 0) {
+            return null;
+          }
+
+          const updated = await prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              passwordHash: hashPassword(password),
+              ...(nameInput ? { name: nameInput } : {}),
+            },
+          });
+
+          return {
+            id: updated.id,
+            name: updated.name,
+            email: updated.email,
+            image: updated.image,
+          };
+        }
+
+        // Brand-new account registration
+        const created = await prisma.user.create({
+          data: {
             email,
-            name,
+            name: nameInput || email.split('@')[0],
+            passwordHash: hashPassword(password),
             onboardingDone: true,
           },
         });
 
         return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
+          id: created.id,
+          name: created.name,
+          email: created.email,
+          image: created.image,
         };
       },
     }),

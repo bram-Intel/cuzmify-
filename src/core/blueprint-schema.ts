@@ -27,7 +27,9 @@ export const SUPPORTED_CURRENCIES: Record<CurrencyCode, CurrencyInfo> = {
 export interface BusinessProfile {
   name: string;
   tagline: string;
+  bio?: string;
   category: string;
+  nicheId?: string;
   phone: string;
   whatsapp: string;
   email: string;
@@ -41,14 +43,17 @@ export interface BusinessProfile {
 }
 
 // ── 2. Services Catalog Module ──────────────────────────────────────────────
+export type ServicePriceMode = 'fixed' | 'starting_at' | 'quote';
+
 export interface ServiceItem {
   id: string;
   name: string;
   price: number;
+  priceMode?: ServicePriceMode;
   durationMinutes?: number;
   locationType: 'in_studio' | 'on_location' | 'virtual' | 'flexible';
   description: string;
-  tag?: string; // 'VIP' | 'SIGNATURE' | 'POPULAR' | 'BRIDAL'
+  tag?: string;
   category?: string;
   depositRequired?: boolean;
   depositAmount?: number;
@@ -128,8 +133,11 @@ export interface BookingModuleConfig {
 // ── 8. Media Vault Asset Library ────────────────────────────────────────────
 export interface MediaVaultAsset {
   id: string;
+  igMediaId?: string;
   url: string;
   thumbnailUrl?: string;
+  rawMediaUrl?: string;
+  rawThumbUrl?: string;
   name: string;
   type: 'logo' | 'hero' | 'gallery' | 'service' | 'product' | 'general' | 'video' | 'testimonial';
   source: 'upload' | 'instagram' | 'unsplash' | 'template' | 'ai_generated';
@@ -165,6 +173,8 @@ export interface AppointmentRemindersModuleConfig {
 // ── 9. Master Business Blueprint ────────────────────────────────────────────
 export interface BusinessBlueprint {
   version: '1.0';
+  templateId?: string;
+  nicheId?: string;
   profile: BusinessProfile;
   modules: {
     whatsapp: WhatsAppModuleConfig;
@@ -178,6 +188,8 @@ export interface BusinessBlueprint {
     appointmentReminders?: AppointmentRemindersModuleConfig;
   };
   mediaVault: MediaVaultAsset[];
+  customCopy?: Record<string, string>;
+  sectionVisibility?: Record<string, boolean>;
   updatedAt: string;
 }
 
@@ -204,10 +216,15 @@ export interface ActionBinding {
 export interface BlueprintInitOptions {
   name?: string;
   tagline?: string;
+  bio?: string;
   category?: string;
+  nicheId?: string;
+  templateId?: string;
   phone?: string;
   whatsapp?: string;
   email?: string;
+  city?: string;
+  country?: string;
   currency?: CurrencyCode;
   instagramHandle?: string;
   services?: ServiceItem[];
@@ -215,128 +232,61 @@ export interface BlueprintInitOptions {
   mediaVault?: MediaVaultAsset[];
 }
 
-// ── Initial Default Blueprint Factory ───────────────────────────────────────
-export function createDefaultBlueprint(optionsOrName?: string | BlueprintInitOptions, theme: string = 'bram-light'): BusinessBlueprint {
+// ── Initial Default Blueprint Factory (Zero Invented Business Facts) ─────────
+export function createDefaultBlueprint(optionsOrName?: string | BlueprintInitOptions, _theme: string = 'bram-light'): BusinessBlueprint {
   const options: BlueprintInitOptions = typeof optionsOrName === 'string' ? { name: optionsOrName } : (optionsOrName || {});
-  const businessName = options.name || 'My Business Studio';
-  const currency = options.currency || 'USD';
-  const category = options.category || 'Makeup Artist';
-  const whatsappNumber = options.whatsapp || '18005554526';
-  const instagramHandle = options.instagramHandle || '';
+  const businessName = options.name?.trim() || 'My Studio';
+  const currency = options.currency || 'NGN';
+  const category = options.category || 'Service Business';
+  const whatsappNumber = (options.whatsapp || '').replace(/[^\d]/g, '');
+  const instagramHandle = (options.instagramHandle || '').replace(/^@/, '');
 
   return {
     version: '1.0',
+    nicheId: options.nicheId || 'beauty_makeup',
+    templateId: options.templateId || 'editorial-atelier',
     profile: {
       name: businessName,
-      tagline: options.tagline || 'World-class luxury beauty artistry and flawless styling.',
+      tagline: options.tagline || '',
+      bio: options.bio || '',
       category,
-      phone: options.phone || '+1 (800) 555-GLAM',
+      nicheId: options.nicheId || 'beauty_makeup',
+      phone: options.phone || '',
       whatsapp: whatsappNumber,
-      email: options.email || 'concierge@cuzmify.local',
-      address: '742 Evergreen Terrace',
-      city: 'Los Angeles, CA',
-      country: 'United States',
+      email: options.email || '',
+      address: '',
+      city: options.city || '',
+      country: options.country || '',
       currency,
       instagramHandle,
+      instagram: instagramHandle,
     },
     modules: {
       whatsapp: {
         enabled: true,
         phoneNumber: whatsappNumber,
-        defaultBookingTemplate: `Hello ${businessName}, I would like to inquire about booking the {serviceName} ({price}). My preferred date is [insert date].`,
-        defaultProductOrderTemplate: `Hello ${businessName}, I would like to order {productName} ({price}). Please confirm availability!`,
-        generalInquiryTemplate: `Hello ${businessName}, I have a general inquiry regarding your services.`,
+        defaultBookingTemplate: `Hello ${businessName}, I would like to enquire about {serviceName} ({price}).`,
+        defaultProductOrderTemplate: `Hello ${businessName}, I would like to enquire about {productName} ({price}).`,
+        generalInquiryTemplate: `Hello ${businessName}, I found your website and would love to make an enquiry.`,
         floatingWidgetEnabled: true,
         floatingWidgetPosition: 'bottom-right',
-        floatingWidgetGreeting: 'Chat with our artistry team on WhatsApp',
+        floatingWidgetGreeting: `Chat with ${businessName} on WhatsApp`,
       },
       services: {
         enabled: true,
         currency,
-        items: options.services && options.services.length > 0 ? options.services : [
-          {
-            id: 'srv-bridal-suite',
-            name: 'Royal Platinum Bridal Suite',
-            price: currency === 'NGN' ? 380000 : 380,
-            durationMinutes: 120,
-            locationType: 'on_location',
-            description: 'Complete bridal preview trial, 24hr HD airbrush makeup, couture hair design, and emergency touch-up kit.',
-            tag: 'BRIDAL',
-            category: 'Bridal',
-            depositRequired: true,
-            depositAmount: currency === 'NGN' ? 100000 : 100,
-            imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',
-            enabled: true,
-          },
-          {
-            id: 'srv-glam-session',
-            name: 'Red Carpet & Evening Glam',
-            price: currency === 'NGN' ? 190000 : 180,
-            durationMinutes: 75,
-            locationType: 'in_studio',
-            description: 'Full luxury soft/cut-crease glam with premium mink lashes and precision 24hr airbrushing.',
-            tag: 'SIGNATURE',
-            category: 'Special Event',
-            enabled: true,
-          },
-          {
-            id: 'srv-destination-concierge',
-            name: 'Destination VIP Concierge',
-            price: currency === 'NGN' ? 1200000 : 1200,
-            durationMinutes: 480,
-            locationType: 'on_location',
-            description: 'Full-day dedicated on-location artist for ceremony, reception restyling, and photoshoot glam.',
-            tag: 'VIP',
-            category: 'Bridal',
-            enabled: true,
-          },
-          {
-            id: 'srv-masterclass',
-            name: '1-on-1 Pro Masterclass Session',
-            price: currency === 'NGN' ? 260000 : 260,
-            durationMinutes: 90,
-            locationType: 'in_studio',
-            description: 'Hands-on bespoke technique training covering skin diagnosis, lash mapping, and contouring.',
-            tag: 'POPULAR',
-            category: 'Education',
-            enabled: true,
-          },
-        ],
+        items: options.services ? [...options.services] : [],
       },
       products: {
-        enabled: true,
+        enabled: false,
         currency,
-        items: options.products && options.products.length > 0 ? options.products : [
-          {
-            id: 'prd-silk-lashes',
-            name: 'Haute Couture 3D Silk Lashes',
-            price: currency === 'NGN' ? 28000 : 28,
-            compareAtPrice: currency === 'NGN' ? 35000 : 35,
-            inStock: true,
-            inventoryCount: 45,
-            category: 'Lashes',
-            description: 'Reusable 25+ wears luxury handcrafted silk lashes for lightweight comfort.',
-            imageUrl: 'https://images.unsplash.com/photo-1583001931096-959e9a1a6223?w=800&auto=format&fit=crop&q=80',
-            enabled: true,
-          },
-          {
-            id: 'prd-glow-mist',
-            name: '24hr Hydro-Glow Setting Mist',
-            price: currency === 'NGN' ? 36000 : 36,
-            inStock: true,
-            inventoryCount: 20,
-            category: 'Skincare',
-            description: 'Ultra-fine hydrating spray with rosewater and hyaluronic acid for flawless all-day radiance.',
-            imageUrl: 'https://images.unsplash.com/photo-1608248597359-0a6715f52233?w=800&auto=format&fit=crop&q=80',
-            enabled: true,
-          },
-        ],
+        items: options.products ? [...options.products] : [],
       },
       cart: {
-        enabled: true,
+        enabled: false,
         currency,
         checkoutMode: 'whatsapp',
-        collectDeliveryAddress: true,
+        collectDeliveryAddress: false,
       },
       payments: {
         enabled: false,
@@ -348,7 +298,7 @@ export function createDefaultBlueprint(optionsOrName?: string | BlueprintInitOpt
         enabled: true,
         mode: 'whatsapp',
         requireDeposit: false,
-        defaultDepositAmount: currency === 'NGN' ? 50000 : 50,
+        defaultDepositAmount: 0,
       },
       instagramSync: {
         enabled: Boolean(instagramHandle),
@@ -359,32 +309,22 @@ export function createDefaultBlueprint(optionsOrName?: string | BlueprintInitOpt
       dmBookingBot: {
         enabled: false,
         triggerKeyword: 'book',
-        autoReplyMessage: `Hey there! ✨ You can explore our packages and book instantly here: https://cuzmify.com/site/${instagramHandle || 'studio'}`,
+        autoReplyMessage: '',
       },
       appointmentReminders: {
         enabled: false,
         leadTimeHours: 24,
-        messageTemplate: `Hi {clientName}! Reminding you of your upcoming appointment with ${businessName} tomorrow at {appointmentTime}.`,
+        messageTemplate: '',
       },
     },
-    mediaVault: options.mediaVault && options.mediaVault.length > 0 ? options.mediaVault : [
-      {
-        id: 'mv-hero-1',
-        url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',
-        name: 'Bridal Glam Hero Photo',
-        type: 'hero',
-        source: 'template',
-        addedAt: new Date().toISOString(),
-      },
-      {
-        id: 'mv-about-1',
-        url: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=800&auto=format&fit=crop&q=80',
-        name: 'Artist in Action',
-        type: 'gallery',
-        source: 'template',
-        addedAt: new Date().toISOString(),
-      },
-    ],
+    mediaVault: options.mediaVault ? [...options.mediaVault] : [],
+    customCopy: {},
+    sectionVisibility: {
+      about: true,
+      services: true,
+      portfolio: true,
+      enquiry: true,
+    },
     updatedAt: new Date().toISOString(),
   };
 }

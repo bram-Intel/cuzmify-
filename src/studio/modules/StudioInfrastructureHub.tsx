@@ -921,17 +921,7 @@ export function StudioInfrastructureHub({
                         className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:opacity-95 text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Instagram className="w-3.5 h-3.5" />
-                        <span>Authorize &amp; Import Real Posts (OAuth)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSyncInstagram()}
-                        disabled={isSyncingIg || !igHandleInput.trim()}
-                        className="px-3.5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-                        title="Simulate starter assets without logging in"
-                      >
-                        {isSyncingIg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                        <span className="hidden md:inline ml-1">Simulate</span>
+                        <span>Authorize &amp; Import Real Posts</span>
                       </button>
                       {showIgConnect && profile.instagram && (
                         <button

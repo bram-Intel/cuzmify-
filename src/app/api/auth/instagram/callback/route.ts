@@ -24,8 +24,8 @@ export async function GET(req: Request) {
     } catch {}
   } else {
     stateData = {
-      currency: (searchParams.get('currency') as CurrencyCode) || 'USD',
-      category: searchParams.get('category') || 'Makeup Artists & Beauty',
+      currency: (searchParams.get('currency') as CurrencyCode) || 'NGN',
+      category: searchParams.get('category') || 'Service Business',
       name: searchParams.get('name') || '',
       siteId: searchParams.get('siteId') || undefined,
       handle: searchParams.get('handle') || undefined,
@@ -37,49 +37,13 @@ export async function GET(req: Request) {
   const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${origin}/api/auth/instagram/callback`;
 
-  // Sandbox / Demo Mode Fallback
-  if (code === 'sandbox_demo_code' || !clientId || !clientSecret) {
-    const handle = stateData.handle || (stateData.name ? stateData.name.toLowerCase().replace(/\s+/g, '_') : 'glory_artistry');
-    const importResult = await InstagramImporter.ingestProfile(handle, stateData.currency || 'USD');
-
-    if (stateData.siteId) {
-      try {
-        const { prisma } = await import('@/lib/prisma');
-        const existingSite = await prisma.site.findUnique({ where: { id: stateData.siteId } });
-        if (existingSite) {
-          let bp: any = {};
-          if (existingSite.blueprintData) {
-            try { bp = JSON.parse(existingSite.blueprintData); } catch {}
-          }
-          bp.mediaVault = importResult.mediaVault;
-          await prisma.site.update({
-            where: { id: stateData.siteId },
-            data: {
-              instagramHandle: handle,
-              instagramToken: 'demo_token_authenticated',
-              blueprintData: JSON.stringify(bp),
-              updatedAt: new Date(),
-            },
-          });
-        }
-      } catch (err) {
-        console.warn('[Demo Instagram Sync DB Error]:', err);
-      }
-      return NextResponse.redirect(new URL(`/studio?projectId=${stateData.siteId}&synced=instagram`, req.url).toString());
-    }
-
-    const redirectUrl = new URL('/onboarding', req.url);
-    redirectUrl.searchParams.set('step', '3');
-    redirectUrl.searchParams.set('instagram', importResult.handle);
-    redirectUrl.searchParams.set('name', importResult.businessName);
-    redirectUrl.searchParams.set('category', stateData.category || importResult.category);
-    redirectUrl.searchParams.set('currency', stateData.currency || 'USD');
-    redirectUrl.searchParams.set('template', importResult.suggestedTemplate);
+  if (!clientId || !clientSecret) {
+    const redirectUrl = new URL('/onboarding?error=ig_not_configured', req.url);
     return NextResponse.redirect(redirectUrl.toString());
   }
 
   try {
-    // 1. Exchange authorization code for access token with Instagram API
+    // 1. Exchange authorization code for short-lived access token
     let accessToken = '';
     const tokenFormData = new FormData();
     tokenFormData.append('client_id', clientId);
@@ -110,11 +74,28 @@ export async function GET(req: Request) {
       throw new Error('Failed to exchange authorization code for access token with Meta API');
     }
 
-    // 2. Fetch User Profile & Instagram Accounts
-    let handle = 'instagram_creator';
+    // 2. Exchange short-lived token (1h) for a 60-day Long-Lived Instagram Token
+    let tokenExpiresAt: Date = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+    try {
+      const llRes = await fetch(
+        `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(clientSecret)}&access_token=${encodeURIComponent(accessToken)}`
+      );
+      if (llRes.ok) {
+        const llData = await llRes.json();
+        if (llData.access_token) {
+          accessToken = llData.access_token;
+          const expiresSec = Number(llData.expires_in) || 5184000; // default 60 days
+          tokenExpiresAt = new Date(Date.now() + expiresSec * 1000);
+        }
+      }
+    } catch (llErr) {
+      console.warn('[Instagram Long-Lived Token Exchange Warning]:', llErr);
+    }
+
+    // 3. Fetch real profile & media from Meta / Instagram Graph API
+    let handle = stateData.handle ? InstagramImporter.cleanHandle(stateData.handle) : '';
     let realMediaVault: MediaVaultAsset[] = [];
 
-    // Query connected Instagram Business accounts on Meta Graph
     const accountsRes = await fetch(
       `https://graph.facebook.com/v21.0/me/accounts?fields=name,instagram_business_account{id,username,profile_picture_url,media{id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{id,media_type,media_url,thumbnail_url}}}&access_token=${accessToken}`
     );
@@ -126,14 +107,13 @@ export async function GET(req: Request) {
         if (ig) {
           if (ig.username) handle = ig.username;
           if (Array.isArray(ig.media?.data)) {
-            realMediaVault = InstagramImporter.parseInstagramGraphMedia(ig.media.data, handle);
+            realMediaVault = InstagramImporter.parseInstagramGraphMedia(ig.media.data, handle || 'creator');
             break;
           }
         }
       }
     }
 
-    // Direct /me query fallback
     if (realMediaVault.length === 0) {
       const userRes = await fetch(
         `https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${accessToken}`
@@ -147,40 +127,35 @@ export async function GET(req: Request) {
         );
         if (mediaRes.ok) {
           const mediaData = await mediaRes.json();
-          realMediaVault = InstagramImporter.parseInstagramGraphMedia(mediaData.data || [], handle);
+          realMediaVault = InstagramImporter.parseInstagramGraphMedia(mediaData.data || [], handle || 'creator');
         }
       }
     }
 
-    // If real posts could not be pulled from Graph API, guarantee non-empty vault with profile ingestion
-    if (realMediaVault.length === 0) {
-      const fallbackResult = await InstagramImporter.ingestProfile(handle, stateData.currency || 'USD');
-      realMediaVault = fallbackResult.mediaVault || [];
+    // Zero fake fallback: if user genuinely has 0 posts, realMediaVault stays []
+    const formattedName = stateData.name || (handle ? InstagramImporter.formatBusinessName(handle) : 'My Studio');
+
+    // Persist token + real media to the user's Site record if logged in or siteId passed
+    const { prisma } = await import('@/lib/prisma');
+    const { auth } = await import('@/auth');
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+      const u = await prisma.user.findUnique({ where: { email: session.user.email } });
+      userId = u?.id;
     }
 
-    // Cache extracted photos in memory for instant display
-    if (realMediaVault.length > 0) {
-      InstagramImporter.setCachedMedia(handle, realMediaVault);
-    }
+    let resolvedSiteId = stateData.siteId;
 
-    // Format business name and suggestions
-    const formattedName = stateData.name || InstagramImporter.formatBusinessName(handle);
-
-    if (stateData.siteId) {
-      let targetSiteId = stateData.siteId;
+    if (stateData.siteId || userId) {
       try {
-        const { prisma } = await import('@/lib/prisma');
-        const { auth } = await import('@/auth');
-        const session = await auth();
-        let userId = session?.user?.id;
-        if (!userId && session?.user?.email) {
-          const u = await prisma.user.findUnique({ where: { email: session.user.email } });
-          userId = u?.id;
-        }
-
         let targetSite = stateData.siteId && stateData.siteId !== 'proj_default'
           ? await prisma.site.findUnique({ where: { id: stateData.siteId } })
           : null;
+
+        if (targetSite && userId && targetSite.userId !== userId) {
+          targetSite = null; // Prevent cross-tenant site write
+        }
 
         if (!targetSite && userId) {
           targetSite = await prisma.site.findFirst({
@@ -189,41 +164,49 @@ export async function GET(req: Request) {
           });
         }
 
-        if (!targetSite) {
-          const initialSubdomain = `${handle.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20) || 'studio'}-${Date.now().toString().slice(-4)}`;
+        if (!targetSite && userId) {
+          const baseSub = (handle || formattedName).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20) || 'studio';
+          const initialSubdomain = `${baseSub}-${Date.now().toString().slice(-4)}`;
           targetSite = await prisma.site.create({
             data: {
-              id: stateData.siteId && stateData.siteId !== 'proj_default' ? stateData.siteId : undefined,
-              userId: userId || undefined,
-              name: formattedName || 'My Business Studio',
+              userId,
+              name: formattedName,
               subdomain: initialSubdomain,
               domain: `${initialSubdomain}.cuzmify.com`,
               status: 'draft',
               liveUrl: `/s/${initialSubdomain}`,
-              instagramHandle: handle,
+              instagramHandle: handle || undefined,
               instagramToken: accessToken,
+              instagramTokenExpiresAt: tokenExpiresAt,
+              currency: stateData.currency || 'NGN',
+              category: stateData.category || 'Service Business',
             },
           });
         }
 
         if (targetSite) {
-          targetSiteId = targetSite.id;
+          resolvedSiteId = targetSite.id;
+          realMediaVault = InstagramImporter.bindSiteIdToVault(realMediaVault, targetSite.id, handle || 'creator');
+
           let bp: any = {};
           if (targetSite.blueprintData) {
-            try { bp = JSON.parse(targetSite.blueprintData); } catch {}
+            try {
+              bp = JSON.parse(targetSite.blueprintData);
+            } catch {}
           }
-          if (realMediaVault.length > 0) {
-            bp.mediaVault = realMediaVault;
-          }
+          bp.mediaVault = realMediaVault;
           if (!bp.profile) bp.profile = {};
-          bp.profile.instagram = handle;
-          bp.profile.instagramHandle = handle;
+          if (handle) {
+            bp.profile.instagram = handle;
+            bp.profile.instagramHandle = handle;
+          }
 
           await prisma.site.update({
             where: { id: targetSite.id },
             data: {
-              instagramHandle: handle,
+              instagramHandle: handle || targetSite.instagramHandle,
               instagramToken: accessToken,
+              instagramTokenExpiresAt: tokenExpiresAt,
               blueprintData: JSON.stringify(bp),
               updatedAt: new Date(),
             },
@@ -232,18 +215,28 @@ export async function GET(req: Request) {
       } catch (err) {
         console.warn('[Real Instagram Sync DB Error]:', err);
       }
+    }
 
+    if (handle && realMediaVault.length > 0) {
+      InstagramImporter.setCachedMedia(handle, realMediaVault);
+    }
+
+    if (stateData.siteId) {
       const redirectUrl = new URL(
-        `/studio?projectId=${encodeURIComponent(targetSiteId || 'proj_default')}&instagram=${encodeURIComponent(handle)}&synced=instagram`,
+        `/studio?projectId=${encodeURIComponent(resolvedSiteId || 'proj_default')}&instagram=${encodeURIComponent(handle)}&synced=instagram`,
         req.url
       );
       const response = NextResponse.redirect(redirectUrl.toString());
       if (realMediaVault.length > 0) {
-        response.cookies.set('cuzmify_ig_media', JSON.stringify(realMediaVault), {
+        // Store compact asset list in short-lived hydration cookie (without duplicate raw URLs to stay <4KB cookie limit)
+        const compactMedia = realMediaVault.slice(0, 12).map(({ rawMediaUrl: _rm, rawThumbUrl: _rt, ...rest }) => rest);
+        response.cookies.set('cuzmify_ig_media', JSON.stringify(compactMedia), {
           path: '/',
           maxAge: 3600,
           sameSite: 'lax',
         });
+      }
+      if (handle) {
         response.cookies.set('cuzmify_ig_handle', handle, {
           path: '/',
           maxAge: 3600,
@@ -255,15 +248,16 @@ export async function GET(req: Request) {
 
     const redirectUrl = new URL('/onboarding', req.url);
     redirectUrl.searchParams.set('step', '2');
-    redirectUrl.searchParams.set('instagram', handle);
+    if (handle) redirectUrl.searchParams.set('instagram', handle);
+    if (resolvedSiteId) redirectUrl.searchParams.set('siteId', resolvedSiteId);
     redirectUrl.searchParams.set('name', formattedName);
-    redirectUrl.searchParams.set('category', stateData.category || 'Makeup Artists & Beauty');
-    redirectUrl.searchParams.set('currency', stateData.currency || 'USD');
+    redirectUrl.searchParams.set('category', stateData.category || 'Service Business');
+    redirectUrl.searchParams.set('currency', stateData.currency || 'NGN');
     redirectUrl.searchParams.set('mediaCount', String(realMediaVault.length));
 
     return NextResponse.redirect(redirectUrl.toString());
-  } catch (error) {
-    console.error('[Instagram OAuth Callback Exception]:', error);
+  } catch (err) {
+    console.error('[Instagram OAuth Callback Exception]:', err);
     const redirectUrl = new URL('/onboarding', req.url);
     redirectUrl.searchParams.set('error', 'instagram_import_failed');
     return NextResponse.redirect(redirectUrl.toString());

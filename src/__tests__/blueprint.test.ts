@@ -88,12 +88,34 @@ describe('BlueprintManager & Business Blueprint Engine', () => {
     unsubscribe();
   });
 
+  it('does not invent fake services, products, or fake Unsplash media on default creation', () => {
+    const bp = createDefaultBlueprint('Tolu Events');
+    expect(bp.profile.name).toBe('Tolu Events');
+    expect(bp.modules.services.items).toEqual([]);
+    expect(bp.modules.products.items).toEqual([]);
+    expect(bp.mediaVault).toEqual([]);
+    expect(bp.profile.address).toBe('');
+  });
+
   it('hydrates from serialized blueprint data without losing state', () => {
-    const rawBlueprint = createDefaultBlueprint('Hydrated Salon');
+    const rawBlueprint = createDefaultBlueprint({
+      name: 'Hydrated Salon',
+      services: [
+        {
+          id: 'srv-1',
+          name: 'Bridal Glam',
+          price: 85000,
+          locationType: 'on_location',
+          description: 'Full bridal package',
+          enabled: true,
+        },
+      ],
+    });
     manager.hydrate(rawBlueprint);
 
     expect(manager.getProfile().name).toBe('Hydrated Salon');
-    expect(manager.getServices().length).toBeGreaterThan(0);
+    expect(manager.getServices().length).toBe(1);
+    expect(manager.getServices()[0].price).toBe(85000);
   });
 
   it('hydrates and updates MediaVault assets with setMediaVault', () => {

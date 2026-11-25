@@ -112,10 +112,9 @@ export const Footer: React.FC = () => {
                 <div className="space-y-3">
                   <h4 className="text-xs font-extrabold text-[#1A202C] uppercase tracking-wider font-display">Navigation</h4>
                   <ul className="space-y-2.5 text-[#64748B] text-xs font-medium">
-                    <li><Link href="/marketplace" className="hover:text-[#0D5771] flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-[#0D5771]" /> Marketplace</Link></li>
-                    <li><Link href="/importer" className="hover:text-[#0D5771] flex items-center gap-2"><Globe className="w-4 h-4 text-[#0D5771]" /> Revamp Importer</Link></li>
-                    <li><Link href="/studio" className="hover:text-[#0D5771] flex items-center gap-2"><Sliders className="w-4 h-4 text-[#0D5771]" /> Visual Studio</Link></li>
-                    <li><Link href="/dashboard" className="hover:text-[#0D5771] flex items-center gap-2"><Layers className="w-4 h-4 text-[#0D5771]" /> Dashboard</Link></li>
+                    <li><Link href="/onboarding" className="hover:text-[#0D5771] flex items-center gap-2"><Sliders className="w-4 h-4 text-[#0D5771]" /> Build From Instagram</Link></li>
+                    <li><Link href="/studio" className="hover:text-[#0D5771] flex items-center gap-2"><Sliders className="w-4 h-4 text-[#0D5771]" /> Studio</Link></li>
+                    <li><Link href="/dashboard" className="hover:text-[#0D5771] flex items-center gap-2"><Layers className="w-4 h-4 text-[#0D5771]" /> My Dashboard</Link></li>
                   </ul>
                 </div>
 

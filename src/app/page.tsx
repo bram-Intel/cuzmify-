@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react';
 import { SpotlightCard } from '@/components/ui/SpotlightCard';
 import { HeroCanvasBackground } from '@/components/ui/HeroCanvasBackground';
 import { HeroVisualAccents } from '@/components/ui/HeroVisualAccents';
-import { RevampUrlForm } from '@/components/importer/RevampUrlForm';
 import {
   Globe,
   Rocket,
@@ -151,14 +150,6 @@ export default function HomePage() {
                   <span>Start Free</span>
                 </Link>
               )}
-
-              <Link
-                href="/importer"
-                className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-[#F7FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#1A202C] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-sm"
-              >
-                <Globe className="w-4 h-4 text-[#0D5771]" />
-                <span>Revamp My Website</span>
-              </Link>
             </div>
 
             {/* Trust Statement */}
@@ -236,45 +227,6 @@ export default function HomePage() {
                 className="w-full h-auto max-h-[70vh] object-contain"
                 loading="lazy"
               />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. WEBSITE REVAMP SECTION */}
-      <section className="max-w-4xl mx-auto px-6">
-        <div className="bg-[#F7FAFC] p-6 md:p-10 rounded-3xl border border-[#E2E8F0] shadow-sm space-y-6">
-          <div className="text-center space-y-2">
-            <span className="text-xs font-bold text-[#0D5771] uppercase tracking-widest font-mono">
-              Website Revamp Engine
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-bold font-display text-[#1A202C]">
-              Already have a website? Let's rebuild it.
-            </h2>
-            <p className="text-xs sm:text-sm text-[#64748B] max-w-lg mx-auto">
-              Paste your website. Cuzmify analyzes its structure, keeps what matters, and rebuilds it using a modern design system.
-            </p>
-          </div>
-
-          <RevampUrlForm />
-
-          <div className="pt-3 border-t border-[#E2E8F0] space-y-2">
-            <span className="text-[11px] font-bold text-[#1A202C] uppercase tracking-wider block text-center">
-              You'll receive an instant breakdown of:
-            </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-              <div className="bg-[#FFFFFF] p-2.5 rounded-xl border border-[#E2E8F0] text-center font-semibold text-[#0D5771]">
-                Website Health Report
-              </div>
-              <div className="bg-[#FFFFFF] p-2.5 rounded-xl border border-[#E2E8F0] text-center font-semibold text-[#0D5771]">
-                Mobile Experience Check
-              </div>
-              <div className="bg-[#FFFFFF] p-2.5 rounded-xl border border-[#E2E8F0] text-center font-semibold text-[#0D5771]">
-                Modernization Preview
-              </div>
-              <div className="bg-[#FFFFFF] p-2.5 rounded-xl border border-[#E2E8F0] text-center font-semibold text-[#0D5771]">
-                SEO & Speed Overview
-              </div>
             </div>
           </div>
         </div>
@@ -506,14 +458,6 @@ export default function HomePage() {
             >
               <Rocket className="w-4 h-4" />
               <span>Start Free</span>
-            </Link>
-
-            <Link
-              href="/importer"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-[#F7FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#1A202C] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-sm"
-            >
-              <Globe className="w-4 h-4 text-[#0D5771]" />
-              <span>Revamp My Website</span>
             </Link>
           </div>
 

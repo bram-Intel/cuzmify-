@@ -2,35 +2,35 @@
 
 import React, { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
 import { HeroCanvasBackground } from '@/components/ui/HeroCanvasBackground';
-import { ArrowRight, Mail, Sparkles, ShieldCheck, Zap, Lock, Loader2 } from 'lucide-react';
+import { ArrowRight, Mail, ShieldCheck, Lock, Loader2 } from 'lucide-react';
 
 export default function LoginContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const targetParam = searchParams ? searchParams.get('callbackUrl') : null;
   const errorParam = searchParams ? searchParams.get('error') : null;
-  const callbackUrl = targetParam ? `/auth/callback?callbackUrl=${encodeURIComponent(targetParam)}` : '/auth/callback';
+  const callbackUrl = targetParam ? `/auth/callback?callbackUrl=${encodeURIComponent(targetParam)}` : '/dashboard';
 
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
   const getErrorMessage = (err: string | null) => {
     if (!err) return null;
+    if (err === 'CredentialsSignin') {
+      return 'Invalid email or password (or this email uses Google Sign-In). Passwords must be at least 6 characters.';
+    }
     if (err === 'OAuthAccountNotLinked') {
-      return 'This email was previously registered. Account linking has been enabled — please click Continue with Google again.';
+      return 'This email was previously registered. Please click Continue with Google again.';
     }
     if (err === 'AccessDenied') {
-      return 'Google access was denied. If your Google Cloud Console app is in "Testing" mode, ensure this Gmail address is added to "Test Users" under OAuth Consent Screen.';
+      return 'Google access was denied. Please try again.';
     }
-    if (err === 'Configuration') {
-      return 'OAuth configuration check. Please verify your Google Client ID and Secret in environment variables.';
-    }
-    return `Sign in error (${err}). Please try again or use Email sign-in.`;
+    return `Sign in error (${err}). Please check your credentials and try again.`;
   };
 
   const errorMessage = getErrorMessage(errorParam);
@@ -40,58 +40,42 @@ export default function LoginContent() {
     signIn('google', { callbackUrl });
   };
 
-  const handleInstantSignIn = async () => {
-    setLoading(true);
-    await signIn('credentials', {
-      email: 'creator@cuzmify.local',
-      name: 'Cuzmify Creator',
-      callbackUrl,
-    });
-  };
-
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || password.length < 6) return;
     setLoading(true);
     await signIn('credentials', {
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
+      password,
       name: name.trim() || email.split('@')[0],
       callbackUrl,
     });
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-[#FFFFFF] text-[#1A202C] flex items-center justify-center px-4 sm:px-6 relative overflow-hidden py-12">
-      {/* Background Canvas */}
+    <div className="min-h-[calc(100vh-80px)] bg-[#FFFFFF] text-[#1A202C] flex items-center justify-center px-4 sm:px-6 relative overflow-hidden py-10">
       <HeroCanvasBackground />
 
-      <div className="w-full max-w-md bg-[#FFFFFF] rounded-3xl border border-[#E2E8F0] shadow-[0_20px_60px_rgba(13,87,113,0.08)] p-6 sm:p-8 space-y-6 relative z-10">
-        
-        {/* Logo & Headline */}
-        <div className="text-center space-y-2">
+      <div className="w-full max-w-md bg-[#FFFFFF] rounded-3xl border border-[#E2E8F0] shadow-[0_20px_60px_rgba(13,87,113,0.08)] p-6 sm:p-8 space-y-5 relative z-10">
+        <div className="text-center space-y-1.5">
           <div className="flex justify-center mb-2">
-            <CuzmifyLogo className="w-12 h-12" />
+            <CuzmifyLogo className="w-11 h-11" />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-[#1A202C] font-display">
-            Welcome back to Cuzmify
+            Sign in to Cuzmify
           </h1>
           <p className="text-xs text-[#64748B]">
-            Sign in to access your Visual Studio, live sites, and modules.
+            Manage your portfolio website, Instagram sync, and client enquiries.
           </p>
         </div>
 
-        {/* Error Alert if any */}
         {errorMessage && (
-          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
-            <span className="text-sm">⚠️</span>
-            <div className="space-y-1">
-              <p className="font-bold">Authentication Note</p>
-              <p className="text-[11px] text-amber-800 leading-relaxed">{errorMessage}</p>
-            </div>
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
+            <p className="font-bold">Sign-In Notice</p>
+            <p className="text-[11px] text-amber-800 leading-relaxed">{errorMessage}</p>
           </div>
         )}
 
-        {/* PRIMARY: Google Sign In (Choose Account) */}
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
@@ -108,14 +92,12 @@ export default function LoginContent() {
           <ArrowRight className="w-4 h-4 text-[#0D5771] ml-auto group-hover:translate-x-0.5 transition-transform" />
         </button>
 
-        {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-[#E2E8F0]" />
-          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#94A3B8]">Or with Email</span>
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#94A3B8]">Or Email &amp; Password</span>
           <div className="flex-1 h-px bg-[#E2E8F0]" />
         </div>
 
-        {/* Email form */}
         <form onSubmit={handleEmailSignIn} className="space-y-3" suppressHydrationWarning>
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-[#1A202C] block">Email Address</label>
@@ -126,7 +108,7 @@ export default function LoginContent() {
                 name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="alex@business.com"
+                placeholder="you@yourbrand.com"
                 required
                 suppressHydrationWarning
                 className="w-full bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#0D5771] focus:bg-white rounded-xl px-3.5 py-2.5 text-xs text-[#1A202C] outline-none transition-all pl-9"
@@ -136,14 +118,33 @@ export default function LoginContent() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-[#1A202C] block">Your Name (Optional)</label>
+            <label className="text-[11px] font-bold text-[#1A202C] block">Password (min 6 characters)</label>
+            <div className="relative">
+              <input
+                type="password"
+                id="login-password"
+                name="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                minLength={6}
+                required
+                suppressHydrationWarning
+                className="w-full bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#0D5771] focus:bg-white rounded-xl px-3.5 py-2.5 text-xs text-[#1A202C] outline-none transition-all pl-9"
+              />
+              <Lock className="w-4 h-4 text-[#94A3B8] absolute left-3 top-3" />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-[#1A202C] block">Your Name (for new accounts)</label>
             <input
               type="text"
               id="login-name"
               name="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Alex Walker"
+              placeholder="e.g. Tolu Adeyemi"
               suppressHydrationWarning
               className="w-full bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#0D5771] focus:bg-white rounded-xl px-3.5 py-2.5 text-xs text-[#1A202C] outline-none transition-all"
             />
@@ -151,45 +152,27 @@ export default function LoginContent() {
 
           <button
             type="submit"
-            disabled={loading || !email.trim()}
+            disabled={loading || !email.trim() || password.length < 6}
             suppressHydrationWarning
             className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer mt-1"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
-            <span>Sign In with Email</span>
+            <span>Continue with Email</span>
           </button>
         </form>
 
-        {/* 1-Click Fast Developer Login */}
-        <div className="pt-1">
-          <button
-            onClick={handleInstantSignIn}
-            disabled={loading}
-            suppressHydrationWarning
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#64748B] hover:text-[#1A202C] font-semibold text-[11px] transition-all cursor-pointer"
-          >
-            <Zap className="w-3.5 h-3.5 text-[#0D5771]" />
-            <span>1-Click Fast Developer Login</span>
-          </button>
-        </div>
-
-        {/* Footer */}
         <div className="pt-2 text-center border-t border-[#E2E8F0] space-y-2">
           <p className="text-xs text-[#64748B]">
-            Need to build a new site from scratch?{' '}
+            Building a brand-new site?{' '}
             <Link href="/onboarding" className="text-[#0D5771] font-bold hover:underline">
-              Start Onboarding Wizard →
+              Start Setup →
             </Link>
           </p>
-          <div className="flex items-center justify-center gap-4 text-[10px] text-[#94A3B8] font-mono">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-600" /> Secure Auth
-            </span>
-            <span>•</span>
-            <span>Zero Password Hassle</span>
+          <div className="flex items-center justify-center gap-2 text-[10px] text-[#94A3B8] font-mono">
+            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+            <span>Encrypted Account Protection</span>
           </div>
         </div>
-
       </div>
     </div>
   );

@@ -23,6 +23,8 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Cuzmify business context
+  passwordHash     String?
+  plan             String  @default("free") // free | pro
   businessName     String?
   businessCategory String?
   instagramHandle  String?
@@ -33,6 +35,7 @@ model User {
   accounts Account[]
   sessions Session[]
   sites    Site[]
+  payments PaymentRecord[]
 }
 
 model Account {
@@ -74,32 +77,77 @@ model VerificationToken {
 // ─── Cuzmify Domain Models ────────────────────────────────────────────────────
 
 model Site {
-  id              String   @id @default(cuid())
-  userId          String
-  name            String
-  subdomain       String?  @unique
-  customDomain    String?  @unique
-  domain          String?
-  template        String   @default("Modern Business Template")
-  category        String   @default("General")
-  status          String   @default("draft") // draft | live | building
-  liveUrl         String?
-  htmlContent     String?
-  grapesData      String?
-  blueprintData   String?
-  theme           String?  @default("bram-light")
-  instagramHandle String?
-  instagramToken  String?
-  whatsappPhone   String?
-  currency        String?  @default("USD")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                      String    @id @default(cuid())
+  userId                  String
+  name                    String
+  subdomain               String?   @unique
+  customDomain            String?   @unique
+  domain                  String?
+  domainVerified          Boolean   @default(false)
+  nicheId                 String    @default("beauty_makeup")
+  templateId              String    @default("editorial-atelier")
+  template                String    @default("Editorial Atelier")
+  category                String    @default("Service Business")
+  plan                    String    @default("free") // free | pro
+  status                  String    @default("draft") // draft | live | building
+  liveUrl                 String?
+  htmlContent             String?
+  grapesData              String?
+  blueprintData           String?
+  theme                   String?   @default("bram-light")
+  instagramHandle         String?
+  instagramToken          String?
+  instagramTokenExpiresAt DateTime?
+  whatsappPhone           String?
+  currency                String?   @default("NGN")
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enquiries Enquiry[]
+  payments  PaymentRecord[]
 
   @@index([userId])
   @@index([subdomain])
   @@index([customDomain])
   @@index([domain])
   @@index([status])
+}
+
+model Enquiry {
+  id          String   @id @default(cuid())
+  siteId      String
+  clientName  String
+  clientPhone String?
+  clientEmail String?
+  serviceName String?
+  eventDate   String?
+  location    String?
+  notes       String?
+  status      String   @default("new") // new | contacted | booked | archived
+  createdAt   DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@index([createdAt])
+}
+
+model PaymentRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  siteId      String?
+  reference   String   @unique
+  provider    String   @default("paystack") // paystack | manual_transfer
+  amountMinor Int
+  currency    String   @default("NGN")
+  plan        String   @default("pro")
+  status      String   @default("pending") // pending | success | failed
+  createdAt   DateTime @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([siteId])
 }

@@ -308,14 +308,6 @@ export function TopBar({ onPublish, isPublishing }: TopBarProps) {
                 <Layers className="w-3.5 h-3.5 text-slate-400" />
                 <span>My Dashboard</span>
               </Link>
-              <Link
-                href="/marketplace"
-                onClick={() => setShowMoreMenu(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-                <span>Browse Marketplace</span>
-              </Link>
 
               <div className="h-px bg-slate-100 my-1" />
 

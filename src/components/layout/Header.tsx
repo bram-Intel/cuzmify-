@@ -70,13 +70,12 @@ export const Header: React.FC = () => {
           </div>
         </Link>
 
-        {/* Floating Nav */}
+        {/* Floating Nav — MVP Focused */}
         <nav className="hidden md:flex items-center gap-1 bg-[#F7FAFC] p-1.5 rounded-full border border-[#E2E8F0]">
           {[
-            { href: '/marketplace', label: 'Marketplace', icon: ShoppingBag },
-            { href: '/importer', label: 'Revamp Website', icon: Globe },
-            { href: '/studio', label: 'Visual Studio', icon: Sliders },
-            { href: '/dashboard', label: 'My Dashboard', icon: Layers },
+            { href: '/onboarding', label: 'Create Site', icon: Rocket },
+            { href: '/studio', label: 'Studio', icon: Sliders },
+            { href: '/dashboard', label: 'My Sites', icon: Layers },
           ].map((item) => {
             const IconComp = item.icon;
             const isActive = pathname === item.href;
