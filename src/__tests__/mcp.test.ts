@@ -255,6 +255,61 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(servicesIdx).toBeGreaterThan(portfolioIdx);
   });
 
+  it('provides full zero-browser visual & structural inspection (contrast, breakpoints, rendered/skipped sections & QA findings)', () => {
+    let bp = createDefaultBlueprint({
+      name: 'Brandy Queen',
+      templateId: 'editorial-atelier',
+      mediaVault: [
+        {
+          id: 'img-1',
+          url: 'data:image/png;base64,iVBORw0KGgo=',
+          name: 'Cuzmify meta icon 1024',
+          type: 'hero',
+          source: 'upload',
+          width: 1024,
+          height: 1024,
+          addedAt: '',
+        },
+      ],
+    });
+    bp = executeBlueprintMcpTool(
+      'customize_template_design',
+      { device: 'mobile', servicesColumns: 2, heroImageFit: 'cover' },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool('upsert_service_package', { name: 'Bridal Look', price: 0 }, bp).blueprint;
+
+    const inspected = executeBlueprintMcpTool(
+      'inspect_rendered_page',
+      { includeHtml: true, includeCss: true },
+      bp,
+      {
+        siteMeta: {
+          id: 'site_1',
+          status: 'draft',
+          subdomain: 'brandyqueen',
+          enquiriesCount: 2,
+          accountSites: [{ id: 'site_1', name: 'Brandy Queen', subdomain: 'brandyqueen', status: 'draft', templateId: 'editorial-atelier' }],
+        },
+      }
+    );
+
+    expect(inspected.ok).toBe(true);
+    const d: any = inspected.data;
+    expect(d.contrastAudit.textOnBackground).toBeGreaterThan(10);
+    expect(d.effectiveDesign.mobile.servicesColumns).toBe(2);
+    expect(d.effectiveDesign.desktop.servicesColumns).toBe(1);
+    expect(d.renderedSections.map((s: any) => s.id)).toEqual(['hero', 'services', 'portfolio', 'booking']);
+    expect(d.skippedSections.some((s: any) => s.section === 'testimonials')).toBe(true);
+    expect(d.mediaInventory[0].orientation).toBe('square');
+    expect(d.mediaInventory[0].assignedRole).toBe('hero_cover');
+    expect(d.qaFindings.some((f: any) => f.area === 'mobile_layout')).toBe(true);
+    expect(d.qaFindings.some((f: any) => f.area === 'media')).toBe(true);
+    expect(d.account.accountSites).toHaveLength(1);
+    expect(d.html).toContain('Brandy Queen');
+    expect(d.css).toContain('@media (max-width:767px)');
+  });
+
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {
     const token = generateUserMcpToken('user_abc_123');
     expect(verifyUserMcpToken(token)).toBe('user_abc_123');

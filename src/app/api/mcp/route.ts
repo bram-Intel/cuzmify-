@@ -119,6 +119,22 @@ export async function POST(req: Request) {
         });
       }
 
+      const [accountSitesRaw, enquiriesCount] = await Promise.all([
+        prisma.site.findMany({
+          where: { userId },
+          orderBy: { updatedAt: 'desc' },
+          take: 10,
+          select: { id: true, name: true, subdomain: true, status: true, templateId: true, updatedAt: true },
+        }),
+        prisma.enquiry.count({ where: { siteId: site.id } }),
+      ]);
+      const accountSites = accountSitesRaw.map(
+        (s: { id: string; name: string; subdomain: string | null; status: string; templateId: string; updatedAt: Date }) => ({
+          ...s,
+          updatedAt: s.updatedAt.toISOString(),
+        })
+      );
+
       // Server-side DB tools
       if (toolName === 'list_enquiries') {
         const limit = Math.min(25, Math.max(1, Number(toolArgs.limit) || 10));
@@ -195,9 +211,14 @@ export async function POST(req: Request) {
         plan: site.plan === 'pro' ? 'pro' : 'free',
         siteMeta: {
           id: site.id,
+          name: site.name,
           subdomain: site.subdomain,
           status: site.status,
           customDomain: site.customDomain,
+          liveUrl: site.liveUrl,
+          plan: site.plan,
+          enquiriesCount,
+          accountSites,
         },
       });
 
@@ -212,7 +233,7 @@ export async function POST(req: Request) {
         });
       }
 
-      if (toolName !== 'get_site_blueprint') {
+      if (toolName !== 'get_site_blueprint' && toolName !== 'inspect_rendered_page') {
         const rendered = renderTemplateEngine(exec.blueprint.templateId, exec.blueprint, { siteId: site.id });
         await prisma.site.update({
           where: { id: site.id },
@@ -230,22 +251,39 @@ export async function POST(req: Request) {
         });
       }
 
+      const contentBlocks: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            siteId: site.id,
+            summary: exec.changeSummary,
+            ...(exec.data ? { data: exec.data } : {}),
+          }),
+        },
+      ];
+
+      // Expose uploaded image previews cleanly for multimodal MCP clients on inspect_rendered_page
+      if (toolName === 'inspect_rendered_page' && toolArgs.includeImages !== false) {
+        for (const asset of (bp.mediaVault || []).slice(0, 3)) {
+          const src = asset.thumbnailUrl || asset.url || '';
+          const imgMatch = src.match(/^data:(image\/(?:webp|png|jpeg|jpg|gif));base64,(.+)$/i);
+          if (imgMatch && imgMatch[2].length < 400_000) {
+            contentBlocks.push({
+              type: 'image',
+              data: imgMatch[2],
+              mimeType: imgMatch[1].toLowerCase(),
+            });
+          }
+        }
+      }
+
       return NextResponse.json({
         jsonrpc: '2.0',
         id: rpcId,
         result: {
           isError: false,
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                siteId: site.id,
-                summary: exec.changeSummary,
-                ...(exec.data ? { data: exec.data } : {}),
-              }),
-            },
-          ],
+          content: contentBlocks,
         },
       });
     }

@@ -11,6 +11,7 @@ import {
   renderTemplateEngine,
 } from '@/core/template-engines';
 import { toGeminiFunctionDeclarations, executeBlueprintMcpTool } from '@/lib/mcp/cuzmify-tools';
+import { inspectRenderedSite } from '@/lib/mcp/site-inspector';
 
 export const maxDuration = 120; // Allow full AI visual synthesis on Vercel/Node
 
@@ -323,25 +324,40 @@ STRICT AUTONOMY & SAFETY RULES:
 4. Available templateId choices when switching templates: ${templateOptions}.
 5. After tools execute, respond in 1-3 warm, specific sentences mentioning the exact template and changes applied.`;
 
-      const mcpUserPrompt = `ACTIVE WEBSITE CONTEXT:
+      const siteInspection = inspectRenderedSite(workingBlueprint, dbSite ? {
+        id: dbSite.id,
+        name: dbSite.name,
+        subdomain: dbSite.subdomain,
+        status: dbSite.status,
+        customDomain: dbSite.customDomain,
+        liveUrl: dbSite.liveUrl,
+        plan: resolvedPlan,
+      } : undefined);
+
+      const mcpUserPrompt = `ACTIVE WEBSITE CONTEXT (ZERO-BROWSER VISUAL & STRUCTURAL SNAPSHOT):
 - Account Site Connected: ${dbSite ? `YES (siteId="${dbSite.id}", status="${dbSite.status}", liveUrl="${dbSite.liveUrl || ''}")` : 'Guest session (browser storage only unless signed in)'}
 - Active Template: "${activeTemplateMeta.name}" (id="${activeTemplateId}", default swatches=${activeTemplateMeta.swatches.join('/')})
+- Effective Palette & Contrast: ${JSON.stringify(siteInspection.effectivePalette)} | WCAG=${JSON.stringify(siteInspection.contrastAudit)}
+- Effective Viewport Design:
+  * Mobile (<768px): ${JSON.stringify(siteInspection.effectiveDesign.mobile)}
+  * Tablet (768-1023px): ${JSON.stringify(siteInspection.effectiveDesign.tablet)}
+  * Desktop (>=1024px): ${JSON.stringify(siteInspection.effectiveDesign.desktop)}
+- Rendered DOM Order: ${siteInspection.renderedSections.map((s) => `${s.id}[${s.type}]`).join(' -> ')}
+- Skipped Sections: ${JSON.stringify(siteInspection.skippedSections)}
+- Auto Visual & Launch QA Findings: ${JSON.stringify(siteInspection.qaFindings)}
 - Active Niche: "${workingBlueprint.nicheId}"
 - Profile Name: "${workingBlueprint.profile.name}"
 - Headline: "${workingBlueprint.customCopy?.headline || workingBlueprint.profile.tagline || ''}"
 - Bio: "${workingBlueprint.customCopy?.subheadline || workingBlueprint.profile.bio || ''}"
 - Location & Currency: city="${workingBlueprint.profile.city || ''}", country="${workingBlueprint.profile.country || ''}", currency="${workingBlueprint.profile.currency}"
 - WhatsApp: "${workingBlueprint.modules?.whatsapp?.phoneNumber || '(not configured)'}"
-- Design Overrides: ${JSON.stringify(workingBlueprint.designOverrides || {})}
-- Custom Copy Slots: ${JSON.stringify(workingBlueprint.customCopy || {})}
-- Section Visibility: ${JSON.stringify(workingBlueprint.sectionVisibility || {})}
 - Services (${workingBlueprint.modules?.services?.items?.length || 0} items, plan="${resolvedPlan}"):
 ${serviceSummary.join('\n') || '  (none yet)'}
 - Products (${workingBlueprint.modules?.products?.items?.length || 0} items):
 ${productSummary.join('\n') || '  (none yet)'}
-- Testimonials: ${workingBlueprint.testimonials?.length || 0}, FAQs: ${workingBlueprint.faqs?.length || 0}
-- Media Vault (${workingBlueprint.mediaVault?.length || 0} photos):
-${mediaSummary.join('\n') || '  (no photos uploaded yet)'}
+- Custom Sections: ${workingBlueprint.customSections?.length || 0}, Testimonials: ${workingBlueprint.testimonials?.length || 0}, FAQs: ${workingBlueprint.faqs?.length || 0}
+- Media Inventory (${workingBlueprint.mediaVault?.length || 0} photos):
+${JSON.stringify(siteInspection.mediaInventory)}
 
 VENDOR REQUEST: "${message}"`;
 
@@ -480,7 +496,8 @@ VENDOR REQUEST: "${message}"`;
                     : undefined,
                 });
                 bpCursor = exec.blueprint;
-                if (exec.ok && fnCall.name !== 'get_site_blueprint') {
+                const isReadOnlyTool = fnCall.name === 'get_site_blueprint' || fnCall.name === 'inspect_rendered_page';
+                if (exec.ok && !isReadOnlyTool) {
                   mutatedBlueprint = true;
                 }
                 if (fnCall.name === 'switch_template_style' && exec.ok) {
@@ -493,7 +510,7 @@ VENDOR REQUEST: "${message}"`;
                   summary: exec.changeSummary,
                   ...(exec.error ? { error: exec.error } : {}),
                 });
-                if (exec.ok && fnCall.name !== 'get_site_blueprint' && exec.changeSummary) {
+                if (exec.ok && !isReadOnlyTool && exec.changeSummary) {
                   changesApplied.push(exec.changeSummary);
                 } else if (!exec.ok && exec.error) {
                   changesApplied.push(exec.error);

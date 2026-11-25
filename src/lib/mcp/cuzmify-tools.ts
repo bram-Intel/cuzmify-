@@ -9,6 +9,7 @@ import {
 import { resolveNicheBlueprint } from '@/core/niche-blueprints';
 import { resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
 import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
+import { inspectRenderedSite, type SiteAccountMeta } from './site-inspector';
 
 export interface McpToolProperty {
   type: 'string' | 'number' | 'boolean' | 'array';
@@ -34,11 +35,39 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'get_site_blueprint',
     description:
-      'Inspect the complete live site state: active template engine & visual styles, section visibility, custom copy slots, business profile, services, products, media assets, testimonials, FAQs, WhatsApp, and publish status.',
+      'Inspect the complete consented account & live site state: active template engine, effective palette & WCAG contrast audit, mobile/tablet/desktop effective designs, rendered vs skipped sections, services, products, media inventory with dimensions, custom sections, FAQs, testimonials, QA findings, and all sites on the account.',
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID when calling external MCP endpoint.' },
+      },
+    },
+  },
+  {
+    name: 'inspect_rendered_page',
+    description:
+      'Run a zero-browser visual & structural audit of what the rendered website looks like across mobile, tablet, and desktop: exact CSS palette, WCAG contrast ratios, top-to-bottom section DOM tree, skipped sections with reasons, media dimensions/roles, automated QA warnings, and optional raw HTML/CSS snapshot.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        viewport: {
+          type: 'string',
+          description: 'Focus effective breakpoint telemetry on all, mobile, tablet, or desktop.',
+          enum: ['all', 'mobile', 'tablet', 'desktop'],
+        },
+        includeHtml: {
+          type: 'boolean',
+          description: 'Set true to include the full compiled rendered HTML string.',
+        },
+        includeCss: {
+          type: 'boolean',
+          description: 'Set true to include the full compiled rendered CSS string.',
+        },
+        includeImages: {
+          type: 'boolean',
+          description: 'For external multimodal MCP clients: include uploaded Media Vault image blocks alongside the report (default true).',
+        },
       },
     },
   },
@@ -515,27 +544,26 @@ export function executeBlueprintMcpTool(
   toolName: string,
   args: Record<string, any>,
   inputBlueprint: BusinessBlueprint,
-  options?: { plan?: 'free' | 'pro'; siteMeta?: { id?: string; subdomain?: string | null; status?: string; customDomain?: string | null } }
+  options?: { plan?: 'free' | 'pro'; siteMeta?: SiteAccountMeta }
 ): BlueprintToolExecutionResult {
   const bp: BusinessBlueprint = JSON.parse(JSON.stringify(inputBlueprint));
   const plan = options?.plan === 'pro' ? 'pro' : 'free';
 
   switch (toolName) {
     case 'get_site_blueprint': {
-      const tplId = resolveTemplateEngineId(bp.templateId);
-      const tplMeta = TEMPLATE_ENGINES[tplId];
+      const inspection = inspectRenderedSite(bp, options?.siteMeta);
       return {
         ok: true,
         blueprint: bp,
-        changeSummary: `Inspected ${tplMeta.name} blueprint`,
+        changeSummary: `Inspected ${inspection.template.name} blueprint & live visual state`,
         data: {
           name: bp.profile.name,
-          headline: bp.customCopy?.headline || bp.profile.tagline,
-          bio: bp.customCopy?.subheadline || bp.profile.bio,
+          headline: inspection.copyMetrics.headline,
+          bio: inspection.copyMetrics.subheadline,
           nicheId: bp.nicheId,
-          templateId: tplId,
-          templateName: tplMeta.name,
-          templateTagline: tplMeta.tagline,
+          templateId: inspection.template.id,
+          templateName: inspection.template.name,
+          templateTagline: inspection.template.tagline,
           currency: bp.profile.currency,
           city: bp.profile.city,
           country: bp.profile.country,
@@ -543,6 +571,7 @@ export function executeBlueprintMcpTool(
           whatsapp: bp.modules.whatsapp.phoneNumber,
           customCopy: bp.customCopy || {},
           designOverrides: bp.designOverrides || {},
+          templateDesignOverrides: bp.templateDesignOverrides || {},
           sectionVisibility: bp.sectionVisibility || {},
           servicesCount: bp.modules.services.items.length,
           services: bp.modules.services.items.map((s) => ({
@@ -554,16 +583,56 @@ export function executeBlueprintMcpTool(
           productsCount: bp.modules.products?.items?.length || 0,
           testimonialsCount: bp.testimonials?.length || 0,
           faqsCount: bp.faqs?.length || 0,
+          customSections: bp.customSections || [],
           mediaCount: bp.mediaVault.length,
-          mediaItems: bp.mediaVault.slice(0, 12).map((m, idx) => ({
-            photoNumber: idx + 1,
-            id: m.id,
-            name: m.name,
-            type: m.type,
-          })),
-          status: options?.siteMeta?.status || 'draft',
-          subdomain: options?.siteMeta?.subdomain || null,
-          customDomain: options?.siteMeta?.customDomain || null,
+          mediaItems: inspection.mediaInventory,
+          status: inspection.account.status,
+          subdomain: inspection.account.subdomain,
+          customDomain: inspection.account.customDomain,
+          account: inspection.account,
+          effectivePalette: inspection.effectivePalette,
+          contrastAudit: inspection.contrastAudit,
+          effectiveDesign: inspection.effectiveDesign,
+          renderedSections: inspection.renderedSections,
+          skippedSections: inspection.skippedSections,
+          qaFindings: inspection.qaFindings,
+        },
+      };
+    }
+
+    case 'inspect_rendered_page': {
+      const inspection = inspectRenderedSite(bp, options?.siteMeta);
+      const vp =
+        args.viewport === 'mobile' || args.viewport === 'tablet' || args.viewport === 'desktop'
+          ? args.viewport
+          : 'all';
+      return {
+        ok: true,
+        blueprint: bp,
+        changeSummary: `Inspected rendered ${inspection.template.name} (${vp}) — ${inspection.renderedSections.length} active sections, ${inspection.qaFindings.length} QA notes`,
+        data: {
+          account: inspection.account,
+          template: inspection.template,
+          effectivePalette: inspection.effectivePalette,
+          contrastAudit: inspection.contrastAudit,
+          effectiveDesign:
+            vp === 'all'
+              ? inspection.effectiveDesign
+              : {
+                  viewport: vp,
+                  ...(inspection.effectiveDesign as any)[vp],
+                  servicesLayout: inspection.effectiveDesign.servicesLayout,
+                  sectionOrder: inspection.effectiveDesign.sectionOrder,
+                },
+          renderedSections: inspection.renderedSections,
+          skippedSections: inspection.skippedSections,
+          copyMetrics: inspection.copyMetrics,
+          mediaInventory: inspection.mediaInventory,
+          qaFindings: inspection.qaFindings,
+          renderedHtmlBytes: inspection.renderedHtmlBytes,
+          renderedCssBytes: inspection.renderedCssBytes,
+          ...(args.includeCss ? { css: inspection.rendered.css } : {}),
+          ...(args.includeHtml ? { html: inspection.rendered.html } : {}),
         },
       };
     }
