@@ -62,29 +62,29 @@ const INITIAL_WELCOME: ChatMessage = {
   id: 'welcome-msg',
   role: 'assistant',
   content:
-    "Hi! Ask me to rewrite your headline or bio, add/price services, switch template styles, update WhatsApp, or click any element on desktop canvas to restyle it.",
+    "Hi! I know your active website template, photos, services, and account. Ask me to refine headlines or button copy, adjust colors/fonts, add packages, show/hide sections, or publish live.",
   timestamp: 'Ready',
   executionSteps: [
-    'Connected to Cuzmify MCP tools & live site blueprint',
+    'Connected to Gemini MCP Agent, Template Engine & Cloud Account',
   ],
 };
 
 const QUICK_ACTIONS = [
   {
-    label: '✨ Bridal Headline & Bio',
-    prompt: 'Update my headline and bio to feel warm, editorial, and high-trust for bridal & event clients',
+    label: '✨ Upgrade Headline & CTA',
+    prompt: 'Make my hero headline, bio, and main booking button feel editorial, clear, and trustworthy on my current template',
   },
   {
-    label: '💼 Add Studio Package',
-    prompt: 'Add a Signature Studio Session service package priced on quote',
+    label: '🎨 Accent Color & Style',
+    prompt: 'Give my current template a warm gold accent (#D97706) with pill-shaped buttons without switching templates',
   },
   {
-    label: '🖤 Dark Noir Style',
-    prompt: 'Switch my website design template to Dark Noir',
+    label: '💼 Add VIP Package',
+    prompt: 'Add a VIP Signature Experience service package priced on quote',
   },
   {
-    label: '🎨 Modern Studio Style',
-    prompt: 'Switch my website design template to Modern Studio',
+    label: '🚀 Publish Website Live',
+    prompt: 'Publish my website live and show me the public link',
   },
 ];
 
@@ -218,6 +218,7 @@ export function AIPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          siteId: projectId,
           prompt: cleanPrompt,
           targetElement: activeTarget,
           currentHtml,
@@ -251,7 +252,7 @@ export function AIPanel() {
 
       // ── Apply canvas / blueprint changes based on intent ────────────────────
       if (data?.updatedBlueprint) {
-        service.applyExternalBlueprint(data.updatedBlueprint, projectId);
+        service.applyExternalBlueprint(data.updatedBlueprint, data?.savedSiteId || projectId);
       } else {
         const isStyleOnly = data?.intent === 'style-only' || !data?.updatedHtml;
 
@@ -301,12 +302,20 @@ export function AIPanel() {
       }
 
       service.saveToLocalStorage(projectId, newTheme, userId);
-      service.saveToDatabase(projectId, { businessName, theme: newTheme }).then((saved) => {
+      if (data?.savedToAccount) {
+        setSaveToast(
+          data?.published
+            ? '🚀 Published live & saved to your account!'
+            : '✓ AI updated & saved to your account!'
+        );
+        setTimeout(() => setSaveToast(null), 2800);
+      } else if (data?.updatedBlueprint || data?.updatedHtml || data?.blueprintUpdates) {
+        const saved = await service.saveToDatabase(projectId, { businessName, theme: newTheme });
         if (saved) {
-          setSaveToast('✓ AI Transformation saved to Database!');
+          setSaveToast('✓ AI changes saved to Database!');
           setTimeout(() => setSaveToast(null), 2500);
         }
-      });
+      }
 
       try {
         window.dispatchEvent(new CustomEvent('cuzmify:ai-transformed', { detail: { theme: newTheme } }));
@@ -746,8 +755,8 @@ export function AIPanel() {
             }}
             placeholder={
               targetElement
-                ? `Instruct AI on <${targetElement.tagName}> (Enter to send, Shift+Enter for newline)…`
-                : 'Ask AI to transform site, add pricing table, change layout…'
+                ? `Instruct AI on <${targetElement.tagName}> (Enter to send)…`
+                : 'Tell AI to update copy, colors, prices, sections, or publish live…'
             }
             className="flex-1 bg-transparent text-xs text-slate-800 placeholder-slate-400 outline-none px-1 font-medium resize-none min-h-[34px] max-h-[110px] py-1.5 leading-relaxed no-scrollbar"
             disabled={isBuilding}

@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
-import { FunctionCallingMode } from '@google/generative-ai';
+import { FunctionCallingMode, type Part } from '@google/generative-ai';
+import { auth } from '@/auth';
+import { prisma } from '@/lib/prisma';
 import { getGeminiClient } from '@/lib/gemini';
 import type { ThemeName } from '@/core/project-schema';
 import { createDefaultBlueprint, type BusinessBlueprint } from '@/core/blueprint-schema';
-import { TEMPLATE_ENGINES } from '@/core/template-engines';
+import {
+  TEMPLATE_ENGINES,
+  resolveTemplateEngineId,
+  renderTemplateEngine,
+} from '@/core/template-engines';
 import { toGeminiFunctionDeclarations, executeBlueprintMcpTool } from '@/lib/mcp/cuzmify-tools';
 
 export const maxDuration = 120; // Allow full AI visual synthesis on Vercel/Node
@@ -230,10 +236,56 @@ export async function POST(req: Request) {
 
     // ── MCP TOOL-CALLING PATH (DEFAULT FOR UNTARGETED MOBILE & DESKTOP EDITS) ──
     if (intent === 'mcp-tools') {
-      const workingBlueprint: BusinessBlueprint =
-        blueprint && blueprint.profile
-          ? JSON.parse(JSON.stringify(blueprint))
-          : createDefaultBlueprint({ name: profile?.name || 'My Studio' });
+      let accountUserId: string | undefined;
+      let dbSite: any = null;
+      try {
+        const session = await auth();
+        accountUserId = session?.user?.id;
+        if (!accountUserId && session?.user?.email) {
+          const u = await prisma.user.findUnique({ where: { email: session.user.email } });
+          accountUserId = u?.id;
+        }
+        if (accountUserId) {
+          const reqSiteId = typeof body.siteId === 'string' && body.siteId !== 'proj_default' ? body.siteId : undefined;
+          if (reqSiteId) {
+            const found = await prisma.site.findUnique({ where: { id: reqSiteId } });
+            if (found && found.userId === accountUserId) dbSite = found;
+          }
+          if (!dbSite) {
+            dbSite = await prisma.site.findFirst({
+              where: { userId: accountUserId },
+              orderBy: { updatedAt: 'desc' },
+            });
+          }
+        }
+      } catch (authErr) {
+        console.warn('[AI Chat MCP] Account lookup warning:', authErr);
+      }
+
+      let workingBlueprint: BusinessBlueprint;
+      if (blueprint && blueprint.profile) {
+        workingBlueprint = JSON.parse(JSON.stringify(blueprint));
+      } else if (dbSite?.blueprintData) {
+        try {
+          workingBlueprint = JSON.parse(dbSite.blueprintData);
+        } catch {
+          workingBlueprint = createDefaultBlueprint({
+            name: dbSite.name || 'My Studio',
+            nicheId: dbSite.nicheId,
+            templateId: dbSite.templateId,
+          });
+        }
+      } else {
+        workingBlueprint = createDefaultBlueprint({
+          name: dbSite?.name || profile?.name || 'My Studio',
+          nicheId: dbSite?.nicheId,
+          templateId: dbSite?.templateId,
+        });
+      }
+
+      const resolvedPlan: 'free' | 'pro' = dbSite?.plan === 'pro' || userPlan === 'pro' ? 'pro' : 'free';
+      const activeTemplateId = resolveTemplateEngineId(workingBlueprint.templateId || dbSite?.templateId);
+      const activeTemplateMeta = TEMPLATE_ENGINES[activeTemplateId];
 
       const templateOptions = Object.values(TEMPLATE_ENGINES)
         .map((t) => `"${t.id}" (${t.name}: ${t.tagline})`)
@@ -247,33 +299,49 @@ export async function POST(req: Request) {
         .slice(0, 15)
         .map((s) => `- id="${s.id}" name="${s.name}" price=${s.price} priceMode="${s.priceMode}" enabled=${s.enabled}`);
 
-      const mcpSystemInstruction = `You are Cuzmify AI Copilot, wired directly to the website's Cuzmify MCP tools.
-Your job is to carry out the vendor's website changes deterministically using the available MCP tools so both Mobile Studio and Desktop Studio update cleanly and safely.
+      const productSummary = (workingBlueprint.modules?.products?.items || [])
+        .slice(0, 10)
+        .map((p) => `- id="${p.id}" name="${p.name}" price=${p.price} inStock=${p.inStock}`);
 
-RULES:
-1. For any request to update business name, headline, tagline, bio, city, country, email, currency, service packages/prices, template style, niche blueprint, WhatsApp booking phone/message, or Hero cover photo: CALL the matching MCP tool(s) immediately. You may call multiple tools in one response when asked to do several things.
-2. NEVER invent fake prices, durations, street addresses, or phone numbers the user did not provide. If the user asks to add a service without giving a price, pass priceMode: "quote" and omit price (or pass 0).
-3. Available templateId values: ${templateOptions}.
-4. Do NOT call get_site_blueprint unless specifically needed — the live blueprint snapshot is already provided below.
-5. Keep your final reply concise (1-2 friendly sentences) explaining what was updated or answering the user's question.`;
+      const mcpSystemInstruction = `You are Cuzmify AI Copilot, wired directly to the website's Cuzmify MCP tools and template engine.
+Your job is to inspect the active template + blueprint, execute the vendor's changes autonomously via MCP tools, and confirm the result clearly. Every mutation is automatically saved to the signed-in vendor's cloud account.
 
-      const mcpUserPrompt = `LIVE SITE BLUEPRINT:
-- Name: "${workingBlueprint.profile.name}"
-- Headline / Tagline: "${workingBlueprint.profile.tagline}"
-- Bio: "${workingBlueprint.profile.bio || ''}"
-- City/Country: "${workingBlueprint.profile.city || ''}", "${workingBlueprint.profile.country || ''}"
-- Currency: "${workingBlueprint.profile.currency}"
-- Niche: "${workingBlueprint.nicheId}"
-- Template: "${workingBlueprint.templateId}"
+ACTIVE TEMPLATE AWARENESS:
+- You know the vendor's active template engine ("${activeTemplateMeta.name}", id="${activeTemplateId}"): ${activeTemplateMeta.tagline}.
+- Sections inside this template engine: hero, services, portfolio, testimonials, faq, booking.
+- Editable visual design tokens on the active template (customize_template_design): accentColor, backgroundColor, surfaceColor, textColor, buttonRadius ("pill"|"rounded"|"sharp"), fontMood ("editorial_serif"|"modern_sans"|"bold_display").
+- Editable template copy slots (customize_template_copy): heroBadge, primaryCta, servicesEyebrow, servicesHeading, serviceItemCta, portfolioEyebrow, portfolioHeading, enquiryEyebrow, enquiryHeading, enquirySubheading, testimonialsHeading, faqHeading (plus headline/bio/name via update_business_profile).
+
+STRICT AUTONOMY & SAFETY RULES:
+1. ACT DECISIVELY: Whenever the vendor asks to edit, customize, add, remove, recolor, rename, hide/show a section, promote a photo, or publish live, CALL the matching MCP tool(s) immediately instead of only suggesting text options. You may chain multiple tool calls cleanly.
+2. NEVER switch templates with switch_template_style unless the vendor specifically asks to change template/layout style (Editorial Atelier, Noir Showcase, or Modern Studio). Keep their current template ("${activeTemplateId}") intact for all copy, color, service, and section edits!
+3. NEVER invent fake prices, street addresses, or client testimonials. If adding a service without a stated price, pass priceMode: "quote" with price: 0.
+4. Available templateId choices when switching templates: ${templateOptions}.
+5. After tools execute, respond in 1-3 warm, specific sentences mentioning the exact template and changes applied.`;
+
+      const mcpUserPrompt = `ACTIVE WEBSITE CONTEXT:
+- Account Site Connected: ${dbSite ? `YES (siteId="${dbSite.id}", status="${dbSite.status}", liveUrl="${dbSite.liveUrl || ''}")` : 'Guest session (browser storage only unless signed in)'}
+- Active Template: "${activeTemplateMeta.name}" (id="${activeTemplateId}", default swatches=${activeTemplateMeta.swatches.join('/')})
+- Active Niche: "${workingBlueprint.nicheId}"
+- Profile Name: "${workingBlueprint.profile.name}"
+- Headline: "${workingBlueprint.customCopy?.headline || workingBlueprint.profile.tagline || ''}"
+- Bio: "${workingBlueprint.customCopy?.subheadline || workingBlueprint.profile.bio || ''}"
+- Location & Currency: city="${workingBlueprint.profile.city || ''}", country="${workingBlueprint.profile.country || ''}", currency="${workingBlueprint.profile.currency}"
 - WhatsApp: "${workingBlueprint.modules?.whatsapp?.phoneNumber || '(not configured)'}"
-- Services (${workingBlueprint.modules?.services?.items?.length || 0} items, plan="${userPlan}"):
+- Design Overrides: ${JSON.stringify(workingBlueprint.designOverrides || {})}
+- Custom Copy Slots: ${JSON.stringify(workingBlueprint.customCopy || {})}
+- Section Visibility: ${JSON.stringify(workingBlueprint.sectionVisibility || {})}
+- Services (${workingBlueprint.modules?.services?.items?.length || 0} items, plan="${resolvedPlan}"):
 ${serviceSummary.join('\n') || '  (none yet)'}
-- Uploaded Media Vault (${workingBlueprint.mediaVault?.length || 0} photos):
+- Products (${workingBlueprint.modules?.products?.items?.length || 0} items):
+${productSummary.join('\n') || '  (none yet)'}
+- Testimonials: ${workingBlueprint.testimonials?.length || 0}, FAQs: ${workingBlueprint.faqs?.length || 0}
+- Media Vault (${workingBlueprint.mediaVault?.length || 0} photos):
 ${mediaSummary.join('\n') || '  (no photos uploaded yet)'}
 
 VENDOR REQUEST: "${message}"`;
 
-      const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
+      const candidateModels = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.5-flash-lite'];
       let mcpLastError: any = null;
 
       for (const modelName of candidateModels) {
@@ -281,29 +349,16 @@ VENDOR REQUEST: "${message}"`;
           try {
             const mcpModel = genAI.getGenerativeModel({
               model: modelName,
-              tools: [{ functionDeclarations: toGeminiFunctionDeclarations(false) }],
+              tools: [{ functionDeclarations: toGeminiFunctionDeclarations(true) }],
               toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
               generationConfig: {
-                temperature: 0.2,
+                temperature: 0.25,
                 maxOutputTokens: 2048,
               },
               systemInstruction: mcpSystemInstruction,
             });
 
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 45s`)), 45000)
-            );
-
-            const result: any = await Promise.race([
-              mcpModel.generateContent(mcpUserPrompt),
-              timeoutPromise,
-            ]);
-
-            const fnCalls =
-              typeof result?.response?.functionCalls === 'function'
-                ? result.response.functionCalls() || []
-                : [];
-
+            const chat = mcpModel.startChat({});
             let bpCursor = workingBlueprint;
             const toolCalls: Array<{
               name: string;
@@ -315,45 +370,185 @@ VENDOR REQUEST: "${message}"`;
             const changesApplied: string[] = [];
             let templateSwitched = false;
             let mutatedBlueprint = false;
+            let shouldPublish = false;
+            let nextInput: string | Part[] = mcpUserPrompt;
+            let finalTextReply = '';
 
-            for (const fnCall of fnCalls) {
-              if (!fnCall?.name) continue;
-              const args = (fnCall.args || {}) as Record<string, any>;
-              const exec = executeBlueprintMcpTool(fnCall.name, args, bpCursor, { plan: userPlan });
-              bpCursor = exec.blueprint;
-              if (exec.ok && fnCall.name !== 'get_site_blueprint') {
-                mutatedBlueprint = true;
+            for (let round = 0; round < 4; round++) {
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(`Timeout: ${modelName} took over 45s`)), 45000)
+              );
+
+              const result: any = await Promise.race([
+                chat.sendMessage(nextInput),
+                timeoutPromise,
+              ]);
+
+              const fnCalls =
+                typeof result?.response?.functionCalls === 'function'
+                  ? result.response.functionCalls() || []
+                  : [];
+
+              if (fnCalls.length === 0) {
+                try {
+                  finalTextReply = result?.response?.text?.()?.trim() || '';
+                } catch {
+                  finalTextReply = '';
+                }
+                break;
               }
-              if (fnCall.name === 'switch_template_style' && exec.ok) {
-                templateSwitched = true;
+
+              const responseParts: Part[] = [];
+
+              for (const fnCall of fnCalls) {
+                if (!fnCall?.name) continue;
+                const args = (fnCall.args || {}) as Record<string, any>;
+
+                if (fnCall.name === 'list_enquiries') {
+                  if (!dbSite) {
+                    const msg = 'No cloud website linked yet. Sign in to view client booking enquiries.';
+                    toolCalls.push({ name: 'list_enquiries', args, ok: false, summary: msg, error: msg });
+                    responseParts.push({
+                      functionResponse: { name: 'list_enquiries', response: { ok: false, error: msg } },
+                    });
+                    continue;
+                  }
+                  const limit = Math.min(25, Math.max(1, Number(args.limit) || 10));
+                  const leads = await prisma.enquiry.findMany({
+                    where: { siteId: dbSite.id },
+                    orderBy: { createdAt: 'desc' },
+                    take: limit,
+                    select: {
+                      id: true,
+                      clientName: true,
+                      clientPhone: true,
+                      serviceName: true,
+                      status: true,
+                      createdAt: true,
+                    },
+                  });
+                  const summary = `Fetched ${leads.length} booking enquiries`;
+                  toolCalls.push({ name: 'list_enquiries', args, ok: true, summary });
+                  changesApplied.push(summary);
+                  responseParts.push({
+                    functionResponse: {
+                      name: 'list_enquiries',
+                      response: { ok: true, count: leads.length, enquiries: leads },
+                    },
+                  });
+                  continue;
+                }
+
+                if (fnCall.name === 'publish_site') {
+                  if (!dbSite) {
+                    const msg = 'Sign in and save your website once to publish to a live link.';
+                    toolCalls.push({ name: 'publish_site', args, ok: false, summary: msg, error: msg });
+                    responseParts.push({
+                      functionResponse: { name: 'publish_site', response: { ok: false, error: msg } },
+                    });
+                    continue;
+                  }
+                  shouldPublish = true;
+                  mutatedBlueprint = true;
+                  const cleanSlug =
+                    dbSite.subdomain ||
+                    (bpCursor.profile.name || dbSite.name || 'studio')
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]/g, '')
+                      .slice(0, 30) ||
+                    'studio';
+                  const summary = `Published site live at /s/${cleanSlug}`;
+                  toolCalls.push({ name: 'publish_site', args, ok: true, summary });
+                  changesApplied.push(summary);
+                  responseParts.push({
+                    functionResponse: {
+                      name: 'publish_site',
+                      response: { ok: true, liveUrl: `/s/${cleanSlug}`, template: TEMPLATE_ENGINES[resolveTemplateEngineId(bpCursor.templateId)].name },
+                    },
+                  });
+                  continue;
+                }
+
+                const exec = executeBlueprintMcpTool(fnCall.name, args, bpCursor, {
+                  plan: resolvedPlan,
+                  siteMeta: dbSite
+                    ? { id: dbSite.id, subdomain: dbSite.subdomain, status: dbSite.status, customDomain: dbSite.customDomain }
+                    : undefined,
+                });
+                bpCursor = exec.blueprint;
+                if (exec.ok && fnCall.name !== 'get_site_blueprint') {
+                  mutatedBlueprint = true;
+                }
+                if (fnCall.name === 'switch_template_style' && exec.ok) {
+                  templateSwitched = true;
+                }
+                toolCalls.push({
+                  name: fnCall.name,
+                  args,
+                  ok: exec.ok,
+                  summary: exec.changeSummary,
+                  ...(exec.error ? { error: exec.error } : {}),
+                });
+                if (exec.ok && fnCall.name !== 'get_site_blueprint' && exec.changeSummary) {
+                  changesApplied.push(exec.changeSummary);
+                } else if (!exec.ok && exec.error) {
+                  changesApplied.push(exec.error);
+                }
+
+                responseParts.push({
+                  functionResponse: {
+                    name: fnCall.name,
+                    response: {
+                      ok: exec.ok,
+                      summary: exec.changeSummary,
+                      ...(exec.data ? { data: exec.data } : {}),
+                      ...(exec.error ? { error: exec.error } : {}),
+                    },
+                  },
+                });
               }
-              toolCalls.push({
-                name: fnCall.name,
-                args,
-                ok: exec.ok,
-                summary: exec.changeSummary,
-                ...(exec.error ? { error: exec.error } : {}),
+
+              nextInput = responseParts;
+            }
+
+            let savedToAccount = false;
+            let liveUrl: string | null = dbSite?.liveUrl || null;
+            if ((mutatedBlueprint || shouldPublish) && dbSite && accountUserId && dbSite.userId === accountUserId) {
+              const rendered = renderTemplateEngine(bpCursor.templateId, bpCursor, { siteId: dbSite.id });
+              const cleanSub =
+                dbSite.subdomain ||
+                (bpCursor.profile.name || dbSite.name || 'studio')
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]/g, '')
+                  .slice(0, 30) ||
+                'studio';
+              liveUrl = dbSite.liveUrl || `/s/${cleanSub}`;
+              await prisma.site.update({
+                where: { id: dbSite.id },
+                data: {
+                  name: bpCursor.profile.name || dbSite.name,
+                  nicheId: bpCursor.nicheId || dbSite.nicheId,
+                  templateId: rendered.templateId,
+                  template: TEMPLATE_ENGINES[rendered.templateId].name,
+                  category: bpCursor.profile.category || dbSite.category,
+                  currency: bpCursor.profile.currency || dbSite.currency,
+                  whatsappPhone: bpCursor.modules?.whatsapp?.phoneNumber || dbSite.whatsappPhone,
+                  instagramHandle: bpCursor.profile.instagramHandle || dbSite.instagramHandle,
+                  blueprintData: JSON.stringify(bpCursor),
+                  htmlContent: rendered.fullHtml,
+                  ...(shouldPublish ? { status: 'live', subdomain: cleanSub, liveUrl } : {}),
+                  updatedAt: new Date(),
+                },
               });
-              if (exec.ok && exec.changeSummary) {
-                changesApplied.push(exec.changeSummary);
-              } else if (!exec.ok && exec.error) {
-                changesApplied.push(exec.error);
-              }
+              savedToAccount = true;
             }
 
-            let textReply = '';
-            try {
-              textReply = result?.response?.text?.()?.trim() || '';
-            } catch {
-              textReply = '';
-            }
-
-            if (!textReply) {
-              if (changesApplied.length > 0) {
-                textReply = `Done! ${changesApplied.join(' · ')}.`;
-              } else {
-                textReply = 'How would you like to update your site? You can ask me to edit your headline, add services, change styles, or update WhatsApp.';
-              }
+            const finalTplName = TEMPLATE_ENGINES[resolveTemplateEngineId(bpCursor.templateId)].name;
+            if (!finalTextReply) {
+              finalTextReply =
+                changesApplied.length > 0
+                  ? `Updated your ${finalTplName} site (${changesApplied.join('; ')})${savedToAccount ? ' and saved to your account.' : '.'}`
+                  : `Your ${finalTplName} site is ready. Ask me to change copy, colors, sections, services, photos, or publish live.`;
             }
 
             return NextResponse.json({
@@ -361,11 +556,17 @@ VENDOR REQUEST: "${message}"`;
               source: 'gemini-mcp',
               model: modelName,
               intent: 'mcp-tools',
-              aiReply: textReply,
+              aiReply: finalTextReply,
               theme: currentTheme,
+              activeTemplateId: resolveTemplateEngineId(bpCursor.templateId),
+              activeTemplateName: finalTplName,
               changesApplied,
               toolCalls,
               templateSwitched,
+              published: shouldPublish,
+              savedToAccount,
+              savedSiteId: dbSite?.id || null,
+              liveUrl,
               updatedBlueprint: mutatedBlueprint ? bpCursor : null,
               updatedHtml: null,
               updatedElementHtml: null,
@@ -380,7 +581,7 @@ VENDOR REQUEST: "${message}"`;
               candidateErr?.message?.includes('fetch failed');
 
             if (isTransient && attempt === 0) {
-              await new Promise((r) => setTimeout(r, 1500));
+              await new Promise((r) => setTimeout(r, 1200));
               continue;
             }
             console.warn(`[AI Chat MCP] Model ${modelName} (attempt ${attempt + 1}) failed:`, candidateErr?.message);

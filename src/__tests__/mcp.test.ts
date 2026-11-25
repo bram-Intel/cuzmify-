@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultBlueprint } from '@/core/blueprint-schema';
+import { renderTemplateEngine } from '@/core/template-engines';
 import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
 import {
   CUZMIFY_MCP_TOOLS,
@@ -9,11 +10,15 @@ import {
 import { generateUserMcpToken, verifyUserMcpToken } from '@/lib/mcp/mcp-auth';
 
 describe('Cuzmify MCP Tool Registry & Execution', () => {
-  it('exposes standard MCP tool schemas and Gemini function declarations', () => {
-    expect(CUZMIFY_MCP_TOOLS.length).toBeGreaterThanOrEqual(9);
-    const decls = toGeminiFunctionDeclarations();
+  it('exposes full autonomous MCP schemas and Gemini function declarations including publish & enquiries', () => {
+    expect(CUZMIFY_MCP_TOOLS.length).toBeGreaterThanOrEqual(16);
+    const decls = toGeminiFunctionDeclarations(true);
     expect(decls.some((d) => d.name === 'upsert_service_package')).toBe(true);
-    expect(decls.some((d) => d.name === 'switch_template_style')).toBe(true);
+    expect(decls.some((d) => d.name === 'customize_template_copy')).toBe(true);
+    expect(decls.some((d) => d.name === 'customize_template_design')).toBe(true);
+    expect(decls.some((d) => d.name === 'toggle_section_visibility')).toBe(true);
+    expect(decls.some((d) => d.name === 'publish_site')).toBe(true);
+    expect(decls.some((d) => d.name === 'list_enquiries')).toBe(true);
   });
 
   it('adds and updates services without inventing prices and respects free tier limits', () => {
@@ -80,6 +85,57 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(promoted.ok).toBe(true);
     expect(promoted.blueprint.mediaVault[0].id).toBe('img-2');
     expect(promoted.blueprint.mediaVault[0].type).toBe('hero');
+  });
+
+  it('customizes template copy, design tokens, section visibility, testimonials, and FAQs cleanly across engines', () => {
+    let bp = createDefaultBlueprint({
+      name: 'Zainab Atelier',
+      templateId: 'editorial-atelier',
+      mediaVault: [
+        { id: 'img-1', url: 'https://example.com/hero.webp', name: 'Hero', type: 'hero', source: 'upload', addedAt: '' },
+        { id: 'img-2', url: 'https://example.com/work.webp', name: 'Work', type: 'gallery', source: 'upload', addedAt: '' },
+      ],
+    });
+
+    bp = executeBlueprintMcpTool(
+      'upsert_service_package',
+      { name: 'Soft Bridal Glam', price: 85000, priceMode: 'fixed' },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool(
+      'customize_template_copy',
+      { primaryCta: 'Reserve Your Slot', servicesHeading: 'Curated Rate Card' },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool(
+      'customize_template_design',
+      { accentColor: '#D97706', buttonRadius: 'sharp', fontMood: 'bold_display' },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool(
+      'upsert_testimonial',
+      { clientName: 'Amaka O.', quote: 'Flawless bridal morning glam!', roleOrEvent: 'Lagos Wedding' },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool(
+      'upsert_faq',
+      { question: 'Do you travel outside Lagos?', answer: 'Yes, worldwide bridal travel is available.' },
+      bp
+    ).blueprint;
+    bp = executeBlueprintMcpTool(
+      'toggle_section_visibility',
+      { section: 'portfolio', visible: false },
+      bp
+    ).blueprint;
+
+    const rendered = renderTemplateEngine('editorial-atelier', bp);
+    expect(rendered.fullHtml).toContain('Reserve Your Slot');
+    expect(rendered.fullHtml).toContain('Curated Rate Card');
+    expect(rendered.css).toContain('--cz-accent:#D97706');
+    expect(rendered.css).toContain('border-radius:4px');
+    expect(rendered.fullHtml).toContain('Flawless bridal morning glam!');
+    expect(rendered.fullHtml).toContain('Do you travel outside Lagos?');
+    expect(rendered.fullHtml).not.toContain('id="portfolio"');
   });
 
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {

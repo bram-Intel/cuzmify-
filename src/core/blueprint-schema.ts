@@ -170,7 +170,30 @@ export interface AppointmentRemindersModuleConfig {
   messageTemplate: string;
 }
 
-// ── 9. Master Business Blueprint ────────────────────────────────────────────
+// ── 9. Template Engine Overrides & Rich Sections ──────────────────────────
+export interface TemplateDesignOverrides {
+  accentColor?: string;
+  backgroundColor?: string;
+  surfaceColor?: string;
+  textColor?: string;
+  buttonRadius?: 'pill' | 'rounded' | 'sharp';
+  fontMood?: 'editorial_serif' | 'modern_sans' | 'bold_display';
+}
+
+export interface BlueprintTestimonialItem {
+  id: string;
+  clientName: string;
+  quote: string;
+  roleOrEvent?: string;
+}
+
+export interface BlueprintFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+// ── 10. Master Business Blueprint ───────────────────────────────────────────
 export interface BusinessBlueprint {
   version: '1.0';
   templateId?: string;
@@ -190,6 +213,9 @@ export interface BusinessBlueprint {
   mediaVault: MediaVaultAsset[];
   customCopy?: Record<string, string>;
   sectionVisibility?: Record<string, boolean>;
+  designOverrides?: TemplateDesignOverrides;
+  testimonials?: BlueprintTestimonialItem[];
+  faqs?: BlueprintFaqItem[];
   updatedAt: string;
 }
 

@@ -4,6 +4,7 @@ import {
   type BusinessBlueprint,
   type CurrencyCode,
   type ServicePriceMode,
+  type TemplateDesignOverrides,
 } from '@/core/blueprint-schema';
 import { resolveNicheBlueprint } from '@/core/niche-blueprints';
 import { resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
@@ -29,7 +30,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'get_site_blueprint',
     description:
-      'Read the current website profile, niche, active design template, services, media assets count, WhatsApp number, and publish URL.',
+      'Inspect the complete live site state: active template engine & visual styles, section visibility, custom copy slots, business profile, services, products, media assets, testimonials, FAQs, WhatsApp, and publish status.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -40,29 +41,99 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'update_business_profile',
     description:
-      'Update business profile info or hero copy (business name, tagline/headline, bio/subheadline, city, country, currency, email) without inventing unrequested prices.',
+      'Update business profile identity or main hero copy (name, headline, bio, city, country, currency, email, instagramHandle) without inventing unrequested prices.',
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID (external MCP).' },
         name: { type: 'string', description: 'Business / studio name.' },
-        headline: { type: 'string', description: 'Hero headline text shown at the top of the website.' },
-        bio: { type: 'string', description: 'About / hero subheadline description.' },
+        headline: { type: 'string', description: 'Main Hero headline shown at the top of the website.' },
+        bio: { type: 'string', description: 'About / Hero subheadline description.' },
         city: { type: 'string', description: 'City or service area (e.g. Lagos, Abuja, London).' },
         country: { type: 'string', description: 'Country name.' },
         currency: {
           type: 'string',
           description: '3-letter currency code.',
-          enum: ['NGN', 'USD', 'GBP', 'EUR', 'KES', 'ZAR', 'CAD', 'AED', 'GHS'],
+          enum: ['NGN', 'USD', 'GBP', 'EUR', 'KES', 'ZAR', 'CAD', 'AED'],
         },
         email: { type: 'string', description: 'Public business contact email.' },
+        instagramHandle: { type: 'string', description: 'Instagram username without @.' },
       },
+    },
+  },
+  {
+    name: 'customize_template_copy',
+    description:
+      'Edit any section heading, eyebrow label, badge, or CTA button copy directly inside the active template engine.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        heroBadge: { type: 'string', description: 'Small uppercase eyebrow badge above the Hero headline.' },
+        primaryCta: { type: 'string', description: 'Main booking/navbar CTA button label (e.g. Reserve Your Date).' },
+        servicesEyebrow: { type: 'string', description: 'Eyebrow text above the Services heading.' },
+        servicesHeading: { type: 'string', description: 'Services section main heading.' },
+        serviceItemCta: { type: 'string', description: 'Action button text inside each service row/card.' },
+        portfolioEyebrow: { type: 'string', description: 'Eyebrow text above the Portfolio/Gallery heading.' },
+        portfolioHeading: { type: 'string', description: 'Portfolio/Gallery section main heading.' },
+        enquiryEyebrow: { type: 'string', description: 'Eyebrow label above booking/enquiry heading.' },
+        enquiryHeading: { type: 'string', description: 'Booking/Enquiry section heading.' },
+        enquirySubheading: { type: 'string', description: 'Short instruction right below the booking heading.' },
+        testimonialsHeading: { type: 'string', description: 'Heading for client testimonials section.' },
+        faqHeading: { type: 'string', description: 'Heading for FAQ section.' },
+      },
+    },
+  },
+  {
+    name: 'customize_template_design',
+    description:
+      'Customize brand palette colors (hex), card/background surfaces, button corner radius, or font mood on top of the active template engine without breaking layout or responsiveness.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        accentColor: { type: 'string', description: 'Hex brand accent color (e.g. #D97706, #0D5771, #E11D48).' },
+        backgroundColor: { type: 'string', description: 'Hex page background color (e.g. #FAF7F2, #09090B).' },
+        surfaceColor: { type: 'string', description: 'Hex card/panel surface color (e.g. #FFFFFF, #18181B).' },
+        textColor: { type: 'string', description: 'Hex primary text color (e.g. #1C1917, #FAFAFA).' },
+        buttonRadius: {
+          type: 'string',
+          description: 'Corner style for buttons and CTAs.',
+          enum: ['pill', 'rounded', 'sharp'],
+        },
+        fontMood: {
+          type: 'string',
+          description: 'Typography pairing mood.',
+          enum: ['editorial_serif', 'modern_sans', 'bold_display'],
+        },
+        resetToDefaults: {
+          type: 'boolean',
+          description: 'Set true to clear custom colors/fonts and restore native template palette.',
+        },
+      },
+    },
+  },
+  {
+    name: 'toggle_section_visibility',
+    description: 'Show or hide any section cleanly inside the active template engine (hero, services, portfolio, testimonials, faq, booking).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        section: {
+          type: 'string',
+          description: 'Target section ID.',
+          enum: ['hero', 'services', 'portfolio', 'testimonials', 'faq', 'booking'],
+        },
+        visible: { type: 'boolean', description: 'True to display section, false to hide it.' },
+      },
+      required: ['section', 'visible'],
     },
   },
   {
     name: 'upsert_service_package',
     description:
-      'Add a new service package or update an existing service by name/id. Supports fixed pricing, starting_at ("From ₦..."), or custom quote.',
+      'Add a new service package or update an existing service by name/id. Use priceMode "quote" with price 0 if the vendor has not stated a price.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,9 +166,68 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
     },
   },
   {
+    name: 'upsert_product_item',
+    description: 'Add or update a physical or digital product in the vendor product catalog.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        id: { type: 'string', description: 'Existing product ID (optional).' },
+        name: { type: 'string', description: 'Product name.' },
+        price: { type: 'number', description: 'Product price in business currency.' },
+        description: { type: 'string', description: 'Short product description.' },
+        inStock: { type: 'boolean', description: 'Whether product is currently available.' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'delete_product_item',
+    description: 'Remove a product from the catalog by ID or name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        id: { type: 'string', description: 'Product ID.' },
+        name: { type: 'string', description: 'Product name.' },
+      },
+    },
+  },
+  {
+    name: 'upsert_testimonial',
+    description: 'Add, update, or remove a real client testimonial provided by the vendor.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        id: { type: 'string', description: 'Testimonial ID (optional).' },
+        clientName: { type: 'string', description: 'Client name (must come from vendor, never invented).' },
+        quote: { type: 'string', description: 'Exact client testimonial quote.' },
+        roleOrEvent: { type: 'string', description: 'Optional event/context like Bridal Client.' },
+        remove: { type: 'boolean', description: 'Set true to remove matching testimonial by id or clientName.' },
+      },
+      required: ['clientName'],
+    },
+  },
+  {
+    name: 'upsert_faq',
+    description: 'Add, update, or remove a Frequently Asked Question item.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        id: { type: 'string', description: 'FAQ ID (optional).' },
+        question: { type: 'string', description: 'Customer question.' },
+        answer: { type: 'string', description: 'Clear vendor answer.' },
+        remove: { type: 'boolean', description: 'Set true to remove matching FAQ.' },
+      },
+      required: ['question'],
+    },
+  },
+  {
     name: 'switch_template_style',
     description:
-      'Losslessly switch the website visual template engine while preserving 100% of photos, bio, and services.',
+      'Losslessly switch the website visual template engine ONLY when the user requests changing design style/layout between editorial-atelier, noir-showcase, or modern-studio.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -137,13 +267,15 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'configure_whatsapp',
-    description: 'Update the vendor WhatsApp booking phone number or default enquiry message template.',
+    description: 'Update the vendor WhatsApp booking phone number, enquiry message template, or floating widget settings.',
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID (external MCP).' },
         phoneNumber: { type: 'string', description: 'WhatsApp number with country code digits (e.g. 2348031234567).' },
         bookingTemplate: { type: 'string', description: 'Optional custom pre-filled WhatsApp enquiry template.' },
+        floatingWidgetEnabled: { type: 'boolean', description: 'Toggle floating WhatsApp chat pill.' },
+        floatingWidgetGreeting: { type: 'string', description: 'Greeting label shown for floating WhatsApp button.' },
       },
     },
   },
@@ -162,7 +294,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'list_enquiries',
-    description: 'List recent client booking enquiries submitted on the live website.',
+    description: 'List recent client booking enquiries submitted on the live website for this account.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -173,7 +305,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'publish_site',
-    description: 'Publish the current website live so clients can visit its public link and submit bookings.',
+    description: 'Publish the current website live to its public link so clients can view and submit bookings.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -184,12 +316,12 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
 ];
 
 /** Converts MCP JSON schemas into Gemini SDK FunctionDeclaration format. */
-export function toGeminiFunctionDeclarations(includeServerOnly = false): FunctionDeclaration[] {
+export function toGeminiFunctionDeclarations(includeServerOnly = true): FunctionDeclaration[] {
   const excluded = includeServerOnly ? new Set<string>() : new Set(['list_enquiries', 'publish_site']);
   return CUZMIFY_MCP_TOOLS.filter((t) => !excluded.has(t.name)).map((tool) => {
     const props: Record<string, any> = {};
     for (const [k, v] of Object.entries(tool.inputSchema.properties)) {
-      if (k === 'siteId') continue; // Studio context supplies active site automatically
+      if (k === 'siteId') continue; // Studio/account context supplies active site automatically
       const schemaType =
         v.type === 'number'
           ? SchemaType.NUMBER
@@ -223,6 +355,13 @@ export interface BlueprintToolExecutionResult {
   error?: string;
 }
 
+function normalizeSafeHex(val?: unknown): string | undefined {
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(trimmed)) return trimmed.toUpperCase();
+  return undefined;
+}
+
 /**
  * Pure deterministic executor for blueprint-level MCP tools.
  * Used identically by both `/api/ai/chat` (in-app Copilot) and `/api/mcp` (external MCP clients).
@@ -238,17 +377,28 @@ export function executeBlueprintMcpTool(
 
   switch (toolName) {
     case 'get_site_blueprint': {
+      const tplId = resolveTemplateEngineId(bp.templateId);
+      const tplMeta = TEMPLATE_ENGINES[tplId];
       return {
         ok: true,
         blueprint: bp,
-        changeSummary: 'Read live site blueprint',
+        changeSummary: `Inspected ${tplMeta.name} blueprint`,
         data: {
           name: bp.profile.name,
+          headline: bp.customCopy?.headline || bp.profile.tagline,
+          bio: bp.customCopy?.subheadline || bp.profile.bio,
           nicheId: bp.nicheId,
-          templateId: bp.templateId,
+          templateId: tplId,
+          templateName: tplMeta.name,
+          templateTagline: tplMeta.tagline,
           currency: bp.profile.currency,
           city: bp.profile.city,
+          country: bp.profile.country,
+          instagramHandle: bp.profile.instagramHandle || '',
           whatsapp: bp.modules.whatsapp.phoneNumber,
+          customCopy: bp.customCopy || {},
+          designOverrides: bp.designOverrides || {},
+          sectionVisibility: bp.sectionVisibility || {},
           servicesCount: bp.modules.services.items.length,
           services: bp.modules.services.items.map((s) => ({
             id: s.id,
@@ -256,7 +406,16 @@ export function executeBlueprintMcpTool(
             price: s.price,
             priceMode: s.priceMode,
           })),
+          productsCount: bp.modules.products?.items?.length || 0,
+          testimonialsCount: bp.testimonials?.length || 0,
+          faqsCount: bp.faqs?.length || 0,
           mediaCount: bp.mediaVault.length,
+          mediaItems: bp.mediaVault.slice(0, 12).map((m, idx) => ({
+            photoNumber: idx + 1,
+            id: m.id,
+            name: m.name,
+            type: m.type,
+          })),
           status: options?.siteMeta?.status || 'draft',
           subdomain: options?.siteMeta?.subdomain || null,
           customDomain: options?.siteMeta?.customDomain || null,
@@ -292,6 +451,10 @@ export function executeBlueprintMcpTool(
         bp.profile.email = args.email.trim();
         updated.push('email');
       }
+      if (typeof args.instagramHandle === 'string' && args.instagramHandle.trim()) {
+        bp.profile.instagramHandle = args.instagramHandle.trim().replace(/^@/, '').slice(0, 40);
+        updated.push(`@${bp.profile.instagramHandle}`);
+      }
       if (typeof args.currency === 'string') {
         const code = args.currency.toUpperCase() as CurrencyCode;
         if (SUPPORTED_CURRENCIES[code]) {
@@ -306,6 +469,108 @@ export function executeBlueprintMcpTool(
         blueprint: bp,
         changeSummary: updated.length > 0 ? `Updated profile (${updated.join(', ')})` : 'Profile unchanged',
         data: { updated },
+      };
+    }
+
+    case 'customize_template_copy': {
+      const allowedKeys = [
+        'heroBadge',
+        'primaryCta',
+        'servicesEyebrow',
+        'servicesHeading',
+        'serviceItemCta',
+        'portfolioEyebrow',
+        'portfolioHeading',
+        'enquiryEyebrow',
+        'enquiryHeading',
+        'enquirySubheading',
+        'testimonialsHeading',
+        'faqHeading',
+      ] as const;
+      const updatedKeys: string[] = [];
+      const nextCopy = { ...(bp.customCopy || {}) };
+      for (const k of allowedKeys) {
+        if (typeof args[k] === 'string' && args[k].trim()) {
+          nextCopy[k] = args[k].trim().slice(0, 180);
+          updatedKeys.push(k);
+        }
+      }
+      bp.customCopy = nextCopy;
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: true,
+        blueprint: bp,
+        changeSummary: updatedKeys.length > 0 ? `Updated template copy (${updatedKeys.join(', ')})` : 'Template copy unchanged',
+        data: { updatedKeys, customCopy: nextCopy },
+      };
+    }
+
+    case 'customize_template_design': {
+      if (args.resetToDefaults) {
+        bp.designOverrides = {};
+        bp.updatedAt = new Date().toISOString();
+        return {
+          ok: true,
+          blueprint: bp,
+          changeSummary: 'Restored template default colors & typography',
+          data: { designOverrides: {} },
+        };
+      }
+      const nextDesign: TemplateDesignOverrides = { ...(bp.designOverrides || {}) };
+      const changed: string[] = [];
+      const accent = normalizeSafeHex(args.accentColor);
+      if (accent) {
+        nextDesign.accentColor = accent;
+        changed.push(`accent=${accent}`);
+      }
+      const bg = normalizeSafeHex(args.backgroundColor);
+      if (bg) {
+        nextDesign.backgroundColor = bg;
+        changed.push(`background=${bg}`);
+      }
+      const surface = normalizeSafeHex(args.surfaceColor);
+      if (surface) {
+        nextDesign.surfaceColor = surface;
+        changed.push(`surface=${surface}`);
+      }
+      const ink = normalizeSafeHex(args.textColor);
+      if (ink) {
+        nextDesign.textColor = ink;
+        changed.push(`text=${ink}`);
+      }
+      if (args.buttonRadius === 'pill' || args.buttonRadius === 'rounded' || args.buttonRadius === 'sharp') {
+        nextDesign.buttonRadius = args.buttonRadius;
+        changed.push(`buttons=${args.buttonRadius}`);
+      }
+      if (args.fontMood === 'editorial_serif' || args.fontMood === 'modern_sans' || args.fontMood === 'bold_display') {
+        nextDesign.fontMood = args.fontMood;
+        changed.push(`font=${args.fontMood}`);
+      }
+      bp.designOverrides = nextDesign;
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: changed.length > 0,
+        blueprint: bp,
+        changeSummary: changed.length > 0 ? `Customized template design (${changed.join(', ')})` : 'No valid design tokens specified (use hex colors like #0D5771)',
+        ...(changed.length === 0 ? { error: 'Pass valid hex colors (#RRGGBB), buttonRadius, or fontMood.' } : {}),
+        data: { designOverrides: nextDesign },
+      };
+    }
+
+    case 'toggle_section_visibility': {
+      const valid = ['hero', 'services', 'portfolio', 'testimonials', 'faq', 'booking'];
+      const sec = String(args.section || '').trim().toLowerCase();
+      if (!valid.includes(sec)) {
+        return { ok: false, blueprint: bp, changeSummary: 'Invalid section name', error: `Section must be one of: ${valid.join(', ')}` };
+      }
+      const visible = Boolean(args.visible);
+      bp.sectionVisibility = { ...(bp.sectionVisibility || {}), [sec]: visible };
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: true,
+        blueprint: bp,
+        changeSummary: `${visible ? 'Shown' : 'Hidden'} "${sec}" section`,
+        data: { section: sec, visible, sectionVisibility: bp.sectionVisibility },
       };
     }
 
@@ -394,6 +659,130 @@ export function executeBlueprintMcpTool(
       };
     }
 
+    case 'upsert_product_item': {
+      const cleanName = String(args.name || '').trim().slice(0, 80);
+      if (!cleanName) {
+        return { ok: false, blueprint: bp, changeSummary: 'Missing product name', error: 'Product name is required.' };
+      }
+      const items = bp.modules.products?.items || [];
+      const idx = items.findIndex((p) => (args.id && p.id === args.id) || p.name.toLowerCase() === cleanName.toLowerCase());
+      const numPrice = typeof args.price === 'number' && !Number.isNaN(args.price) ? Math.max(0, args.price) : 0;
+      if (idx >= 0) {
+        items[idx] = {
+          ...items[idx],
+          name: cleanName,
+          price: args.price !== undefined ? numPrice : items[idx].price,
+          description: typeof args.description === 'string' ? args.description.trim().slice(0, 220) : items[idx].description,
+          inStock: typeof args.inStock === 'boolean' ? args.inStock : items[idx].inStock,
+        };
+        bp.modules.products.items = items;
+        bp.updatedAt = new Date().toISOString();
+        return { ok: true, blueprint: bp, changeSummary: `Updated product "${cleanName}"` };
+      }
+      const created = {
+        id: `prd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: cleanName,
+        price: numPrice,
+        inStock: typeof args.inStock === 'boolean' ? args.inStock : true,
+        description: typeof args.description === 'string' ? args.description.trim().slice(0, 220) : '',
+        enabled: true,
+      };
+      bp.modules.products = {
+        enabled: true,
+        currency: bp.profile.currency || 'NGN',
+        items: [...items, created],
+      };
+      bp.updatedAt = new Date().toISOString();
+      return { ok: true, blueprint: bp, changeSummary: `Added product "${cleanName}"` };
+    }
+
+    case 'delete_product_item': {
+      const items = bp.modules.products?.items || [];
+      const targetName = String(args.name || '').trim().toLowerCase();
+      const filtered = items.filter(
+        (p) => !(args.id && p.id === args.id) && !(targetName && p.name.toLowerCase() === targetName)
+      );
+      const removed = items.length - filtered.length;
+      if (bp.modules.products) bp.modules.products.items = filtered;
+      bp.updatedAt = new Date().toISOString();
+      return {
+        ok: removed > 0,
+        blueprint: bp,
+        changeSummary: removed > 0 ? 'Removed product item' : 'Product not found',
+        ...(removed === 0 ? { error: 'No matching product found.' } : {}),
+      };
+    }
+
+    case 'upsert_testimonial': {
+      const clientName = String(args.clientName || '').trim().slice(0, 80);
+      const list = bp.testimonials || [];
+      if (args.remove) {
+        const next = list.filter(
+          (t) => !(args.id && t.id === args.id) && !(clientName && t.clientName.toLowerCase() === clientName.toLowerCase())
+        );
+        bp.testimonials = next;
+        bp.updatedAt = new Date().toISOString();
+        return { ok: next.length < list.length, blueprint: bp, changeSummary: `Removed testimonial` };
+      }
+      const quote = String(args.quote || '').trim().slice(0, 320);
+      if (!clientName || !quote) {
+        return { ok: false, blueprint: bp, changeSummary: 'Client name and quote required', error: 'clientName and quote are required.' };
+      }
+      const existingIdx = list.findIndex((t) => (args.id && t.id === args.id) || t.clientName.toLowerCase() === clientName.toLowerCase());
+      if (existingIdx >= 0) {
+        list[existingIdx] = {
+          ...list[existingIdx],
+          clientName,
+          quote,
+          ...(typeof args.roleOrEvent === 'string' ? { roleOrEvent: args.roleOrEvent.trim().slice(0, 60) } : {}),
+        };
+        bp.testimonials = list;
+      } else {
+        bp.testimonials = [
+          ...list,
+          {
+            id: `tst-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            clientName,
+            quote,
+            ...(typeof args.roleOrEvent === 'string' ? { roleOrEvent: args.roleOrEvent.trim().slice(0, 60) } : {}),
+          },
+        ];
+      }
+      bp.sectionVisibility = { ...(bp.sectionVisibility || {}), testimonials: true };
+      bp.updatedAt = new Date().toISOString();
+      return { ok: true, blueprint: bp, changeSummary: `Saved testimonial from "${clientName}"` };
+    }
+
+    case 'upsert_faq': {
+      const question = String(args.question || '').trim().slice(0, 160);
+      const list = bp.faqs || [];
+      if (args.remove) {
+        const next = list.filter(
+          (f) => !(args.id && f.id === args.id) && !(question && f.question.toLowerCase() === question.toLowerCase())
+        );
+        bp.faqs = next;
+        bp.updatedAt = new Date().toISOString();
+        return { ok: next.length < list.length, blueprint: bp, changeSummary: `Removed FAQ item` };
+      }
+      const answer = String(args.answer || '').trim().slice(0, 400);
+      if (!question || !answer) {
+        return { ok: false, blueprint: bp, changeSummary: 'Question and answer required', error: 'question and answer are required.' };
+      }
+      const existingIdx = list.findIndex((f) => (args.id && f.id === args.id) || f.question.toLowerCase() === question.toLowerCase());
+      if (existingIdx >= 0) {
+        list[existingIdx] = { ...list[existingIdx], question, answer };
+        bp.faqs = list;
+      } else {
+        bp.faqs = [
+          ...list,
+          { id: `faq-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, question, answer },
+        ];
+      }
+      bp.sectionVisibility = { ...(bp.sectionVisibility || {}), faq: true };
+      bp.updatedAt = new Date().toISOString();
+      return { ok: true, blueprint: bp, changeSummary: `Saved FAQ: "${question}"` };
+    }
+
     case 'switch_template_style': {
       const resolved = resolveTemplateEngineId(String(args.templateId || 'editorial-atelier'));
       bp.templateId = resolved;
@@ -431,6 +820,14 @@ export function executeBlueprintMcpTool(
       if (typeof args.bookingTemplate === 'string' && args.bookingTemplate.trim()) {
         bp.modules.whatsapp.defaultBookingTemplate = args.bookingTemplate.trim().slice(0, 300);
         changed.push('booking message template');
+      }
+      if (typeof args.floatingWidgetEnabled === 'boolean') {
+        bp.modules.whatsapp.floatingWidgetEnabled = args.floatingWidgetEnabled;
+        changed.push(`floating widget ${args.floatingWidgetEnabled ? 'on' : 'off'}`);
+      }
+      if (typeof args.floatingWidgetGreeting === 'string' && args.floatingWidgetGreeting.trim()) {
+        bp.modules.whatsapp.floatingWidgetGreeting = args.floatingWidgetGreeting.trim().slice(0, 80);
+        changed.push('floating widget greeting');
       }
       bp.updatedAt = new Date().toISOString();
       return {
