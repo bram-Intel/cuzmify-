@@ -195,6 +195,9 @@ export interface TemplateDesignOverrides extends DeviceDesignOverrides {
   fontMood?: 'editorial_serif' | 'modern_sans' | 'bold_display';
   servicesLayout?: 'editorial_list' | 'card_grid' | 'compact_menu';
   sectionOrder?: string[];
+  submitButtonIcon?: 'auto' | 'whatsapp' | 'sparkles' | 'calendar' | 'none';
+  submitButtonColor?: string;
+  customCss?: string;
   responsive?: {
     mobile?: DeviceDesignOverrides;
     tablet?: DeviceDesignOverrides;
@@ -207,10 +210,11 @@ export interface BlueprintCustomSection {
   eyebrow?: string;
   title: string;
   subtitle?: string;
-  layout: 'cards' | 'checklist' | 'hours_info' | 'banner_cta';
+  layout: 'cards' | 'checklist' | 'hours_info' | 'banner_cta' | 'custom_html';
   items?: Array<{ label: string; detail: string }>;
   ctaText?: string;
   ctaHref?: string;
+  html?: string;
 }
 
 export interface BlueprintTestimonialItem {

@@ -112,6 +112,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         enquiryEyebrow: { type: 'string', description: 'Eyebrow label above booking/enquiry heading.' },
         enquiryHeading: { type: 'string', description: 'Booking/Enquiry section heading.' },
         enquirySubheading: { type: 'string', description: 'Short instruction right below the booking heading.' },
+        submitButtonText: { type: 'string', description: 'Exact booking/enquiry submit button label (e.g. Send Enquiry →, Order via WhatsApp →).' },
         testimonialsHeading: { type: 'string', description: 'Heading for client testimonials section.' },
         faqHeading: { type: 'string', description: 'Heading for FAQ section.' },
       },
@@ -120,7 +121,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'customize_template_design',
     description:
-      'Customize brand palette colors, button corners, fonts, hero/services layouts, section spacing, mobile/tablet/desktop isolated layout & hero-image overrides on top of the active template engine.',
+      'Customize brand palette colors, button corners/icons/colors, fonts, hero/services layouts, section spacing, mobile/tablet/desktop isolated layout & hero-image overrides, or custom CSS rules on top of the active template engine.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -138,6 +139,19 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
           type: 'string',
           description: 'Corner style for buttons and CTAs.',
           enum: ['pill', 'rounded', 'sharp'],
+        },
+        submitButtonIcon: {
+          type: 'string',
+          description: 'Icon rendered on the booking form submit button (.cz-submit-btn): "whatsapp" shows WhatsApp SVG even before phone setup.',
+          enum: ['auto', 'whatsapp', 'sparkles', 'calendar', 'none'],
+        },
+        submitButtonColor: {
+          type: 'string',
+          description: 'Hex background color override for the booking submit button (e.g. #25D366, #0D5771).',
+        },
+        customCss: {
+          type: 'string',
+          description: 'Safe scoped CSS rules appended to the template stylesheet (for any granular spacing, shadow, alignment, or @media polish). Pass "" to clear.',
         },
         fontMood: {
           type: 'string',
@@ -232,7 +246,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'upsert_custom_section',
     description:
-      'Create, update, or remove a custom content block (Studio Hours, Booking Process Steps, Travel/Deposit Policy, Highlights Banner) inside the active template engine.',
+      'Create, update, or remove a custom content block (Studio Hours, Booking Steps, Policy, Highlights Banner, or bespoke sanitized custom_html block) inside the active template engine.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -243,8 +257,12 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         subtitle: { type: 'string', description: 'Optional intro paragraph below title.' },
         layout: {
           type: 'string',
-          description: 'Presentation style for this custom section.',
-          enum: ['cards', 'checklist', 'hours_info', 'banner_cta'],
+          description: 'Presentation style for this custom section ("custom_html" accepts custom sanitized inner HTML).',
+          enum: ['cards', 'checklist', 'hours_info', 'banner_cta', 'custom_html'],
+        },
+        html: {
+          type: 'string',
+          description: 'Custom inner HTML markup when layout is "custom_html" (supports inline SVG, flexbox, grids, CSS vars).',
         },
         items: {
           type: 'array',
@@ -698,6 +716,7 @@ export function executeBlueprintMcpTool(
         'enquiryEyebrow',
         'enquiryHeading',
         'enquirySubheading',
+        'submitButtonText',
         'testimonialsHeading',
         'faqHeading',
       ] as const;
@@ -790,6 +809,25 @@ export function executeBlueprintMcpTool(
       if (args.buttonRadius === 'pill' || args.buttonRadius === 'rounded' || args.buttonRadius === 'sharp') {
         nextDesign.buttonRadius = args.buttonRadius;
         changed.push(`buttons=${args.buttonRadius}`);
+      }
+      if (
+        args.submitButtonIcon === 'auto' ||
+        args.submitButtonIcon === 'whatsapp' ||
+        args.submitButtonIcon === 'sparkles' ||
+        args.submitButtonIcon === 'calendar' ||
+        args.submitButtonIcon === 'none'
+      ) {
+        nextDesign.submitButtonIcon = args.submitButtonIcon;
+        changed.push(`submitIcon=${args.submitButtonIcon}`);
+      }
+      const submitBtnColor = normalizeSafeHex(args.submitButtonColor);
+      if (submitBtnColor) {
+        nextDesign.submitButtonColor = submitBtnColor;
+        changed.push(`submitColor=${submitBtnColor}`);
+      }
+      if (typeof args.customCss === 'string') {
+        nextDesign.customCss = args.customCss.trim().slice(0, 6000);
+        changed.push(nextDesign.customCss ? 'customCss' : 'cleared customCss');
       }
       if (args.fontMood === 'editorial_serif' || args.fontMood === 'modern_sans' || args.fontMood === 'bold_display') {
         nextDesign.fontMood = args.fontMood;
@@ -949,7 +987,7 @@ export function executeBlueprintMcpTool(
       if (!title) {
         return { ok: false, blueprint: bp, changeSummary: 'Missing section title', error: 'title is required.' };
       }
-      const validLayouts = ['cards', 'checklist', 'hours_info', 'banner_cta'] as const;
+      const validLayouts = ['cards', 'checklist', 'hours_info', 'banner_cta', 'custom_html'] as const;
       const layout = validLayouts.includes(args.layout) ? args.layout : 'cards';
       const parsedItems: Array<{ label: string; detail: string }> = Array.isArray(args.items)
         ? args.items
@@ -979,6 +1017,7 @@ export function executeBlueprintMcpTool(
         items: parsedItems,
         ...(typeof args.ctaText === 'string' && args.ctaText.trim() ? { ctaText: args.ctaText.trim().slice(0, 50) } : {}),
         ...(typeof args.ctaHref === 'string' && args.ctaHref.trim() ? { ctaHref: args.ctaHref.trim().slice(0, 120) } : {}),
+        ...(typeof args.html === 'string' && args.html.trim() ? { html: args.html.trim().slice(0, 12000) } : {}),
       };
       if (idx >= 0) {
         list[idx] = entry;

@@ -314,6 +314,40 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     const renderedWithWa = renderTemplateEngine('editorial-atelier', bpWithWa);
     expect(renderedWithWa.html).toContain('<svg width="18" height="18"');
     expect(renderedWithWa.html).toContain('via WhatsApp');
+
+    // Verify submitButtonIcon="whatsapp", submitButtonText, submitButtonColor, customCss & custom_html autonomy
+    let freeBp = executeBlueprintMcpTool(
+      'customize_template_design',
+      {
+        submitButtonIcon: 'whatsapp',
+        submitButtonColor: '#128C7E',
+        customCss: '.cz-submit-btn { letter-spacing: 0.04em; }</style><script>alert(1)</script>',
+      },
+      bp
+    ).blueprint;
+    freeBp = executeBlueprintMcpTool(
+      'customize_template_copy',
+      { submitButtonText: 'Send Enquiry Now' },
+      freeBp
+    ).blueprint;
+    freeBp = executeBlueprintMcpTool(
+      'upsert_custom_section',
+      {
+        title: 'Custom Trust Bar',
+        layout: 'custom_html',
+        html: '<div class="custom-trust">Same-Day Replies <script>bad()</script></div>',
+      },
+      freeBp
+    ).blueprint;
+
+    const freeRendered = renderTemplateEngine('editorial-atelier', freeBp);
+    expect(freeRendered.html).toContain('<svg width="18" height="18"');
+    expect(freeRendered.html).toContain('Send Enquiry Now');
+    expect(freeRendered.html).toContain('background:#128C7E');
+    expect(freeRendered.css).toContain('letter-spacing: 0.04em;');
+    expect(freeRendered.css).not.toContain('</style>');
+    expect(freeRendered.html).toContain('Same-Day Replies');
+    expect(freeRendered.html).not.toContain('<script>');
   });
 
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {
