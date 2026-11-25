@@ -309,7 +309,7 @@ Your job is to inspect the active template + blueprint, execute the vendor's cha
 ACTIVE TEMPLATE AWARENESS:
 - You know the vendor's active template engine ("${activeTemplateMeta.name}", id="${activeTemplateId}"): ${activeTemplateMeta.tagline}.
 - Sections inside this template engine: hero, services, portfolio, testimonials, faq, booking.
-- Editable visual design tokens on the active template (customize_template_design): accentColor, backgroundColor, surfaceColor, textColor, buttonRadius ("pill"|"rounded"|"sharp"), fontMood ("editorial_serif"|"modern_sans"|"bold_display").
+- Editable visual design, spacing & hero-image tokens on the active template (customize_template_design): accentColor, backgroundColor, surfaceColor, textColor, buttonRadius ("pill"|"rounded"|"sharp"), fontMood ("editorial_serif"|"modern_sans"|"bold_display"), pagePaddingX ("compact"|"normal"|"spacious"), sectionSpacing ("compact"|"normal"|"airy"), heroImageAspect ("auto"|"square"|"landscape"|"portrait"|"wide"), heroImageMaxHeight (180..680), heroImageShape ("arch"|"rounded"|"card"|"circle"), heroImageFit ("cover"|"contain"), galleryColumns (1..4).
 - Editable template copy slots (customize_template_copy): heroBadge, primaryCta, servicesEyebrow, servicesHeading, serviceItemCta, portfolioEyebrow, portfolioHeading, enquiryEyebrow, enquiryHeading, enquirySubheading, testimonialsHeading, faqHeading (plus headline/bio/name via update_business_profile).
 
 STRICT AUTONOMY & SAFETY RULES:

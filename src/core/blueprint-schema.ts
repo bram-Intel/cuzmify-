@@ -178,6 +178,13 @@ export interface TemplateDesignOverrides {
   textColor?: string;
   buttonRadius?: 'pill' | 'rounded' | 'sharp';
   fontMood?: 'editorial_serif' | 'modern_sans' | 'bold_display';
+  pagePaddingX?: 'compact' | 'normal' | 'spacious';
+  sectionSpacing?: 'compact' | 'normal' | 'airy';
+  heroImageAspect?: 'auto' | 'square' | 'landscape' | 'portrait' | 'wide';
+  heroImageMaxHeight?: number;
+  heroImageShape?: 'arch' | 'rounded' | 'card' | 'circle';
+  heroImageFit?: 'cover' | 'contain';
+  galleryColumns?: number;
 }
 
 export interface BlueprintTestimonialItem {

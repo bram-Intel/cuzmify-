@@ -154,8 +154,60 @@ function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBluepr
     ? `.cz-ea-root a[href="#booking"],.cz-ea-root a[href="#services"],.cz-nr-root a[href="#booking"],.cz-nr-root a[href="#portfolio"],.cz-ms-root a[href="#booking"],.cz-submit-btn{border-radius:${radius} !important;}`
     : '';
 
+  const pxVal =
+    ov.pagePaddingX === 'compact' ? '14px' : ov.pagePaddingX === 'spacious' ? '32px' : ov.pagePaddingX === 'normal' ? '22px' : null;
+  const pagePaddingCss = pxVal
+    ? `.cz-ea-container,.cz-nr-container,.cz-ms-container{padding-left:${pxVal} !important;padding-right:${pxVal} !important;}`
+    : '';
+
+  const secVal =
+    ov.sectionSpacing === 'compact' ? '32px' : ov.sectionSpacing === 'airy' ? '76px' : ov.sectionSpacing === 'normal' ? '52px' : null;
+  const sectionSpacingCss = secVal
+    ? `section[data-cuzmify-type]{padding-top:${secVal} !important;padding-bottom:${secVal} !important;}`
+    : '';
+
+  const heroMediaDecls: string[] = [];
+  if (ov.heroImageAspect === 'square') heroMediaDecls.push('aspect-ratio:1 / 1 !important;');
+  else if (ov.heroImageAspect === 'landscape') heroMediaDecls.push('aspect-ratio:4 / 3 !important;');
+  else if (ov.heroImageAspect === 'wide') heroMediaDecls.push('aspect-ratio:16 / 9 !important;');
+  else if (ov.heroImageAspect === 'portrait') heroMediaDecls.push('aspect-ratio:4 / 5 !important;');
+  else if (ov.heroImageAspect === 'auto') heroMediaDecls.push('aspect-ratio:auto !important;');
+
+  if (typeof ov.heroImageMaxHeight === 'number' && !Number.isNaN(ov.heroImageMaxHeight)) {
+    const h = Math.min(680, Math.max(180, Math.round(ov.heroImageMaxHeight)));
+    heroMediaDecls.push(`max-height:${h}px !important;margin-left:auto;margin-right:auto;`);
+  }
+  if (ov.heroImageShape === 'arch') heroMediaDecls.push('border-radius:220px 220px 24px 24px !important;');
+  else if (ov.heroImageShape === 'rounded') heroMediaDecls.push('border-radius:24px !important;');
+  else if (ov.heroImageShape === 'card') heroMediaDecls.push('border-radius:12px !important;');
+  else if (ov.heroImageShape === 'circle') heroMediaDecls.push('border-radius:9999px !important;aspect-ratio:1 / 1 !important;');
+
+  const heroMediaCss = heroMediaDecls.length > 0 ? `.cz-hero-media{${heroMediaDecls.join('')}}` : '';
+  const heroFitCss =
+    ov.heroImageFit === 'contain'
+      ? `.cz-hero-media{padding:16px;box-sizing:border-box;}.cz-hero-media img{object-fit:contain !important;border-radius:16px;}`
+      : ov.heroImageFit === 'cover'
+        ? `.cz-hero-media img{object-fit:cover !important;}`
+        : '';
+
+  const galleryColsCss =
+    typeof ov.galleryColumns === 'number' && ov.galleryColumns >= 1 && ov.galleryColumns <= 4
+      ? `.gallery-grid{grid-template-columns:repeat(${Math.round(ov.galleryColumns)},1fr) !important;}`
+      : '';
+
   const varsCss = varLines.length > 0 ? `:root,[data-cuzmify-template]{${varLines.join('')}}` : '';
-  return [varsCss, fontOverrideCss, radiusCss].filter(Boolean).join('\n');
+  return [
+    varsCss,
+    fontOverrideCss,
+    radiusCss,
+    pagePaddingCss,
+    sectionSpacingCss,
+    heroMediaCss,
+    heroFitCss,
+    galleryColsCss,
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function renderSharedTestimonialsSection(bp: BusinessBlueprint, isDark: boolean): string {
@@ -321,11 +373,11 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
     .cz-ea-root { background:var(--cz-bg); color:var(--cz-ink); font-family:'Plus Jakarta Sans',system-ui,sans-serif; margin:0; }
     .cz-ea-serif { font-family:'Cormorant Garamond',Georgia,serif; }
     .cz-ea-container { max-width:1080px; margin:0 auto; padding:0 20px; box-sizing:border-box; }
-    .cz-ea-hero-grid { display:grid; grid-template-columns:1fr; gap:32px; align-items:center; padding:40px 0 56px; }
+    .cz-ea-hero-grid { display:grid; grid-template-columns:1fr; gap:32px; align-items:center; padding-top:36px; padding-bottom:52px; }
     .cz-ea-gallery { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
     @media (min-width:768px) {
       .cz-ea-container { padding:0 40px; }
-      .cz-ea-hero-grid { grid-template-columns:1.05fr 0.95fr; gap:56px; padding:64px 0 80px; }
+      .cz-ea-hero-grid { grid-template-columns:1.05fr 0.95fr; gap:56px; padding-top:64px; padding-bottom:80px; }
       .cz-ea-gallery { grid-template-columns:repeat(3,1fr); gap:20px; }
     }
   `;
@@ -408,10 +460,10 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
         </div>
         ${
           heroAsset
-            ? `<div style="border-radius:220px 220px 24px 24px;overflow:hidden;aspect-ratio:4/5;max-height:520px;width:100%;box-shadow:0 24px 60px rgba(28,25,23,0.12);background:#EFEAE1;">
+            ? `<div class="cz-hero-media" style="border-radius:220px 220px 24px 24px;overflow:hidden;aspect-ratio:4/5;max-height:520px;width:100%;box-shadow:0 24px 60px rgba(28,25,23,0.12);background:#EFEAE1;">
                 <img src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
               </div>`
-            : `<div style="border-radius:28px;padding:40px 28px;background:var(--cz-surface);border:1px solid var(--cz-border);text-align:center;">
+            : `<div class="cz-hero-media" style="border-radius:28px;padding:40px 28px;background:var(--cz-surface);border:1px solid var(--cz-border);text-align:center;">
                 <span class="cz-ea-serif" style="font-size:1.75rem;font-style:italic;color:var(--cz-accent);display:block;margin-bottom:8px;">${escapeHtml(profile.name)}</span>
                 <p style="font-size:13px;color:var(--cz-muted);margin:0;">Connect Instagram or upload photos to showcase your hero work here.</p>
               </div>`
@@ -644,7 +696,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       ? `<div style="display:grid;grid-template-columns:repeat(${stripAssets.length},1fr);gap:10px;margin-top:28px;">
           ${stripAssets
             .map(
-              (a) => `<div style="border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:#E2E8F0;">
+              (a) => `<div class="cz-hero-media" style="border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:#E2E8F0;">
                 <img src="${escapeHtml(getMediaDisplayUrl(a))}" alt="${escapeHtml(a.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
               </div>`
             )

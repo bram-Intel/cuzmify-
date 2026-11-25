@@ -87,7 +87,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'customize_template_design',
     description:
-      'Customize brand palette colors (hex), card/background surfaces, button corner radius, or font mood on top of the active template engine without breaking layout or responsiveness.',
+      'Customize brand palette colors (hex), card/background surfaces, button corner radius, font mood, mobile/page horizontal padding, section spacing, hero image aspect ratio/max height/shape/fit, or gallery column count on top of the active template engine.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -106,9 +106,42 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
           description: 'Typography pairing mood.',
           enum: ['editorial_serif', 'modern_sans', 'bold_display'],
         },
+        pagePaddingX: {
+          type: 'string',
+          description: 'Horizontal page margin/padding preset across mobile and desktop.',
+          enum: ['compact', 'normal', 'spacious'],
+        },
+        sectionSpacing: {
+          type: 'string',
+          description: 'Vertical padding rhythm between website sections.',
+          enum: ['compact', 'normal', 'airy'],
+        },
+        heroImageAspect: {
+          type: 'string',
+          description: 'Hero image frame aspect ratio.',
+          enum: ['auto', 'square', 'landscape', 'portrait', 'wide'],
+        },
+        heroImageMaxHeight: {
+          type: 'number',
+          description: 'Maximum height in pixels for the Hero image frame (180 to 680).',
+        },
+        heroImageShape: {
+          type: 'string',
+          description: 'Corner silhouette for the Hero image card.',
+          enum: ['arch', 'rounded', 'card', 'circle'],
+        },
+        heroImageFit: {
+          type: 'string',
+          description: 'Image fitting inside the Hero frame ("contain" fits logos/icons cleanly without cropping).',
+          enum: ['cover', 'contain'],
+        },
+        galleryColumns: {
+          type: 'number',
+          description: 'Portfolio gallery grid columns (1 to 4).',
+        },
         resetToDefaults: {
           type: 'boolean',
-          description: 'Set true to clear custom colors/fonts and restore native template palette.',
+          description: 'Set true to clear custom colors/fonts/layout overrides and restore native template defaults.',
         },
       },
     },
@@ -546,13 +579,59 @@ export function executeBlueprintMcpTool(
         nextDesign.fontMood = args.fontMood;
         changed.push(`font=${args.fontMood}`);
       }
+      if (args.pagePaddingX === 'compact' || args.pagePaddingX === 'normal' || args.pagePaddingX === 'spacious') {
+        nextDesign.pagePaddingX = args.pagePaddingX;
+        changed.push(`paddingX=${args.pagePaddingX}`);
+      }
+      if (args.sectionSpacing === 'compact' || args.sectionSpacing === 'normal' || args.sectionSpacing === 'airy') {
+        nextDesign.sectionSpacing = args.sectionSpacing;
+        changed.push(`spacing=${args.sectionSpacing}`);
+      }
+      if (
+        args.heroImageAspect === 'auto' ||
+        args.heroImageAspect === 'square' ||
+        args.heroImageAspect === 'landscape' ||
+        args.heroImageAspect === 'portrait' ||
+        args.heroImageAspect === 'wide'
+      ) {
+        nextDesign.heroImageAspect = args.heroImageAspect;
+        changed.push(`heroAspect=${args.heroImageAspect}`);
+      }
+      if (typeof args.heroImageMaxHeight === 'number' && !Number.isNaN(args.heroImageMaxHeight)) {
+        const clamped = Math.min(680, Math.max(180, Math.round(args.heroImageMaxHeight)));
+        nextDesign.heroImageMaxHeight = clamped;
+        changed.push(`heroMaxH=${clamped}px`);
+      }
+      if (
+        args.heroImageShape === 'arch' ||
+        args.heroImageShape === 'rounded' ||
+        args.heroImageShape === 'card' ||
+        args.heroImageShape === 'circle'
+      ) {
+        nextDesign.heroImageShape = args.heroImageShape;
+        changed.push(`heroShape=${args.heroImageShape}`);
+      }
+      if (args.heroImageFit === 'cover' || args.heroImageFit === 'contain') {
+        nextDesign.heroImageFit = args.heroImageFit;
+        changed.push(`heroFit=${args.heroImageFit}`);
+      }
+      if (typeof args.galleryColumns === 'number' && !Number.isNaN(args.galleryColumns)) {
+        const cols = Math.min(4, Math.max(1, Math.round(args.galleryColumns)));
+        nextDesign.galleryColumns = cols;
+        changed.push(`galleryCols=${cols}`);
+      }
       bp.designOverrides = nextDesign;
       bp.updatedAt = new Date().toISOString();
       return {
         ok: changed.length > 0,
         blueprint: bp,
-        changeSummary: changed.length > 0 ? `Customized template design (${changed.join(', ')})` : 'No valid design tokens specified (use hex colors like #0D5771)',
-        ...(changed.length === 0 ? { error: 'Pass valid hex colors (#RRGGBB), buttonRadius, or fontMood.' } : {}),
+        changeSummary:
+          changed.length > 0
+            ? `Customized template design (${changed.join(', ')})`
+            : 'No valid design or layout tokens specified',
+        ...(changed.length === 0
+          ? { error: 'Pass hex colors, buttonRadius, fontMood, pagePaddingX, sectionSpacing, heroImage*, or galleryColumns.' }
+          : {}),
         data: { designOverrides: nextDesign },
       };
     }

@@ -109,7 +109,18 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     ).blueprint;
     bp = executeBlueprintMcpTool(
       'customize_template_design',
-      { accentColor: '#D97706', buttonRadius: 'sharp', fontMood: 'bold_display' },
+      {
+        accentColor: '#D97706',
+        buttonRadius: 'sharp',
+        fontMood: 'bold_display',
+        pagePaddingX: 'spacious',
+        sectionSpacing: 'compact',
+        heroImageAspect: 'square',
+        heroImageMaxHeight: 340,
+        heroImageShape: 'rounded',
+        heroImageFit: 'contain',
+        galleryColumns: 2,
+      },
       bp
     ).blueprint;
     bp = executeBlueprintMcpTool(
@@ -133,6 +144,13 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(rendered.fullHtml).toContain('Curated Rate Card');
     expect(rendered.css).toContain('--cz-accent:#D97706');
     expect(rendered.css).toContain('border-radius:4px');
+    expect(rendered.css).toContain('padding-left:32px');
+    expect(rendered.css).toContain('padding-top:32px');
+    expect(rendered.css).toContain('max-height:340px');
+    expect(rendered.css).toContain('object-fit:contain');
+    expect(rendered.css).toContain('grid-template-columns:repeat(2,1fr)');
+    expect(rendered.css).not.toContain('padding:40px 0 56px');
+    expect(rendered.fullHtml).toContain('cz-hero-media');
     expect(rendered.fullHtml).toContain('Flawless bridal morning glam!');
     expect(rendered.fullHtml).toContain('Do you travel outside Lagos?');
     expect(rendered.fullHtml).not.toContain('id="portfolio"');
