@@ -23,9 +23,11 @@ import {
   Copy,
   Check,
   Maximize2,
+  Pencil,
 } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
+import { ServiceImagePicker } from './ServiceImagePicker';
 
 export function ModuleConfigModal() {
   const { activeModuleModal, setActiveModuleModal, service, blueprint, setSaveToast } = useEditor();
@@ -58,7 +60,17 @@ export function ModuleConfigModal() {
   const [newServiceDuration, setNewServiceDuration] = useState('60');
   const [newServiceTag, setNewServiceTag] = useState('SIGNATURE');
   const [newServiceDesc, setNewServiceDesc] = useState('');
+  const [newServiceImageUrl, setNewServiceImageUrl] = useState('');
   const [showAddService, setShowAddService] = useState(false);
+
+  // Edit Service State
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editServiceName, setEditServiceName] = useState('');
+  const [editServicePrice, setEditServicePrice] = useState('');
+  const [editServiceDuration, setEditServiceDuration] = useState('60');
+  const [editServiceTag, setEditServiceTag] = useState('SIGNATURE');
+  const [editServiceDesc, setEditServiceDesc] = useState('');
+  const [editServiceImageUrl, setEditServiceImageUrl] = useState('');
 
   // New Product Form State
   const [newProductName, setNewProductName] = useState('');
@@ -89,13 +101,58 @@ export function ModuleConfigModal() {
       locationType: 'in_studio',
       description: newServiceDesc.trim() || 'Professional luxury artistry service.',
       tag: newServiceTag,
+      imageUrl: newServiceImageUrl.trim() || undefined,
       enabled: true,
     });
+    service.syncCanvasWithBlueprint();
     setNewServiceName('');
     setNewServiceDesc('');
+    setNewServiceImageUrl('');
     setShowAddService(false);
     setSaveToast(`✦ Added Service: ${newServiceName}`);
     setTimeout(() => setSaveToast(null), 2500);
+  };
+
+  const openEditService = (srv: ServiceItem) => {
+    if (editingServiceId === srv.id) {
+      setEditingServiceId(null);
+      return;
+    }
+    setEditingServiceId(srv.id);
+    setEditServiceName(srv.name);
+    setEditServicePrice(String(srv.price ?? 0));
+    setEditServiceDuration(srv.durationMinutes ? String(srv.durationMinutes) : '60');
+    setEditServiceTag(srv.tag || 'SIGNATURE');
+    setEditServiceDesc(srv.description || '');
+    setEditServiceImageUrl(srv.imageUrl || '');
+  };
+
+  const handleSaveEditService = (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    if (!editServiceName.trim()) return;
+    const numericPrice = parseFloat(editServicePrice);
+    service.updateServiceItem(id, {
+      name: editServiceName.trim(),
+      price: Number.isNaN(numericPrice) ? 0 : Math.max(0, numericPrice),
+      durationMinutes: parseInt(editServiceDuration, 10) || 60,
+      tag: editServiceTag,
+      description: editServiceDesc.trim(),
+      imageUrl: editServiceImageUrl.trim() || undefined,
+    });
+    service.syncCanvasWithBlueprint();
+    setEditingServiceId(null);
+    setSaveToast(`✦ Updated Service: ${editServiceName.trim()}`);
+    setTimeout(() => setSaveToast(null), 2500);
+  };
+
+  const handleUploadServiceImageToVault = (dataUrl: string, name: string) => {
+    service.addMediaAsset({
+      url: dataUrl,
+      thumbnailUrl: dataUrl,
+      name,
+      type: 'service',
+      source: 'upload',
+    });
   };
 
   const handleAddProduct = (e: React.FormEvent) => {
@@ -600,10 +657,21 @@ export function ModuleConfigModal() {
                       />
                     </div>
                   </div>
+                  <div className="pt-2 border-t border-slate-200">
+                    <ServiceImagePicker
+                      value={newServiceImageUrl}
+                      onChange={setNewServiceImageUrl}
+                      mediaVault={mediaVault}
+                      onUploadToVault={handleUploadServiceImageToVault}
+                    />
+                  </div>
                   <div className="flex items-center justify-end gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => setShowAddService(false)}
+                      onClick={() => {
+                        setShowAddService(false);
+                        setNewServiceImageUrl('');
+                      }}
                       className="px-3 py-1 text-xs text-slate-600 hover:text-slate-900 cursor-pointer"
                     >
                       Cancel
@@ -620,9 +688,29 @@ export function ModuleConfigModal() {
 
               {/* Service Cards List */}
               <div className="grid grid-cols-1 gap-2.5">
-                {services.map((srv) => (
-                  <div key={srv.id} className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs">
-                    <div className="space-y-1 max-w-[70%]">
+                {services.map((srv) => {
+                  const isEditing = editingServiceId === srv.id;
+                  return (
+                  <div key={srv.id} className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0 max-w-[70%]">
+                      <button
+                        type="button"
+                        onClick={() => openEditService(srv)}
+                        title={srv.imageUrl ? 'Change service photo' : 'Add service photo'}
+                        className="shrink-0 cursor-pointer"
+                      >
+                        {srv.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={srv.imageUrl} alt={srv.name} className="w-11 h-11 rounded-lg object-cover border border-slate-200" />
+                        ) : (
+                          <div className="w-11 h-11 rounded-lg border border-dashed border-slate-300 bg-slate-50 hover:border-[#0D5771] flex flex-col items-center justify-center text-slate-400 hover:text-[#0D5771]">
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            <span className="text-[8px] font-bold">+ Photo</span>
+                          </div>
+                        )}
+                      </button>
+                      <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-900">{srv.name}</span>
                         {srv.tag && (
@@ -642,12 +730,23 @@ export function ModuleConfigModal() {
                         <span>•</span>
                         <span className="capitalize">{srv.locationType.replace('_', ' ')}</span>
                       </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className="text-sm font-mono font-bold text-[#0D5771]">
                         {currencySymbol}{srv.price}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => openEditService(srv)}
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                          isEditing ? 'bg-[#0D5771] text-white' : 'text-slate-400 hover:text-[#0D5771] hover:bg-slate-100'
+                        }`}
+                        title="Edit Service & Photo"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => service.deleteServiceItem(srv.id)}
                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
@@ -656,8 +755,60 @@ export function ModuleConfigModal() {
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
+                    </div>
+
+                    {isEditing && (
+                      <form onSubmit={(e) => handleSaveEditService(e, srv.id)} className="pt-3 border-t border-slate-100 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                          <input
+                            type="text"
+                            required
+                            value={editServiceName}
+                            onChange={(e) => setEditServiceName(e.target.value)}
+                            placeholder="Service Name"
+                            className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none"
+                          />
+                          <input
+                            type="number"
+                            value={editServicePrice}
+                            onChange={(e) => setEditServicePrice(e.target.value)}
+                            placeholder={`Price (${currencySymbol})`}
+                            className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none"
+                          />
+                          <input
+                            type="text"
+                            value={editServiceDesc}
+                            onChange={(e) => setEditServiceDesc(e.target.value)}
+                            placeholder="Description"
+                            className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none"
+                          />
+                        </div>
+                        <ServiceImagePicker
+                          value={editServiceImageUrl}
+                          onChange={setEditServiceImageUrl}
+                          mediaVault={mediaVault}
+                          onUploadToVault={handleUploadServiceImageToVault}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingServiceId(null)}
+                            className="px-3 py-1 text-xs text-slate-500 hover:text-slate-900 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-3.5 py-1 text-xs font-bold bg-[#0D5771] text-white rounded-lg hover:bg-[#0D5771]/90 cursor-pointer"
+                          >
+                            Save Changes
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
-                ))}
+                );
+                })}
               </div>
             </div>
           )}

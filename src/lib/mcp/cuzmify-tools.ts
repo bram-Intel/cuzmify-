@@ -362,7 +362,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'upsert_service_package',
     description:
-      'Add a new service package or update an existing service by name/id. Use priceMode "quote" with price 0 if the vendor has not stated a price.',
+      'Add a new service package or update an existing service by name/id (including optional imageUrl, mediaAssetId, or 1-based photoNumber from mediaItems). Use priceMode "quote" with price 0 if the vendor has not stated a price.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -378,6 +378,18 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         description: { type: 'string', description: 'What is included in this package.' },
         durationMinutes: { type: 'number', description: 'Estimated duration in minutes.' },
         tag: { type: 'string', description: 'Short badge label like SIGNATURE, BRIDAL, VIP, POPULAR.' },
+        imageUrl: {
+          type: 'string',
+          description: 'Public https:// image URL or empty string "" to remove the current service image.',
+        },
+        mediaAssetId: {
+          type: 'string',
+          description: 'Media Vault asset ID from mediaItems to attach as the service image.',
+        },
+        photoNumber: {
+          type: 'number',
+          description: '1-based photo number from mediaItems to attach as the service image (e.g. 1, 2).',
+        },
       },
       required: ['name'],
     },
@@ -657,6 +669,8 @@ export function executeBlueprintMcpTool(
             name: s.name,
             price: s.price,
             priceMode: s.priceMode,
+            hasImage: Boolean(s.imageUrl),
+            imageUrl: s.imageUrl?.startsWith('data:') ? '[embedded uploaded image]' : s.imageUrl || '',
           })),
           productsCount: bp.modules.products?.items?.length || 0,
           testimonialsCount: bp.testimonials?.length || 0,
@@ -1285,6 +1299,31 @@ export function executeBlueprintMcpTool(
       const finalMode: ServicePriceMode =
         numericPrice <= 0 ? 'quote' : requestedMode && ['fixed', 'starting_at', 'quote'].includes(requestedMode) ? requestedMode : 'fixed';
 
+      const resolveServiceImageArg = (): { provided: boolean; url?: string } => {
+        if (typeof args.mediaAssetId === 'string' && args.mediaAssetId.trim()) {
+          const found = (bp.mediaVault || []).find((m) => m.id === args.mediaAssetId.trim());
+          if (found && (found.thumbnailUrl || found.url)) {
+            return { provided: true, url: found.thumbnailUrl || found.url };
+          }
+        }
+        if (typeof args.photoNumber === 'number' && !Number.isNaN(args.photoNumber)) {
+          const vault = (bp.mediaVault || []).filter((m) => Boolean(m.thumbnailUrl || m.url));
+          const asset = vault[Math.max(0, Math.round(args.photoNumber) - 1)];
+          if (asset) {
+            return { provided: true, url: asset.thumbnailUrl || asset.url };
+          }
+        }
+        if (typeof args.imageUrl === 'string') {
+          const trimmed = args.imageUrl.trim();
+          if (!trimmed) return { provided: true, url: undefined };
+          if (/^(https?:\/\/|data:image\/)/i.test(trimmed)) {
+            return { provided: true, url: trimmed.slice(0, 600000) };
+          }
+        }
+        return { provided: false };
+      };
+      const resolvedImg = resolveServiceImageArg();
+
       if (existingIdx >= 0) {
         const cur = items[existingIdx];
         items[existingIdx] = {
@@ -1295,13 +1334,14 @@ export function executeBlueprintMcpTool(
           description: typeof args.description === 'string' ? args.description.trim().slice(0, 220) : cur.description,
           durationMinutes: typeof args.durationMinutes === 'number' ? args.durationMinutes : cur.durationMinutes,
           tag: typeof args.tag === 'string' ? args.tag.trim().toUpperCase().slice(0, 20) : cur.tag,
+          ...(resolvedImg.provided ? { imageUrl: resolvedImg.url } : {}),
         };
         bp.modules.services.items = items;
         bp.updatedAt = new Date().toISOString();
         return {
           ok: true,
           blueprint: bp,
-          changeSummary: `Updated service "${cleanName}"`,
+          changeSummary: `Updated service "${cleanName}"${resolvedImg.provided ? (resolvedImg.url ? ' (with photo)' : ' (removed photo)') : ''}`,
           data: { service: items[existingIdx] },
         };
       }
@@ -1315,6 +1355,7 @@ export function executeBlueprintMcpTool(
         locationType: 'in_studio' as const,
         description: typeof args.description === 'string' ? args.description.trim().slice(0, 220) : '',
         tag: typeof args.tag === 'string' ? args.tag.trim().toUpperCase().slice(0, 20) : 'SIGNATURE',
+        ...(resolvedImg.provided && resolvedImg.url ? { imageUrl: resolvedImg.url } : {}),
         enabled: true,
       };
       bp.modules.services.items = [...items, created];

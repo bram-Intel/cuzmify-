@@ -424,6 +424,53 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(jsonLd.openingHours).toBe('Tu-Sa 09:00-19:00');
   });
 
+  it('attaches and renders service images across templates and card_grid/compact_menu/editorial_list layouts', () => {
+    let bp = createDefaultBlueprint({
+      name: 'Brandy Queen Studio',
+      templateId: 'editorial-atelier',
+      mediaVault: [
+        { id: 'mv-1', url: 'https://example.com/bridal.webp', name: 'Bridal Look', type: 'service', source: 'upload', addedAt: '' },
+        { id: 'mv-2', url: 'https://example.com/editorial.webp', name: 'Editorial', type: 'gallery', source: 'upload', addedAt: '' },
+      ],
+    });
+
+    // Attach via photoNumber on create
+    const r1 = executeBlueprintMcpTool(
+      'upsert_service_package',
+      { name: 'Bridal Glam', price: 150000, photoNumber: 1 },
+      bp
+    );
+    expect(r1.ok).toBe(true);
+    expect(r1.blueprint.modules.services.items[0].imageUrl).toBe('https://example.com/bridal.webp');
+    bp = r1.blueprint;
+
+    // Attach via explicit https URL on update
+    const r2 = executeBlueprintMcpTool(
+      'upsert_service_package',
+      { name: 'Bridal Glam', imageUrl: 'https://example.com/custom-bridal.webp' },
+      bp
+    );
+    expect(r2.ok).toBe(true);
+    expect(r2.blueprint.modules.services.items[0].imageUrl).toBe('https://example.com/custom-bridal.webp');
+    bp = r2.blueprint;
+
+    // Verify rendering under card_grid, compact_menu, and editorial_list overrides
+    for (const layout of ['card_grid', 'compact_menu', 'editorial_list'] as const) {
+      bp = executeBlueprintMcpTool('customize_template_design', { servicesLayout: layout }, bp).blueprint;
+      const rendered = renderTemplateEngine('editorial-atelier', bp);
+      expect(rendered.html).toContain('https://example.com/custom-bridal.webp');
+    }
+
+    // Verify get_site_blueprint surfaces service image state
+    const inspected = executeBlueprintMcpTool('get_site_blueprint', {}, bp);
+    expect((inspected.data?.services as any[])[0].hasImage).toBe(true);
+    expect((inspected.data?.services as any[])[0].imageUrl).toBe('https://example.com/custom-bridal.webp');
+
+    // Clear service image cleanly
+    const cleared = executeBlueprintMcpTool('upsert_service_package', { name: 'Bridal Glam', imageUrl: '' }, bp);
+    expect(cleared.blueprint.modules.services.items[0].imageUrl).toBeUndefined();
+  });
+
   it('signs and verifies user-scoped MCP Bearer tokens safely', () => {
     const token = generateUserMcpToken('user_abc_123');
     expect(verifyUserMcpToken(token)).toBe('user_abc_123');

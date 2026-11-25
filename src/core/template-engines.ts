@@ -662,9 +662,12 @@ function renderCustomServicesLayout(
             .map((srv) => {
               const pText = formatServicePrice(srv, currencySymbol);
               return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:16px 18px;border-radius:14px;border:1px solid ${border};background:${surface};display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <div style="min-width:0;">
-                  <h3 data-cuzmify-field="service-name" style="margin:0;font-size:15px;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
-                  ${srv.description ? `<p style="margin:4px 0 0;font-size:12px;color:${muted};line-height:1.45;">${escapeHtml(srv.description)}</p>` : ''}
+                <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">
+                  ${srv.imageUrl ? `<img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;"/>` : ''}
+                  <div style="min-width:0;">
+                    <h3 data-cuzmify-field="service-name" style="margin:0;font-size:15px;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
+                    ${srv.description ? `<p style="margin:4px 0 0;font-size:12px;color:${muted};line-height:1.45;">${escapeHtml(srv.description)}</p>` : ''}
+                  </div>
                 </div>
                 <a href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="font-size:13px;font-weight:800;color:${accent};text-decoration:none;white-space:nowrap;">${escapeHtml(pText)}</a>
               </div>`;
@@ -688,6 +691,7 @@ function renderCustomServicesLayout(
               const pText = formatServicePrice(srv, currencySymbol);
               return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:${surface};border:1px solid ${border};border-radius:18px;padding:22px;display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
                 <div>
+                  ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;aspect-ratio:16/10;margin-bottom:14px;background:rgba(128,128,128,0.08);"><img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
                   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                     <h3 data-cuzmify-field="service-name" class="${headingCls}" style="margin:0;font-size:1.15rem;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
                     <span data-cuzmify-field="service-price" style="font-weight:800;font-size:0.95rem;color:${accent};white-space:nowrap;">${escapeHtml(pText)}</span>
@@ -717,6 +721,7 @@ function renderCustomServicesLayout(
             return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:22px 0;border-bottom:1px solid ${border};display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;">
               <div style="display:flex;gap:14px;align-items:flex-start;flex:1 1 250px;">
                 <span style="font-size:1.1rem;color:${accent};font-weight:700;min-width:26px;">0${idx + 1}</span>
+                ${srv.imageUrl ? `<img src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;"/>` : ''}
                 <div>
                   <h3 data-cuzmify-field="service-name" class="${headingCls}" style="font-size:1.25rem;font-weight:700;margin:0;color:${ink};">${escapeHtml(srv.name)}</h3>
                   ${srv.description ? `<p style="font-size:13px;color:${muted};margin:5px 0 0;line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}

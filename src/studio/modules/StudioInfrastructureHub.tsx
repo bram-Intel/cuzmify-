@@ -28,12 +28,14 @@ import {
   RefreshCw,
   Loader2,
   Play,
+  Pencil,
 } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ServicePriceMode, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
 import { NICHE_LIST, resolveNicheBlueprint } from '@/core/niche-blueprints';
 import { compressImageFileToWebP } from '@/lib/image-compress';
 import { DomainAndProPanel } from './DomainAndProPanel';
+import { ServiceImagePicker } from './ServiceImagePicker';
 import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
 
 export function StudioInfrastructureHub({
@@ -78,7 +80,18 @@ export function StudioInfrastructureHub({
   const [newServiceDuration, setNewServiceDuration] = useState('60');
   const [newServiceTag, setNewServiceTag] = useState('SIGNATURE');
   const [newServiceDesc, setNewServiceDesc] = useState('');
+  const [newServiceImageUrl, setNewServiceImageUrl] = useState('');
   const [showAddService, setShowAddService] = useState(false);
+
+  // Edit Existing Service State
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editServiceName, setEditServiceName] = useState('');
+  const [editServiceDesc, setEditServiceDesc] = useState('');
+  const [editServiceDuration, setEditServiceDuration] = useState('60');
+  const [editServiceTag, setEditServiceTag] = useState('SIGNATURE');
+  const [editServicePriceMode, setEditServicePriceMode] = useState<ServicePriceMode>('fixed');
+  const [editServicePrice, setEditServicePrice] = useState('');
+  const [editServiceImageUrl, setEditServiceImageUrl] = useState('');
 
   // New Product Form State
   const [newProductName, setNewProductName] = useState('');
@@ -281,15 +294,65 @@ export function StudioInfrastructureHub({
       locationType: 'in_studio',
       description: newServiceDesc.trim(),
       tag: newServiceTag,
+      imageUrl: newServiceImageUrl.trim() || undefined,
       enabled: true,
     });
     service.syncCanvasWithBlueprint();
+    handleSave(true);
     setNewServiceName('');
     setNewServicePrice('');
     setNewServiceDesc('');
+    setNewServiceImageUrl('');
     setShowAddService(false);
     setSaveToast(`✦ Added Service: ${newServiceName}`);
     setTimeout(() => setSaveToast(null), 2500);
+  };
+
+  const openEditService = (srv: ServiceItem) => {
+    if (editingServiceId === srv.id) {
+      setEditingServiceId(null);
+      return;
+    }
+    const mode = srv.priceMode || (srv.price > 0 ? 'fixed' : 'quote');
+    setEditingServiceId(srv.id);
+    setEditServiceName(srv.name);
+    setEditServiceDesc(srv.description || '');
+    setEditServiceDuration(srv.durationMinutes ? String(srv.durationMinutes) : '60');
+    setEditServiceTag(srv.tag || 'SIGNATURE');
+    setEditServicePriceMode(mode);
+    setEditServicePrice(srv.price > 0 ? String(srv.price) : '');
+    setEditServiceImageUrl(srv.imageUrl || '');
+  };
+
+  const handleSaveEditService = (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    if (!editServiceName.trim()) return;
+    const parsedPrice = editServicePriceMode === 'quote' ? 0 : (parseFloat(editServicePrice) || 0);
+    const mode: ServicePriceMode = parsedPrice <= 0 ? 'quote' : editServicePriceMode;
+    service.updateServiceItem(id, {
+      name: editServiceName.trim(),
+      description: editServiceDesc.trim(),
+      durationMinutes: parseInt(editServiceDuration, 10) || undefined,
+      tag: editServiceTag,
+      priceMode: mode,
+      price: parsedPrice,
+      imageUrl: editServiceImageUrl.trim() || undefined,
+    });
+    service.syncCanvasWithBlueprint();
+    handleSave(true);
+    setEditingServiceId(null);
+    setSaveToast(`✦ Updated Service: ${editServiceName.trim()}`);
+    setTimeout(() => setSaveToast(null), 2500);
+  };
+
+  const handleAddServiceImageToVault = (dataUrl: string, name: string) => {
+    service.addMediaAsset({
+      url: dataUrl,
+      thumbnailUrl: dataUrl,
+      name,
+      type: 'service',
+      source: 'upload',
+    });
   };
 
   const handleAddProduct = (e: React.FormEvent) => {
@@ -683,10 +746,22 @@ export function StudioInfrastructureHub({
                     </div>
                   </div>
 
+                  <div className="pt-2 border-t border-slate-100">
+                    <ServiceImagePicker
+                      value={newServiceImageUrl}
+                      onChange={setNewServiceImageUrl}
+                      mediaVault={mediaVault}
+                      onUploadToVault={handleAddServiceImageToVault}
+                    />
+                  </div>
+
                   <div className="flex items-center justify-end gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={() => setShowAddService(false)}
+                      onClick={() => {
+                        setShowAddService(false);
+                        setNewServiceImageUrl('');
+                      }}
                       className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
                     >
                       Cancel
@@ -703,17 +778,32 @@ export function StudioInfrastructureHub({
 
               {/* Service Cards Grid */}
               <div className="grid grid-cols-1 gap-3">
-                {services.map((srv) => (
-                  <div key={srv.id} className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs hover:shadow-sm transition-all">
+                {services.map((srv) => {
+                  const isEditing = editingServiceId === srv.id;
+                  return (
+                  <div key={srv.id} className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 flex flex-col gap-4 shadow-2xs hover:shadow-sm transition-all">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-3.5 max-w-2xl">
-                      {srv.imageUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={srv.imageUrl}
-                          alt={srv.name}
-                          className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEditService(srv)}
+                        title={srv.imageUrl ? 'Change service photo' : 'Add service photo'}
+                        className="shrink-0 group relative cursor-pointer"
+                      >
+                        {srv.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={srv.imageUrl}
+                            alt={srv.name}
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 group-hover:opacity-80 transition-opacity"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-xl border border-dashed border-slate-300 bg-slate-50 group-hover:border-[#0D5771] group-hover:bg-[#0D5771]/5 flex flex-col items-center justify-center text-slate-400 group-hover:text-[#0D5771] transition-all">
+                            <ImageIcon className="w-4 h-4" />
+                            <span className="text-[9px] font-bold mt-0.5">+ Photo</span>
+                          </div>
+                        )}
+                      </button>
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center flex-wrap gap-2">
                           <span className="text-sm font-bold text-slate-900 font-display">{srv.name}</span>
@@ -768,9 +858,22 @@ export function StudioInfrastructureHub({
                         </div>
                       )}
                       <button
+                        type="button"
+                        onClick={() => openEditService(srv)}
+                        className={`p-2 rounded-xl transition-all cursor-pointer ${
+                          isEditing
+                            ? 'bg-[#0D5771] text-white'
+                            : 'text-slate-500 hover:text-[#0D5771] hover:bg-slate-100'
+                        }`}
+                        title="Edit service & photo"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => {
                           service.deleteServiceItem(srv.id);
                           service.syncCanvasWithBlueprint();
+                          if (isEditing) setEditingServiceId(null);
                         }}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                         title="Delete Service"
@@ -778,8 +881,111 @@ export function StudioInfrastructureHub({
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+                    </div>
+
+                    {isEditing && (
+                      <form onSubmit={(e) => handleSaveEditService(e, srv.id)} className="pt-4 border-t border-slate-100 space-y-4 animate-in fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-700">Service Name</label>
+                            <input
+                              type="text"
+                              required
+                              value={editServiceName}
+                              onChange={(e) => setEditServiceName(e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-700">Badge Tag</label>
+                            <select
+                              value={editServiceTag}
+                              onChange={(e) => setEditServiceTag(e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                            >
+                              <option value="SIGNATURE">SIGNATURE</option>
+                              <option value="BRIDAL">BRIDAL</option>
+                              <option value="VIP">VIP</option>
+                              <option value="POPULAR">POPULAR</option>
+                              <option value="NEW">NEW</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-700">Duration (mins)</label>
+                            <input
+                              type="number"
+                              value={editServiceDuration}
+                              onChange={(e) => setEditServiceDuration(e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-700">Pricing Type</label>
+                            <select
+                              value={editServicePriceMode}
+                              onChange={(e) => setEditServicePriceMode(e.target.value as ServicePriceMode)}
+                              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                            >
+                              <option value="fixed">Fixed Price ({currencySymbol})</option>
+                              <option value="starting_at">Starting From ({currencySymbol})</option>
+                              <option value="quote">Request Custom Quote</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-700">
+                              {editServicePriceMode === 'quote' ? 'Price (Custom Quote)' : `Amount (${currencySymbol})`}
+                            </label>
+                            <input
+                              type="number"
+                              disabled={editServicePriceMode === 'quote'}
+                              value={editServicePriceMode === 'quote' ? '' : editServicePrice}
+                              onChange={(e) => setEditServicePrice(e.target.value)}
+                              placeholder="Enter rate"
+                              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771] disabled:opacity-50"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-slate-700">Description</label>
+                            <input
+                              type="text"
+                              value={editServiceDesc}
+                              onChange={(e) => setEditServiceDesc(e.target.value)}
+                              placeholder="What is included"
+                              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#0D5771]"
+                            />
+                          </div>
+                        </div>
+
+                        <ServiceImagePicker
+                          value={editServiceImageUrl}
+                          onChange={setEditServiceImageUrl}
+                          mediaVault={mediaVault}
+                          onUploadToVault={handleAddServiceImageToVault}
+                        />
+
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingServiceId(null)}
+                            className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-4 py-1.5 text-xs font-bold bg-[#0D5771] text-white rounded-xl hover:bg-[#083D50] cursor-pointer"
+                          >
+                            Save Changes
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
-                ))}
+                );
+                })}
               </div>
             </div>
           )}
