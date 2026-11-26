@@ -645,7 +645,8 @@ export class GrapesAdapter implements EditorAdapter {
     const sourceComp = sections[fromSectionIndex];
     const destComp = sections[toSectionIndex];
     const wrapper = this.editor.getWrapper();
-    const collection = wrapper?.components();
+    const parentComp = sourceComp?.parent?.() || wrapper;
+    const collection = parentComp?.components?.();
     if (!collection || !sourceComp || !destComp) return;
 
     try {
@@ -663,18 +664,17 @@ export class GrapesAdapter implements EditorAdapter {
         }
       }
 
-      // 2. Re-order collection.models array in place
-      const models = [...(collection.models || [])];
-      const fromIdx = models.indexOf(sourceComp);
-      const toIdx = models.indexOf(destComp);
-
-      if (fromIdx !== -1 && toIdx !== -1) {
-        models.splice(fromIdx, 1);
-        models.splice(toIdx, 0, sourceComp);
-        collection.models = models;
+      // 2. Re-order the owning parent collection.models array in place (handles single-root template wrappers)
+      if (Array.isArray(collection.models)) {
+        const fromIdx = collection.models.indexOf(sourceComp);
+        const toIdx = collection.models.indexOf(destComp);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          collection.models.splice(fromIdx, 1);
+          collection.models.splice(toIdx, 0, sourceComp);
+        }
       }
 
-      // 3. Trigger safe custom change event for listeners
+      // 3. Trigger safe custom change event for listeners (updates Page Sections list & autosave)
       this.editor.trigger('cuzmify:change');
     } catch (err) {
       console.error('[GrapesAdapter] Error moving section:', err);

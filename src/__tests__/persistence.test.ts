@@ -1,6 +1,7 @@
 ﻿import { describe, it, expect } from 'vitest';
 import { createDefaultBlueprint, type MediaVaultAsset } from '@/core/blueprint-schema';
 import { mergeOnboardingMediaVault } from '@/lib/onboarding-media-draft';
+import { GrapesAdapter } from '@/studio/engine/GrapesAdapter';
 
 describe('Persistence & Serialization Engine', () => {
   it('correctly serializes and parses blueprint with custom services and WhatsApp number', () => {
@@ -49,5 +50,47 @@ describe('Persistence & Serialization Engine', () => {
     expect(merged.map((m) => m.id)).toEqual(['mv-up-1', 'mv-up-2', 'mv-ig-3']);
     expect(merged[0].type).toBe('hero');
     expect(merged[2].type).toBe('gallery');
+  });
+
+  it('reorders single-root wrapped template sections in real time in GrapesAdapter.getSectionsList()', () => {
+    const makeNode = (tagName: string, id: string, cuzType?: string) => {
+      const node: any = {
+        cid: `cid-${id}`,
+        get: (k: string) => {
+          if (k === 'tagName') return tagName;
+          if (k === 'type') return tagName;
+          if (k === 'attributes') return { id, ...(cuzType ? { 'data-cuzmify-type': cuzType } : {}) };
+          return undefined;
+        },
+        getEl: () => null,
+        parent: () => rootContainer,
+      };
+      return node;
+    };
+
+    const nav = makeNode('nav', 'nav', 'navbar');
+    const hero = makeNode('section', 'hero', 'hero');
+    const footer = makeNode('footer', 'footer', 'footer');
+    const rootModels = [nav, hero, footer];
+    const rootContainer: any = {
+      components: () => ({ models: rootModels }),
+    };
+    const fakeWrapper: any = {
+      components: () => ({ models: [rootContainer] }),
+    };
+    let triggered = false;
+    const fakeEditor: any = {
+      getWrapper: () => fakeWrapper,
+      trigger: () => {
+        triggered = true;
+      },
+    };
+
+    const adapter = new GrapesAdapter(fakeEditor);
+    expect(adapter.getSectionsList().map((s) => s.name)).toEqual(['Navigation Bar', 'Hero Suite', 'Footer']);
+
+    adapter.moveSectionUp(2);
+    expect(triggered).toBe(true);
+    expect(adapter.getSectionsList().map((s) => s.name)).toEqual(['Navigation Bar', 'Footer', 'Hero Suite']);
   });
 });
