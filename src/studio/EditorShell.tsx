@@ -218,10 +218,15 @@ function EditorShellInner() {
         <nav className="lg:hidden h-16 bg-white border-t border-slate-200 px-1.5 flex items-center justify-around shrink-0 z-[60] shadow-[0_-4px_20px_rgba(15,23,42,0.06)] select-none">
           <button
             type="button"
-            onClick={() => setActiveModuleModal(null)}
-            className={`flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl transition-all cursor-pointer ${
-              !activeModuleModal ? 'text-[#0D5771] bg-[#0D5771]/8 font-bold' : 'text-slate-500'
-            }`}
+            onClick={() => {
+              if (activeModuleModal) {
+                setActiveModuleModal(null);
+              } else {
+                handlePreviewToggle();
+              }
+            }}
+            className="flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl text-[#0D5771] bg-[#0D5771]/8 font-bold transition-all cursor-pointer"
+            title="Open full-screen live mobile preview"
           >
             <Smartphone className="w-4 h-4" />
             <span className="text-[11px] leading-none">Preview</span>

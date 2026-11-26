@@ -53,6 +53,7 @@ export function MobilePreviewPane() {
     projectId,
     templateId,
     nicheId,
+    isPreviewMode,
     service,
     handleTemplateSwitch,
     handleSave,
@@ -199,7 +200,7 @@ export function MobilePreviewPane() {
 
     const now = Date.now();
     const isSameField = lastTapRef.current.el === fieldEl;
-    const withinWindow = now - lastTapRef.current.time <= 360;
+    const withinWindow = now - lastTapRef.current.time <= 500;
 
     if (isSameField && withinWindow) {
       lastTapRef.current = { el: null, time: 0 };
@@ -282,6 +283,20 @@ export function MobilePreviewPane() {
 
   const pickedImgChild = pickedDomEl ? findClickedImage(pickedDomEl) : null;
   const pickedEditableField = pickedDomEl ? resolveMobileTextTarget(pickedDomEl, activeBp) : null;
+
+  // Full-screen interactive Live Preview on Mobile when bottom "Preview" button is tapped
+  if (isPreviewMode) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden bg-white lg:hidden">
+        {fontUrl && <link rel="stylesheet" href={fontUrl} />}
+        <div
+          className="flex-1 overflow-y-auto"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F1F5F9] lg:hidden">

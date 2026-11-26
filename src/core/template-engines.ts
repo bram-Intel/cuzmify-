@@ -921,7 +921,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
     <nav data-cuzmify-type="navbar" style="border-bottom:1px solid var(--cz-border);background:var(--cz-bg);backdrop-filter:blur(10px);position:sticky;top:0;z-index:30;">
       <div class="cz-ea-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <span data-cuzmify-field="business-name" class="brand-name cz-ea-serif" style="font-size:1.3rem;font-weight:700;letter-spacing:0.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(profile.name)}</span>
-        <a href="#booking" style="padding:9px 18px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
+        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
       </div>
     </nav>
 
@@ -1102,7 +1102,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
     <nav data-cuzmify-type="navbar" style="position:sticky;top:0;z-index:30;background:var(--cz-noir-bg);color:var(--cz-noir-text);border-bottom:1px solid rgba(255,255,255,0.1);">
       <div class="cz-nr-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <span data-cuzmify-field="business-name" class="brand-name cz-nr-display" style="font-size:1.05rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--cz-noir-text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(profile.name)}</span>
-        <a href="#booking" style="padding:9px 18px;border-radius:10px;background:var(--cz-noir-accent);color:#09090B;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
+        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:10px;background:var(--cz-noir-accent);color:#09090B;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
       </div>
     </nav>
 
@@ -1300,7 +1300,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
           <span style="width:8px;height:8px;border-radius:999px;background:#10B981;flex-shrink:0;"></span>
           <span data-cuzmify-field="business-name" class="brand-name cz-ms-heading" style="font-size:1.05rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(profile.name)}</span>
         </div>
-        <a href="#booking" style="padding:8px 16px;border-radius:10px;background:var(--cz-ms-primary);color:#FFFFFF;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(primaryCta)}</a>
+        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:8px 16px;border-radius:10px;background:var(--cz-ms-primary);color:#FFFFFF;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(primaryCta)}</a>
       </div>
     </nav>
 
