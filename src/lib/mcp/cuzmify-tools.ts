@@ -23,9 +23,17 @@ export interface McpToolProperty {
   };
 }
 
+export interface McpToolAnnotations {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+  openWorldHint: boolean;
+}
+
 export interface McpToolDefinition {
   name: string;
   description: string;
+  annotations: McpToolAnnotations;
   inputSchema: {
     type: 'object';
     properties: Record<string, McpToolProperty>;
@@ -33,42 +41,72 @@ export interface McpToolDefinition {
   };
 }
 
+const READ_ONLY_ANNOTATIONS: McpToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+const MUTATE_IDEMPOTENT_ANNOTATIONS: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+const MUTATE_NON_IDEMPOTENT_ANNOTATIONS: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+
+const DESTRUCTIVE_ANNOTATIONS: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
 export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'get_site_blueprint',
     description:
-      'Inspect the complete consented account & live site state: active template engine, effective palette & WCAG contrast audit, mobile/tablet/desktop effective designs, rendered vs skipped sections, services, products, media inventory with dimensions, custom sections, FAQs, testimonials, QA findings, and all sites on the account.',
+      'Read-only. Return editable website data and content inventory: active templateId, publish status (draft or live) and liveUrl, services (with IDs), products (with IDs), mediaItems (use its photoNumber and id for media/service tools), customSections, FAQs, testimonials, copy overrides, SEO config, active injection slot names, and all account sites. Use this first to read content and look up IDs before editing. For rendered HTML/CSS, WCAG contrast audit, viewport layout settings, or QA findings, call inspect_rendered_page instead. Draft vs live note: mutating tools save immediately (updating draft, or live output if already published); call publish_site / unpublish_site to change online visibility. Pass siteId to inspect a specific site with full contact fields; omit siteId for the default site summary.',
+    annotations: READ_ONLY_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
-        siteId: { type: 'string', description: 'Optional site ID when calling external MCP endpoint.' },
+        siteId: { type: 'string', description: 'Optional site ID from accountSites; omit for the default site.' },
       },
     },
   },
   {
     name: 'inspect_rendered_page',
     description:
-      'Run a zero-browser visual & structural audit of what the rendered website looks like across mobile, tablet, and desktop: exact CSS palette, WCAG contrast ratios, top-to-bottom section DOM tree, skipped sections with reasons, media dimensions/roles, automated QA warnings, and optional raw HTML/CSS snapshot.',
+      'Read-only visual and DOM audit of the rendered website: exact CSS palette, WCAG contrast ratios, effective per-device design tokens (mobile/tablet/desktop), top-to-bottom section DOM tree, skipped sections with reasons, media dimensions/roles, SEO audit score, and automated QA warnings. Use this to verify rendered appearance and contrast; use get_site_blueprint to read editable content and IDs. Defaults: viewport="all", includeHtml=false, includeCss=false, includeImages=true (note includeHtml/includeCss return large compiled strings).',
+    annotations: READ_ONLY_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
         viewport: {
           type: 'string',
-          description: 'Focus effective breakpoint telemetry on all, mobile, tablet, or desktop.',
+          description: 'Focus effective breakpoint telemetry on all, mobile, tablet, or desktop (default: "all").',
           enum: ['all', 'mobile', 'tablet', 'desktop'],
         },
         includeHtml: {
           type: 'boolean',
-          description: 'Set true to include the full compiled rendered HTML string.',
+          description: 'Include full compiled rendered HTML string (default: false; output can be large).',
         },
         includeCss: {
           type: 'boolean',
-          description: 'Set true to include the full compiled rendered CSS string.',
+          description: 'Include full compiled rendered CSS string (default: false; output can be large).',
         },
         includeImages: {
           type: 'boolean',
-          description: 'For external multimodal MCP clients: include uploaded Media Vault image blocks alongside the report (default true).',
+          description: 'Include Media Vault image blocks alongside audit report for multimodal clients (default: true).',
         },
       },
     },
@@ -76,14 +114,15 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'update_business_profile',
     description:
-      'Update business profile identity or main hero copy (name, headline, bio, city, country, currency, email, instagramHandle) without inventing unrequested prices.',
+      'Partial-update the business identity and primary Hero headline/bio (name, headline <h1>, bio hero subheadline, city, country, currency, email, instagramHandle). Omitted fields remain unchanged; never invents unrequested prices. For heroBadge, CTA button text, or section headings (servicesHeading, portfolioHeading, enquiryHeading), use customize_template_copy.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID (external MCP).' },
         name: { type: 'string', description: 'Business / studio name.' },
-        headline: { type: 'string', description: 'Main Hero headline shown at the top of the website.' },
-        bio: { type: 'string', description: 'About / Hero subheadline description.' },
+        headline: { type: 'string', description: 'Main Hero <h1> headline shown at the top of the website.' },
+        bio: { type: 'string', description: 'Main Hero subheadline / business bio description.' },
         city: { type: 'string', description: 'City or service area (e.g. Lagos, Abuja, London).' },
         country: { type: 'string', description: 'Country name.' },
         currency: {
@@ -99,7 +138,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'customize_template_copy',
     description:
-      'Edit any section heading, eyebrow label, badge, or CTA button copy directly inside the active template engine.',
+      'Partial-update template labels, badges, CTA buttons, and section headings (heroBadge, primaryCta, submitButtonText, servicesHeading, portfolioHeading, enquiryHeading, etc.) without resetting omitted fields. For the main Hero headline (<h1>), hero bio, business name, or city, use update_business_profile.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -123,7 +163,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'customize_template_design',
     description:
-      'Customize brand palette colors, button corners/icons/colors, fonts, hero/services layouts, section spacing, mobile/tablet/desktop isolated layout & hero-image overrides, or custom CSS rules on top of the active template engine.',
+      'Partial-update brand palette colors, button corners/icons/colors, fonts, hero/services layouts, and device-isolated spacing/grid overrides ("all", "mobile", "tablet", or "desktop"), plus optional style-only customCss on existing template selectors. Decision rule for markup/CSS: use customCss here only for styling existing elements (padding, shadows, @media tweaks); use inject_slot to place small HTML/SVG widgets in 12 fixed template anchors; use upsert_custom_section to add a full standalone page section.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -153,7 +194,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         },
         customCss: {
           type: 'string',
-          description: 'Safe scoped CSS rules appended to the template stylesheet (for any granular spacing, shadow, alignment, or @media polish). Pass "" to clear.',
+          description: 'Style-only scoped CSS rules targeting existing elements without adding HTML DOM nodes. Pass "" to clear.',
         },
         fontMood: {
           type: 'string',
@@ -231,7 +272,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'reorder_sections',
     description:
-      'Reorder website sections top-to-bottom cleanly for the active template (e.g. ["hero", "portfolio", "services", "custom", "testimonials", "faq", "booking"]).',
+      'Set the top-to-bottom section order for the active template (hero, services, portfolio, custom, testimonials, faq, booking). Missing keys are appended automatically.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -248,12 +290,13 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'upsert_custom_section',
     description:
-      'Create, update, or remove a custom content block (Studio Hours, Booking Steps, Policy, Highlights Banner, or bespoke sanitized custom_html block) inside the active template engine.',
+      'Create, update, or permanently remove (remove=true) a full standalone content section (cards, checklist, hours_info, banner_cta, or custom_html block) included in reorder_sections. Matches existing section by id first, then case-insensitive title; note provided fields replace that section configuration. Decision rule: use this for standalone page sections; use inject_slot to place banners/icons/footers into existing template slots; use customize_template_design.customCss for CSS-only styling.',
+    annotations: MUTATE_NON_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
-        id: { type: 'string', description: 'Existing custom section ID to update or remove (optional).' },
+        id: { type: 'string', description: 'Existing custom section ID to update or remove (matched before title).' },
         title: { type: 'string', description: 'Section heading (e.g. Studio Hours & Policy, How Booking Works).' },
         eyebrow: { type: 'string', description: 'Optional small label above title.' },
         subtitle: { type: 'string', description: 'Optional intro paragraph below title.' },
@@ -279,7 +322,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         },
         ctaText: { type: 'string', description: 'Optional CTA button text for banner_cta layout.' },
         ctaHref: { type: 'string', description: 'Optional CTA link (defaults to #booking).' },
-        remove: { type: 'boolean', description: 'Set true to remove matching custom section by id or title.' },
+        remove: { type: 'boolean', description: 'Set true to permanently delete the matching custom section by id or title.' },
       },
       required: ['title'],
     },
@@ -287,7 +330,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'inject_slot',
     description:
-      'Inject or clear sanitized custom HTML/SVG into any immutable named slot across the template engine (top_bar, nav_actions, hero_above, hero_cta_after, hero_below, services_above, services_below, booking_above, submit_button_prefix, submit_button_suffix, booking_below, footer). Optionally append scoped customCss at the same time.',
+      'Inject, replace, or clear (clear=true) sanitized HTML/SVG inside one of 12 fixed anchors in the template engine (top_bar, nav_actions, hero_above, hero_cta_after, hero_below, services_above, services_below, booking_above, submit_button_prefix, submit_button_suffix, booking_below, footer), with optional scoped CSS appended cleanly. Decision rule: use inject_slot for icons, ribbons, badges, announcements, and footers inside existing page areas; use upsert_custom_section for full standalone sections; use customize_template_design.customCss for style-only rules.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -303,11 +347,11 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         },
         css: {
           type: 'string',
-          description: 'Optional sanitized CSS rule(s) to append into the active template stylesheet.',
+          description: 'Optional sanitized CSS rule(s) appended into the active template stylesheet.',
         },
         clear: {
           type: 'boolean',
-          description: 'Set true to remove injected content from this slot cleanly.',
+          description: 'Set true to clear injected HTML from this slot cleanly.',
         },
       },
       required: ['slot'],
@@ -316,7 +360,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'configure_seo',
     description:
-      'Configure search engine & social sharing metadata (metaTitle, metaDescription, keywords, canonicalUrl, ogImageUrl, noIndex) and LocalBusiness/Service JSON-LD schema attributes.',
+      'Partial-update SSR search engine metadata (metaTitle, metaDescription, keywords, canonicalUrl, ogImageUrl, noIndex) and Schema.org LocalBusiness/Service JSON-LD structured data. Omitted fields remain unchanged; pass empty strings to clear optional URLs or text fields.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -344,7 +389,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'toggle_section_visibility',
-    description: 'Show or hide any section cleanly inside the active template engine (hero, services, portfolio, testimonials, faq, booking).',
+    description: 'Non-destructively show or hide a built-in page section (hero, services, portfolio, testimonials, faq, booking) without deleting its underlying data.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -362,12 +408,13 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'upsert_service_package',
     description:
-      'Add a new service package or update an existing service by name/id (including optional imageUrl, mediaAssetId, or 1-based photoNumber from mediaItems). Use priceMode "quote" with price 0 if the vendor has not stated a price.',
+      'Add a service package or partial-update an existing one. Matches by id first, then case-insensitive exact name; omitted fields stay unchanged. Supports optional imageUrl (or "" to remove image), mediaAssetId, or 1-based photoNumber from get_site_blueprint mediaItems. Use priceMode="quote" with price=0 when pricing is custom/unstated.',
+    annotations: MUTATE_NON_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID (external MCP).' },
-        id: { type: 'string', description: 'Existing service ID to update (optional).' },
+        id: { type: 'string', description: 'Existing service ID to update (matched before name).' },
         name: { type: 'string', description: 'Service or package title (e.g. Bridal Glam Package).' },
         price: { type: 'number', description: 'Numeric price in the business currency (0 for quote).' },
         priceMode: {
@@ -396,24 +443,27 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'delete_service_package',
-    description: 'Delete a service package from the website catalog by exact ID or service name.',
+    description: 'Permanently delete a service package from the catalog (irreversible). Matches by id first, or case-insensitive exact name if id is omitted; at least one of id or name must match.',
+    annotations: DESTRUCTIVE_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID (external MCP).' },
-        id: { type: 'string', description: 'Service ID to delete.' },
-        name: { type: 'string', description: 'Service name to match if ID is not known.' },
+        id: { type: 'string', description: 'Service ID to delete (checked before name).' },
+        name: { type: 'string', description: 'Case-insensitive exact service name when ID is not known.' },
       },
     },
   },
   {
     name: 'upsert_product_item',
-    description: 'Add or update a physical or digital product in the vendor product catalog.',
+    description:
+      'Add a new product or partial-update an existing physical/digital product. Matches by id first, then case-insensitive exact name; omitted fields stay unchanged.',
+    annotations: MUTATE_NON_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
-        id: { type: 'string', description: 'Existing product ID (optional).' },
+        id: { type: 'string', description: 'Existing product ID to update (matched before name).' },
         name: { type: 'string', description: 'Product name.' },
         price: { type: 'number', description: 'Product price in business currency.' },
         description: { type: 'string', description: 'Short product description.' },
@@ -424,43 +474,48 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'delete_product_item',
-    description: 'Remove a product from the catalog by ID or name.',
+    description: 'Permanently delete a product from the catalog (irreversible). Matches by id first, or case-insensitive exact name.',
+    annotations: DESTRUCTIVE_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
-        id: { type: 'string', description: 'Product ID.' },
-        name: { type: 'string', description: 'Product name.' },
+        id: { type: 'string', description: 'Product ID (checked before name).' },
+        name: { type: 'string', description: 'Case-insensitive exact product name.' },
       },
     },
   },
   {
     name: 'upsert_testimonial',
-    description: 'Add, update, or remove a real client testimonial provided by the vendor.',
+    description:
+      'Add, update, or permanently remove (remove=true) a real client testimonial supplied by the vendor (never fabricate quotes). Matches by id first, then case-insensitive exact clientName.',
+    annotations: MUTATE_NON_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
-        id: { type: 'string', description: 'Testimonial ID (optional).' },
+        id: { type: 'string', description: 'Testimonial ID (matched before clientName).' },
         clientName: { type: 'string', description: 'Client name (must come from vendor, never invented).' },
-        quote: { type: 'string', description: 'Exact client testimonial quote.' },
+        quote: { type: 'string', description: 'Exact client testimonial quote (required unless remove=true).' },
         roleOrEvent: { type: 'string', description: 'Optional event/context like Bridal Client.' },
-        remove: { type: 'boolean', description: 'Set true to remove matching testimonial by id or clientName.' },
+        remove: { type: 'boolean', description: 'Set true to permanently delete matching testimonial by id or clientName.' },
       },
       required: ['clientName'],
     },
   },
   {
     name: 'upsert_faq',
-    description: 'Add, update, or remove a Frequently Asked Question item.',
+    description:
+      'Add, update, or permanently remove (remove=true) a Frequently Asked Question item. Matches by id first, then case-insensitive exact question.',
+    annotations: MUTATE_NON_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
-        id: { type: 'string', description: 'FAQ ID (optional).' },
+        id: { type: 'string', description: 'FAQ ID (matched before question).' },
         question: { type: 'string', description: 'Customer question.' },
-        answer: { type: 'string', description: 'Clear vendor answer.' },
-        remove: { type: 'boolean', description: 'Set true to remove matching FAQ.' },
+        answer: { type: 'string', description: 'Clear vendor answer (required unless remove=true).' },
+        remove: { type: 'boolean', description: 'Set true to permanently delete matching FAQ.' },
       },
       required: ['question'],
     },
@@ -468,7 +523,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'switch_template_style',
     description:
-      'Losslessly switch the website visual template engine ONLY when the user requests changing design style/layout between editorial-atelier, noir-showcase, or modern-studio.',
+      'Losslessly switch the active visual template engine (editorial-atelier, noir-showcase, or modern-studio) while preserving all content and per-template overrides. Call only when the user requests changing overall template theme/style.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -485,7 +541,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'switch_niche_blueprint',
     description:
-      'Switch the service vendor industry niche (adapts section headings, booking CTA, and enquiry form prompts).',
+      'Switch the service vendor industry niche blueprint (adapts default section headings, booking CTA wording, and enquiry form prompts without overwriting custom overrides).',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -508,7 +565,8 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'configure_whatsapp',
-    description: 'Update the vendor WhatsApp booking phone number, enquiry message template, or floating widget settings.',
+    description: 'Partial-update WhatsApp booking phone number, pre-filled enquiry template, or floating chat widget settings. Omitted fields remain unchanged.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -522,31 +580,47 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'promote_media_to_hero',
-    description: 'Set a specific photo in the Media Vault as the main Hero cover image (by 1-based photo number or name).',
+    description: 'Set an existing Media Vault photo as the main Hero cover image (matched by assetId first, then 1-based photoNumber from get_site_blueprint mediaItems, then name/caption query).',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID (external MCP).' },
-        assetId: { type: 'string', description: 'Media asset ID.' },
+        assetId: { type: 'string', description: 'Media asset ID from mediaItems.' },
         photoNumber: { type: 'number', description: '1-based index of the photo in the Media Vault.' },
-        query: { type: 'string', description: 'Keyword to match asset name/caption.' },
+        query: { type: 'string', description: 'Keyword to match asset name or caption.' },
       },
     },
   },
   {
     name: 'list_enquiries',
-    description: 'List recent client booking enquiries submitted on the live website for this account.',
+    description: 'Read-only. List recent client booking enquiries submitted on the website (ordered newest first). Returns count and bounded enquiry list.',
+    annotations: READ_ONLY_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID.' },
-        limit: { type: 'number', description: 'Maximum leads to return (default 10).' },
+        limit: { type: 'number', description: 'Maximum leads to return (1-25, default: 10).' },
       },
     },
   },
   {
     name: 'publish_site',
-    description: 'Publish the current website live to its public link so clients can view and submit bookings.',
+    description:
+      'Publish the website live (`status: "live"`) to its public `/s/<subdomain>` URL so clients can view and submit bookings. Edits saved while live update immediately; edits made in draft stay private until publish_site is called. To take a live site back offline, call unpublish_site.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+      },
+    },
+  },
+  {
+    name: 'unpublish_site',
+    description:
+      'Take a live website offline (`status: "draft"`) without deleting any content, designs, or bookings. Clients visiting the public link will no longer see the live site until publish_site is called again.',
+    annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
@@ -556,9 +630,78 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
 ];
 
+const TOOL_DEFINITION_MAP = new Map<string, McpToolDefinition>(CUZMIFY_MCP_TOOLS.map((t) => [t.name, t]));
+
+/**
+ * Strictly validates runtime arguments against the tool's declared JSON inputSchema before execution.
+ */
+export function validateMcpToolArguments(
+  toolName: string,
+  rawArgs: unknown
+): { valid: true; args: Record<string, any> } | { valid: false; error: string } {
+  const def = TOOL_DEFINITION_MAP.get(toolName);
+  if (!def) {
+    return { valid: false, error: `Unknown MCP tool: "${toolName}"` };
+  }
+
+  if (rawArgs !== undefined && rawArgs !== null && (typeof rawArgs !== 'object' || Array.isArray(rawArgs))) {
+    return { valid: false, error: `Invalid arguments for ${toolName}: expected an object.` };
+  }
+  const args = (rawArgs && typeof rawArgs === 'object' ? rawArgs : {}) as Record<string, unknown>;
+
+  for (const reqKey of def.inputSchema.required || []) {
+    if (args[reqKey] === undefined || args[reqKey] === null || args[reqKey] === '') {
+      return { valid: false, error: `Missing required parameter "${reqKey}" for ${toolName}.` };
+    }
+  }
+
+  for (const [key, value] of Object.entries(args)) {
+    if (value === undefined) continue;
+    const schema = def.inputSchema.properties[key];
+    if (!schema) continue; // Tolerate harmless client metadata if not declared
+
+    if (schema.type === 'string') {
+      if (typeof value !== 'string') {
+        return { valid: false, error: `Invalid type for "${key}": expected string, got ${typeof value}.` };
+      }
+      if (schema.enum && !schema.enum.includes(value)) {
+        return {
+          valid: false,
+          error: `Invalid value "${value}" for "${key}". Expected one of: ${schema.enum.join(', ')}.`,
+        };
+      }
+    } else if (schema.type === 'number') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return { valid: false, error: `Invalid type for "${key}": expected finite number.` };
+      }
+    } else if (schema.type === 'boolean') {
+      if (typeof value !== 'boolean') {
+        return { valid: false, error: `Invalid type for "${key}": expected boolean, got ${typeof value}.` };
+      }
+    } else if (schema.type === 'array') {
+      if (!Array.isArray(value)) {
+        return { valid: false, error: `Invalid type for "${key}": expected array.` };
+      }
+      if (schema.items?.type === 'string') {
+        if (value.some((item) => typeof item !== 'string')) {
+          return { valid: false, error: `Invalid element in "${key}": all items must be strings.` };
+        }
+      } else if (schema.items?.type === 'object') {
+        if (value.some((item) => !item || typeof item !== 'object' || Array.isArray(item))) {
+          return { valid: false, error: `Invalid element in "${key}": all items must be objects.` };
+        }
+      }
+    }
+  }
+
+  return { valid: true, args };
+}
+
 /** Converts MCP JSON schemas into Gemini SDK FunctionDeclaration format. */
 export function toGeminiFunctionDeclarations(includeServerOnly = true): FunctionDeclaration[] {
-  const excluded = includeServerOnly ? new Set<string>() : new Set(['list_enquiries', 'publish_site']);
+  const excluded = includeServerOnly
+    ? new Set<string>()
+    : new Set(['list_enquiries', 'publish_site', 'unpublish_site']);
   return CUZMIFY_MCP_TOOLS.filter((t) => !excluded.has(t.name)).map((tool) => {
     const props: Record<string, any> = {};
     for (const [k, v] of Object.entries(tool.inputSchema.properties)) {
@@ -632,20 +775,36 @@ function normalizeSafeHex(val?: unknown): string | undefined {
  */
 export function executeBlueprintMcpTool(
   toolName: string,
-  args: Record<string, any>,
+  rawArgs: Record<string, any>,
   inputBlueprint: BusinessBlueprint,
   options?: { plan?: 'free' | 'pro'; siteMeta?: SiteAccountMeta }
 ): BlueprintToolExecutionResult {
+  const validation = validateMcpToolArguments(toolName, rawArgs);
+  if (!validation.valid) {
+    return {
+      ok: false,
+      blueprint: inputBlueprint,
+      changeSummary: validation.error,
+      error: validation.error,
+    };
+  }
+  const args = validation.args;
   const bp: BusinessBlueprint = JSON.parse(JSON.stringify(inputBlueprint));
   const plan = options?.plan === 'pro' ? 'pro' : 'free';
 
   switch (toolName) {
     case 'get_site_blueprint': {
       const inspection = inspectRenderedSite(bp, options?.siteMeta);
+      const isExplicitSiteLookup = typeof args.siteId === 'string' && args.siteId.trim().length > 0;
+      const maskDigits = (val: string) => {
+        const clean = val.trim();
+        if (!clean) return '';
+        return clean.length > 4 ? `***${clean.slice(-4)}` : '***';
+      };
       return {
         ok: true,
         blueprint: bp,
-        changeSummary: `Inspected ${inspection.template.name} blueprint & live visual state`,
+        changeSummary: `Read ${inspection.template.name} blueprint & content inventory`,
         data: {
           name: bp.profile.name,
           headline: inspection.copyMetrics.headline,
@@ -658,7 +817,8 @@ export function executeBlueprintMcpTool(
           city: bp.profile.city,
           country: bp.profile.country,
           instagramHandle: bp.profile.instagramHandle || '',
-          whatsapp: bp.modules.whatsapp.phoneNumber,
+          whatsappConfigured: Boolean(bp.modules.whatsapp.phoneNumber),
+          whatsapp: isExplicitSiteLookup ? bp.modules.whatsapp.phoneNumber : maskDigits(bp.modules.whatsapp.phoneNumber),
           customCopy: bp.customCopy || {},
           designOverrides: bp.designOverrides || {},
           templateDesignOverrides: bp.templateDesignOverrides || {},
@@ -673,24 +833,28 @@ export function executeBlueprintMcpTool(
             imageUrl: s.imageUrl?.startsWith('data:') ? '[embedded uploaded image]' : s.imageUrl || '',
           })),
           productsCount: bp.modules.products?.items?.length || 0,
+          products: (bp.modules.products?.items || []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            inStock: p.inStock,
+          })),
           testimonialsCount: bp.testimonials?.length || 0,
+          testimonials: (bp.testimonials || []).slice(0, 10),
           faqsCount: bp.faqs?.length || 0,
+          faqs: (bp.faqs || []).slice(0, 15),
           customSections: bp.customSections || [],
           mediaCount: bp.mediaVault.length,
           mediaItems: inspection.mediaInventory,
+          seo: bp.seo || {},
+          activeInjections: inspection.activeInjections,
+          availableSlots: inspection.availableSlots,
           status: inspection.account.status,
+          published: inspection.account.status === 'live',
+          liveUrl: inspection.account.liveUrl,
           subdomain: inspection.account.subdomain,
           customDomain: inspection.account.customDomain,
           account: inspection.account,
-          effectivePalette: inspection.effectivePalette,
-          contrastAudit: inspection.contrastAudit,
-          effectiveDesign: inspection.effectiveDesign,
-          renderedSections: inspection.renderedSections,
-          skippedSections: inspection.skippedSections,
-          seoAudit: inspection.seoAudit,
-          activeInjections: inspection.activeInjections,
-          availableSlots: inspection.availableSlots,
-          qaFindings: inspection.qaFindings,
         },
       };
     }
@@ -1347,7 +1511,7 @@ export function executeBlueprintMcpTool(
       }
 
       const created = {
-        id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: `srv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
         name: cleanName,
         price: numericPrice,
         priceMode: finalMode,
@@ -1407,7 +1571,7 @@ export function executeBlueprintMcpTool(
         return { ok: true, blueprint: bp, changeSummary: `Updated product "${cleanName}"` };
       }
       const created = {
-        id: `prd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: `prd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
         name: cleanName,
         price: numPrice,
         inStock: typeof args.inStock === 'boolean' ? args.inStock : true,

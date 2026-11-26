@@ -3,37 +3,108 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { createDefaultBlueprint, type BusinessBlueprint } from '@/core/blueprint-schema';
 import { renderTemplateEngine, TEMPLATE_ENGINES } from '@/core/template-engines';
-import { CUZMIFY_MCP_TOOLS, executeBlueprintMcpTool } from '@/lib/mcp/cuzmify-tools';
-import { verifyUserMcpToken } from '@/lib/mcp/mcp-auth';
+import {
+  CUZMIFY_MCP_TOOLS,
+  executeBlueprintMcpTool,
+  validateMcpToolArguments,
+} from '@/lib/mcp/cuzmify-tools';
+import {
+  extractExplicitMcpToken,
+  isAllowedMcpOrigin,
+  verifyUserMcpToken,
+} from '@/lib/mcp/mcp-auth';
 
-async function resolveMcpUserId(req: Request): Promise<string | null> {
-  const authHeader = req.headers.get('authorization') || '';
-  if (authHeader.toLowerCase().startsWith('bearer ')) {
-    const token = authHeader.slice(7).trim();
-    const verifiedUserId = verifyUserMcpToken(token);
-    if (verifiedUserId) return verifiedUserId;
+type McpAuthResult =
+  | { status: 'authenticated'; userId: string }
+  | { status: 'invalid_token' }
+  | { status: 'unauthenticated' };
+
+async function authenticateMcpRequest(req: Request): Promise<McpAuthResult> {
+  const explicit = extractExplicitMcpToken(req);
+  if (explicit.present) {
+    const verifiedUserId = explicit.token ? verifyUserMcpToken(explicit.token) : null;
+    if (!verifiedUserId) return { status: 'invalid_token' };
+    return { status: 'authenticated', userId: verifiedUserId };
   }
 
-  try {
-    const urlToken = new URL(req.url).searchParams.get('token')?.trim();
-    if (urlToken) {
-      const verifiedUserId = verifyUserMcpToken(urlToken);
-      if (verifiedUserId) return verifiedUserId;
-    }
-  } catch {}
+  // Only allow browser cookie fallback on same-origin or server-internal calls
+  const originHeader = req.headers.get('origin');
+  const reqOrigin = new URL(req.url).origin;
+  if (originHeader && originHeader.trim() !== reqOrigin) {
+    return { status: 'unauthenticated' };
+  }
 
   const session = await auth();
-  if (session?.user?.id) return session.user.id;
+  if (session?.user?.id) return { status: 'authenticated', userId: session.user.id };
   if (session?.user?.email) {
     const u = await prisma.user.findUnique({ where: { email: session.user.email } });
-    return u?.id || null;
+    if (u?.id) return { status: 'authenticated', userId: u.id };
   }
-  return null;
+  return { status: 'unauthenticated' };
 }
 
-/** Public MCP server discovery endpoint */
+function forbiddenOriginResponse(rpcId: string | number | null = null) {
+  return NextResponse.json(
+    {
+      jsonrpc: '2.0',
+      id: rpcId,
+      error: {
+        code: -32003,
+        message: 'Forbidden: Untrusted Origin header.',
+      },
+    },
+    { status: 403 }
+  );
+}
+
+function unauthorizedResponse(rpcId: string | number | null, reason: 'invalid_token' | 'unauthenticated') {
+  return NextResponse.json(
+    {
+      jsonrpc: '2.0',
+      id: rpcId,
+      error: {
+        code: -32001,
+        message:
+          reason === 'invalid_token'
+            ? 'Unauthorized: Invalid or malformed Bearer token.'
+            : 'Unauthorized: Provide a valid Authorization: Bearer czm_... token from /api/mcp/token.',
+      },
+    },
+    {
+      status: 401,
+      headers: {
+        'WWW-Authenticate': 'Bearer realm="cuzmify-mcp"',
+      },
+    }
+  );
+}
+
+/** Public MCP server discovery endpoint (requires auth for full tool definitions) */
 export async function GET(req: Request) {
+  if (!isAllowedMcpOrigin(req.headers.get('origin'), req.url)) {
+    return forbiddenOriginResponse(null);
+  }
+
+  const authRes = await authenticateMcpRequest(req);
+  if (authRes.status === 'invalid_token') {
+    return unauthorizedResponse(null, 'invalid_token');
+  }
+
   const origin = new URL(req.url).origin;
+  if (authRes.status === 'unauthenticated') {
+    return NextResponse.json({
+      name: 'cuzmify-mcp',
+      version: '1.0.0',
+      protocolVersion: '2025-03-26',
+      transport: 'streamable-http-jsonrpc',
+      endpoint: `${origin}/api/mcp`,
+      tokenEndpoint: `${origin}/api/mcp/token`,
+      authRequired: true,
+      auth: 'Bearer token (generate via GET /api/mcp/token while signed in) or active same-origin Cuzmify session cookie',
+      toolsCount: CUZMIFY_MCP_TOOLS.length,
+    });
+  }
+
   return NextResponse.json({
     name: 'cuzmify-mcp',
     version: '1.0.0',
@@ -41,23 +112,33 @@ export async function GET(req: Request) {
     transport: 'streamable-http-jsonrpc',
     endpoint: `${origin}/api/mcp`,
     tokenEndpoint: `${origin}/api/mcp/token`,
-    auth: 'Bearer token (generate via GET /api/mcp/token while signed in) or active Cuzmify session cookie',
+    authRequired: true,
     tools: CUZMIFY_MCP_TOOLS,
   });
 }
 
 /**
  * Cuzmify Streamable HTTP MCP Endpoint (JSON-RPC 2.0)
- * Supports `initialize`, `notifications/initialized`, `ping`, `tools/list`, and `tools/call`.
+ * Enforces Origin checks, explicit invalid-token rejection on every method,
+ * authenticated `tools/list` & `tools/call`, and strict JSON inputSchema validation.
  */
 export async function POST(req: Request) {
   let rpcId: string | number | null = null;
 
+  if (!isAllowedMcpOrigin(req.headers.get('origin'), req.url)) {
+    return forbiddenOriginResponse(null);
+  }
+
   try {
     const body = await req.json();
-    rpcId = body.id ?? null;
-    const method = String(body.method || '');
-    const params = body.params || {};
+    rpcId = body?.id ?? null;
+    const method = String(body?.method || '');
+    const params = body?.params || {};
+
+    const authRes = await authenticateMcpRequest(req);
+    if (authRes.status === 'invalid_token') {
+      return unauthorizedResponse(rpcId, 'invalid_token');
+    }
 
     if (method === 'initialize') {
       return NextResponse.json({
@@ -74,13 +155,15 @@ export async function POST(req: Request) {
       });
     }
 
-    if (method === 'notifications/initialized') {
+    if (method === 'notifications/initialized' || method === 'ping') {
       return NextResponse.json({ jsonrpc: '2.0', id: rpcId, result: {} });
     }
 
-    if (method === 'ping') {
-      return NextResponse.json({ jsonrpc: '2.0', id: rpcId, result: {} });
+    // Require valid authentication before listing or calling tools
+    if (authRes.status !== 'authenticated') {
+      return unauthorizedResponse(rpcId, 'unauthenticated');
     }
+    const userId = authRes.userId;
 
     if (method === 'tools/list') {
       return NextResponse.json({
@@ -93,23 +176,20 @@ export async function POST(req: Request) {
     }
 
     if (method === 'tools/call') {
-      const userId = await resolveMcpUserId(req);
-      if (!userId) {
-        return NextResponse.json(
-          {
-            jsonrpc: '2.0',
-            id: rpcId,
-            error: {
-              code: -32001,
-              message: 'Unauthorized: Provide a valid Authorization: Bearer czm_... token from /api/mcp/token.',
-            },
+      const toolName = String(params?.name || '');
+      const validation = validateMcpToolArguments(toolName, params?.arguments);
+      if (!validation.valid) {
+        return NextResponse.json({
+          jsonrpc: '2.0',
+          id: rpcId,
+          result: {
+            isError: true,
+            content: [{ type: 'text', text: JSON.stringify({ error: validation.error }) }],
           },
-          { status: 401 }
-        );
+        });
       }
 
-      const toolName = String(params.name || '');
-      const toolArgs = (params.arguments || {}) as Record<string, any>;
+      const toolArgs = validation.args;
       const requestedSiteId = typeof toolArgs.siteId === 'string' ? toolArgs.siteId : undefined;
 
       const site = requestedSiteId
@@ -204,9 +284,38 @@ export async function POST(req: Request) {
                 type: 'text',
                 text: JSON.stringify({
                   published: true,
+                  status: 'live',
                   siteId: site.id,
                   liveUrl: `${origin}${liveUrl}`,
                   template: TEMPLATE_ENGINES[rendered.templateId].name,
+                }),
+              },
+            ],
+          },
+        });
+      }
+
+      if (toolName === 'unpublish_site') {
+        await prisma.site.update({
+          where: { id: site.id },
+          data: {
+            status: 'draft',
+            updatedAt: new Date(),
+          },
+        });
+        return NextResponse.json({
+          jsonrpc: '2.0',
+          id: rpcId,
+          result: {
+            isError: false,
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  published: false,
+                  status: 'draft',
+                  siteId: site.id,
+                  summary: 'Website taken offline (status set to draft).',
                 }),
               },
             ],

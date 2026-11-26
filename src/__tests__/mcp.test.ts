@@ -6,8 +6,14 @@ import {
   CUZMIFY_MCP_TOOLS,
   executeBlueprintMcpTool,
   toGeminiFunctionDeclarations,
+  validateMcpToolArguments,
 } from '@/lib/mcp/cuzmify-tools';
-import { generateUserMcpToken, verifyUserMcpToken } from '@/lib/mcp/mcp-auth';
+import {
+  extractExplicitMcpToken,
+  generateUserMcpToken,
+  isAllowedMcpOrigin,
+  verifyUserMcpToken,
+} from '@/lib/mcp/mcp-auth';
 import { buildPublicSiteJsonLd, buildPublicSiteMetadata } from '@/lib/seo-metadata';
 
 describe('Cuzmify MCP Tool Registry & Execution', () => {
@@ -475,5 +481,56 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     const token = generateUserMcpToken('user_abc_123');
     expect(verifyUserMcpToken(token)).toBe('user_abc_123');
     expect(verifyUserMcpToken(`${token}tampered`)).toBeNull();
+  });
+
+  it('enforces strict inputSchema validation, origin DNS-rebinding checks, explicit invalid-token detection, annotations, and blueprint projection', () => {
+    // 1. Strict schema validation blocks type mismatches (e.g. siteId: 12345) & bad enums
+    const bp = createDefaultBlueprint({ name: 'Brandy Queen', whatsapp: '2348031234567' });
+    const badSiteId = executeBlueprintMcpTool('get_site_blueprint', { siteId: 12345 as any }, bp);
+    expect(badSiteId.ok).toBe(false);
+    expect(badSiteId.error).toContain('expected string');
+
+    const badEnum = validateMcpToolArguments('switch_template_style', { templateId: 'nonexistent-tpl' });
+    expect(badEnum.valid).toBe(false);
+
+    const missingReq = validateMcpToolArguments('upsert_service_package', { price: 5000 });
+    expect(missingReq.valid).toBe(false);
+
+    // 2. Default get_site_blueprint({}) masks contact phone digits; explicit siteId returns full contact & uses base36 IDs
+    const defaultProj = executeBlueprintMcpTool('get_site_blueprint', {}, bp);
+    expect(defaultProj.ok).toBe(true);
+    expect(defaultProj.data?.whatsapp).toBe('***4567');
+    expect(defaultProj.data?.renderedSections).toBeUndefined(); // clean separation from inspect_rendered_page
+
+    const explicitProj = executeBlueprintMcpTool('get_site_blueprint', { siteId: 'site_explicit_1' }, bp);
+    expect(explicitProj.ok).toBe(true);
+    expect(explicitProj.data?.whatsapp).toBe('2348031234567');
+
+    // Newly generated service IDs do not emit 13-digit decimal timestamps
+    const addedSrv = executeBlueprintMcpTool('upsert_service_package', { name: 'Studio Glam', price: 40000 }, bp);
+    expect(addedSrv.blueprint.modules.services.items[0].id).not.toMatch(/\d{13,}/);
+
+    // 3. MCP annotations accurately tag read-only vs destructive vs unpublish_site
+    const bpTool = CUZMIFY_MCP_TOOLS.find((t) => t.name === 'get_site_blueprint');
+    const inspectTool = CUZMIFY_MCP_TOOLS.find((t) => t.name === 'inspect_rendered_page');
+    const delSrvTool = CUZMIFY_MCP_TOOLS.find((t) => t.name === 'delete_service_package');
+    const unpubTool = CUZMIFY_MCP_TOOLS.find((t) => t.name === 'unpublish_site');
+    expect(bpTool?.annotations.readOnlyHint).toBe(true);
+    expect(inspectTool?.annotations.readOnlyHint).toBe(true);
+    expect(delSrvTool?.annotations.destructiveHint).toBe(true);
+    expect(unpubTool).toBeDefined();
+
+    // 4. Origin validation & explicit token detection
+    expect(isAllowedMcpOrigin('https://evil.example', 'https://cuzmify.vercel.app/api/mcp')).toBe(false);
+    expect(isAllowedMcpOrigin('https://cuzmify.vercel.app', 'https://cuzmify.vercel.app/api/mcp')).toBe(true);
+    expect(isAllowedMcpOrigin('https://mcpplaygroundonline.com', 'https://cuzmify.vercel.app/api/mcp')).toBe(true);
+    expect(isAllowedMcpOrigin(null, 'https://cuzmify.vercel.app/api/mcp')).toBe(true);
+
+    const badAuthReq = new Request('https://cuzmify.vercel.app/api/mcp', {
+      headers: { Authorization: 'Bearer not_a_valid_token' },
+    });
+    const extracted = extractExplicitMcpToken(badAuthReq);
+    expect(extracted.present).toBe(true);
+    expect(verifyUserMcpToken(extracted.token)).toBeNull();
   });
 });

@@ -395,6 +395,7 @@ VENDOR REQUEST: "${message}"`;
             let templateSwitched = false;
             let mutatedBlueprint = false;
             let shouldPublish = false;
+            let shouldUnpublish = false;
             let nextInput: string | Part[] = mcpUserPrompt;
             let finalTextReply = '';
 
@@ -473,6 +474,7 @@ VENDOR REQUEST: "${message}"`;
                     continue;
                   }
                   shouldPublish = true;
+                  shouldUnpublish = false;
                   mutatedBlueprint = true;
                   const cleanSlug =
                     dbSite.subdomain ||
@@ -489,6 +491,26 @@ VENDOR REQUEST: "${message}"`;
                       name: 'publish_site',
                       response: { ok: true, liveUrl: `/s/${cleanSlug}`, template: TEMPLATE_ENGINES[resolveTemplateEngineId(bpCursor.templateId)].name },
                     },
+                  });
+                  continue;
+                }
+
+                if (fnCall.name === 'unpublish_site') {
+                  if (!dbSite || !accountUserId || dbSite.userId !== accountUserId) {
+                    const msg = 'Please sign in to take your site offline.';
+                    toolCalls.push({ name: 'unpublish_site', args, ok: false, summary: msg, error: msg });
+                    responseParts.push({
+                      functionResponse: { name: 'unpublish_site', response: { ok: false, error: msg } },
+                    });
+                    continue;
+                  }
+                  shouldUnpublish = true;
+                  shouldPublish = false;
+                  const summary = 'Taken website offline (status set to draft)';
+                  toolCalls.push({ name: 'unpublish_site', args, ok: true, summary });
+                  changesApplied.push(summary);
+                  responseParts.push({
+                    functionResponse: { name: 'unpublish_site', response: { ok: true, status: 'draft' } },
                   });
                   continue;
                 }
@@ -538,7 +560,7 @@ VENDOR REQUEST: "${message}"`;
 
             let savedToAccount = false;
             let liveUrl: string | null = dbSite?.liveUrl || null;
-            if ((mutatedBlueprint || shouldPublish) && dbSite && accountUserId && dbSite.userId === accountUserId) {
+            if ((mutatedBlueprint || shouldPublish || shouldUnpublish) && dbSite && accountUserId && dbSite.userId === accountUserId) {
               const rendered = renderTemplateEngine(bpCursor.templateId, bpCursor, { siteId: dbSite.id });
               const cleanSub =
                 dbSite.subdomain ||
@@ -562,6 +584,7 @@ VENDOR REQUEST: "${message}"`;
                   blueprintData: JSON.stringify(bpCursor),
                   htmlContent: rendered.fullHtml,
                   ...(shouldPublish ? { status: 'live', subdomain: cleanSub, liveUrl } : {}),
+                  ...(shouldUnpublish ? { status: 'draft' } : {}),
                   updatedAt: new Date(),
                 },
               });
