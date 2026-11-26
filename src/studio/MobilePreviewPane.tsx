@@ -22,6 +22,7 @@ import {
   ArrowUp,
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
+import { StudioLoader } from './StudioLoader';
 import { renderTemplateEngine, TEMPLATE_ENGINES, TEMPLATE_ENGINE_LIST } from '@/core/template-engines';
 import { createDefaultBlueprint, type MediaVaultAsset } from '@/core/blueprint-schema';
 import { compressImageFileToWebP } from '@/lib/image-compress';
@@ -291,10 +292,11 @@ export function MobilePreviewPane() {
       <div className="flex-1 flex flex-col overflow-hidden bg-white lg:hidden">
         {fontUrl && <link rel="stylesheet" href={fontUrl} />}
         {isHydratingSite || !blueprint ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
-            <Loader2 className="w-7 h-7 animate-spin text-[#0D5771]" />
-            <p className="text-xs font-mono text-slate-500">Loading your live site…</p>
-          </div>
+          <StudioLoader
+            title="Initializing Cuzmify Studio"
+            subtitle="Loading your live mobile preview…"
+            className="flex-1 min-h-[360px]"
+          />
         ) : (
           <div
             className="flex-1 overflow-y-auto"
@@ -522,28 +524,13 @@ export function MobilePreviewPane() {
             </div>
           )}
 
-          {/* Interactive Live Rendered Site (or clean skeleton while hydrating user DB data) */}
+          {/* Interactive Live Rendered Site (shows signature StudioLoader while hydrating user DB data) */}
           {isHydratingSite || !blueprint ? (
-            <div className="p-6 space-y-4 bg-white min-h-[420px] flex flex-col justify-center">
-              <div className="flex flex-col items-center text-center space-y-2.5">
-                <div className="w-10 h-10 rounded-xl bg-[#0D5771]/10 flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-[#0D5771]" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-800 font-display">Loading your studio…</p>
-                  <p className="text-[11px] font-mono text-slate-400">Syncing photos, services &amp; custom design</p>
-                </div>
-              </div>
-              <div className="space-y-2.5 pt-2 animate-pulse">
-                <div className="h-4 w-28 bg-slate-100 rounded-full mx-auto" />
-                <div className="h-8 w-4/5 bg-slate-100 rounded-xl mx-auto" />
-                <div className="h-44 w-full bg-slate-100 rounded-2xl" />
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="h-20 bg-slate-100 rounded-xl" />
-                  <div className="h-20 bg-slate-100 rounded-xl" />
-                </div>
-              </div>
-            </div>
+            <StudioLoader
+              title="Initializing Cuzmify Studio"
+              subtitle="Syncing photos, services & design tokens…"
+              className="min-h-[420px]"
+            />
           ) : (
             <>
               <style>{`

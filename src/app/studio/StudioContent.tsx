@@ -10,6 +10,7 @@ import { MobileGuard } from '@/studio/MobileGuard';
 import { resolveNicheBlueprint } from '@/core/niche-blueprints';
 import { resolveTemplateEngineId } from '@/core/template-engines';
 import type { ThemeName } from '@/core/project-schema';
+import { StudioLoader } from '@/studio/StudioLoader';
 
 export default function StudioContent() {
   const { data: session, status } = useSession();
@@ -23,14 +24,7 @@ export default function StudioContent() {
   const projectId = searchParams.get('projectId') ?? 'proj_default';
 
   if (status === 'loading') {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#F1F5F9]">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-2 border-[#0D5771] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-[#64748B] text-xs font-mono">Verifying Cuzmify Session…</p>
-        </div>
-      </div>
-    );
+    return <StudioLoader subtitle="Verifying Cuzmify session…" className="h-screen w-screen" />;
   }
 
   if (!session) {

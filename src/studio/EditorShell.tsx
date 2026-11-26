@@ -18,18 +18,12 @@ import { MobilePreviewPane } from './MobilePreviewPane';
 import { PublishModal } from './publish/PublishModal';
 import { StudioInfrastructureHub } from './modules/StudioInfrastructureHub';
 import { useEditor } from './engine/EditorContext';
+import { StudioLoader } from './StudioLoader';
 
 // Canvas must be dynamically imported — GrapesJS requires window/document
 const Canvas = dynamic(() => import('./Canvas').then((m) => ({ default: m.Canvas })), {
   ssr: false,
-  loading: () => (
-    <div className="flex-1 flex items-center justify-center bg-[#F1F5F9]">
-      <div className="text-center space-y-3">
-        <div className="w-10 h-10 border-2 border-[#0D5771] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-[#64748B] text-xs font-mono">Loading Visual Canvas…</p>
-      </div>
-    </div>
-  ),
+  loading: () => <StudioLoader className="flex-1 h-full" />,
 });
 
 function EditorShellInner() {
@@ -305,14 +299,7 @@ export function EditorShell({
   }, []);
 
   if (!mounted) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#F8FAFC]">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-2 border-[#0D5771] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-[#64748B] text-xs font-mono">Initializing Cuzmify Studio…</p>
-        </div>
-      </div>
-    );
+    return <StudioLoader className="h-screen w-screen" />;
   }
 
   return <EditorShellInner />;

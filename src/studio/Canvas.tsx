@@ -4,10 +4,11 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useEditor } from './engine/EditorContext';
 import { EditorService } from './engine/EditorService';
-import { Lock, Sparkles } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine } from '@/core/template-engines';
 import { clearOnboardingDraftMedia, loadOnboardingDraftMedia, mergeOnboardingMediaVault } from '@/lib/onboarding-media-draft';
+import { StudioLoader } from './StudioLoader';
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -378,27 +379,7 @@ export function Canvas() {
         {/* Canvas Target */}
         <div className="flex-1 relative overflow-hidden bg-[#FFFFFF]">
           {isCanvasLoading && (
-            <div className="absolute inset-0 z-40 bg-[#FFFFFF] flex flex-col items-center justify-center animate-in fade-in duration-200">
-              <div className="flex flex-col items-center space-y-4 max-w-sm text-center px-6">
-                <div className="relative flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0D5771] to-teal-400 animate-spin opacity-70 blur-xs" />
-                  <div className="absolute w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-md border border-slate-100">
-                    <Sparkles className="w-5 h-5 text-[#0D5771] animate-pulse" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-slate-800 font-display tracking-tight uppercase">
-                    Initializing Cuzmify Studio
-                  </h3>
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    Hydrating visual canvas &amp; design tokens…
-                  </p>
-                </div>
-                <div className="w-40 h-1 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="w-full h-full bg-gradient-to-r from-[#0D5771] to-teal-400 animate-pulse" />
-                </div>
-              </div>
-            </div>
+            <StudioLoader className="absolute inset-0 z-40" />
           )}
           <div ref={containerRef} className="w-full h-full" />
         </div>
