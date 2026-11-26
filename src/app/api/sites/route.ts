@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { InstagramImporter } from '@/services/importer/instagram-importer';
 import { createDefaultBlueprint, type CurrencyCode, type MediaVaultAsset } from '@/core/blueprint-schema';
+import { renderTemplateEngine } from '@/core/template-engines';
 
 async function resolveUserId() {
   const session = await auth();
@@ -112,6 +113,8 @@ export async function POST(req: Request) {
       uniqueSubdomain = `${baseSlug}-${counter++}`;
     }
 
+    const initialRendered = renderTemplateEngine(templateId, initialBp);
+
     const newSite = await prisma.site.create({
       data: {
         userId,
@@ -130,6 +133,7 @@ export async function POST(req: Request) {
         instagramHandle: rawIg || undefined,
         ...(onboardingIgToken ? { instagramToken: onboardingIgToken } : {}),
         ...(onboardingIgExpiresAt ? { instagramTokenExpiresAt: onboardingIgExpiresAt } : {}),
+        htmlContent: initialRendered.fullHtml,
         blueprintData: JSON.stringify(initialBp),
       },
     });

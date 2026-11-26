@@ -7,7 +7,7 @@ import { EditorService } from './engine/EditorService';
 import { Lock, Sparkles } from 'lucide-react';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine } from '@/core/template-engines';
-import { clearOnboardingDraftMedia, loadOnboardingDraftMedia } from '@/lib/onboarding-media-draft';
+import { clearOnboardingDraftMedia, loadOnboardingDraftMedia, mergeOnboardingMediaVault } from '@/lib/onboarding-media-draft';
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -161,8 +161,31 @@ export function Canvas() {
       setActiveModuleModal('media');
     });
 
+    // Subscribe to changes early so initial onboarding hydration also persists
+    const unsubChange = service.onChanged(() => {
+      setSaveState('unsaved');
+      setCanUndo(service.canUndo());
+      setCanRedo(service.canRedo());
+
+      clearTimeout((globalThis as Record<string, unknown>).__cuzmifyAutoSave as ReturnType<typeof setTimeout>);
+      (globalThis as Record<string, unknown>).__cuzmifyAutoSave = setTimeout(async () => {
+        service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
+        await service.saveToDatabase(projectId, {
+          businessName: businessNameRef.current,
+          theme: themeRef.current,
+        });
+        setSaveState('saved');
+      }, 1500);
+    });
+
+    const unsubSel = service.onSelectionChange((type) => {
+      const traits = service.getSelectedComponentTraits();
+      setSelectedComponent({ type, traits });
+    });
+
     // 1. Instant 0ms SWR Hydration: Hydrate from LocalStorage or Default Template immediately
     const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     if (localRes.loaded) {
       if (localRes.theme) handleThemeChange(localRes.theme as any);
       if (localRes.name) {
@@ -173,7 +196,6 @@ export function Canvas() {
       service.syncCanvasWithBlueprint();
       setIsCanvasLoading(false);
     } else {
-      const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const urlTpl = urlParams?.get('template') || urlParams?.get('templateId');
       const urlCat = urlParams?.get('category') || urlParams?.get('nicheId');
       if (urlCat) service.switchNiche(urlCat, projectId);
@@ -186,19 +208,15 @@ export function Canvas() {
     // Hydrate gallery photos uploaded during Onboarding Step 2 (survives Google/Email auth redirect)
     const draftOnboardingMedia = loadOnboardingDraftMedia();
     if (draftOnboardingMedia.length > 0) {
-      const existingVault = service.getMediaVault();
-      const merged = [
-        ...draftOnboardingMedia,
-        ...existingVault.filter((ex) => !draftOnboardingMedia.some((d) => d.id === ex.id)),
-      ].slice(0, 20);
+      const merged = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 20);
       service.setMediaVault(merged);
+      service.injectInstagramMediaToCanvas(merged);
       service.syncCanvasWithBlueprint();
-      clearOnboardingDraftMedia();
+      service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
     }
 
     // 3. Instagram Media Hydration (Cookie / URL Params / OAuth Returning)
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams) {
       const igHandle = urlParams.get('instagram');
       const isSynced = urlParams.get('synced') === 'instagram';
 
@@ -221,8 +239,9 @@ export function Canvas() {
       } catch {}
 
       if (cookieMedia && cookieMedia.length > 0) {
-        service.setMediaVault(cookieMedia);
-        service.injectInstagramMediaToCanvas(cookieMedia);
+        const mergedCookie = mergeOnboardingMediaVault(draftOnboardingMedia, cookieMedia, 20);
+        service.setMediaVault(mergedCookie);
+        service.injectInstagramMediaToCanvas(mergedCookie);
         const activeHandle = cookieHandle || igHandle;
         if (activeHandle) {
           service.updateProfile({ instagram: activeHandle, instagramHandle: activeHandle });
@@ -238,8 +257,9 @@ export function Canvas() {
             .then((res) => res.json())
             .then((data) => {
               if (data?.mediaVault && data.mediaVault.length > 0) {
-                service.setMediaVault(data.mediaVault);
-                service.injectInstagramMediaToCanvas(data.mediaVault);
+                const mergedSync = mergeOnboardingMediaVault(draftOnboardingMedia, data.mediaVault, 20);
+                service.setMediaVault(mergedSync);
+                service.injectInstagramMediaToCanvas(mergedSync);
                 service.updateProfile({ instagram: targetHandle, instagramHandle: targetHandle });
               }
             })
@@ -252,13 +272,17 @@ export function Canvas() {
       }
     }
 
-    // 2. Background Cloud Database Sync (reconcile if cloud has newer data)
-    service.loadFromDatabase(projectId).then((cloudRes) => {
+    // 2. Background Cloud Database Sync (never clobber fresh onboarding draft uploads)
+    service.loadFromDatabase(projectId, { allowFallback: draftOnboardingMedia.length === 0 }).then(async (cloudRes) => {
       if (cloudRes.loaded) {
         if (cloudRes.theme) handleThemeChange(cloudRes.theme as any);
         if (cloudRes.name) {
           setBusinessName(cloudRes.name);
           businessNameRef.current = cloudRes.name;
+        }
+        if (draftOnboardingMedia.length > 0) {
+          const mergedCloud = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 20);
+          service.setMediaVault(mergedCloud);
         }
         service.sanitizeCanvas();
         service.syncCanvasWithBlueprint();
@@ -267,28 +291,18 @@ export function Canvas() {
           service.injectInstagramMediaToCanvas(bp.mediaVault);
         }
       }
-      setIsCanvasLoading(false);
-    });
 
-    const unsubChange = service.onChanged(() => {
-      setSaveState('unsaved');
-      setCanUndo(service.canUndo());
-      setCanRedo(service.canRedo());
-
-      clearTimeout((globalThis as Record<string, unknown>).__cuzmifyAutoSave as ReturnType<typeof setTimeout>);
-      (globalThis as Record<string, unknown>).__cuzmifyAutoSave = setTimeout(async () => {
+      if (draftOnboardingMedia.length > 0) {
         service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
-        await service.saveToDatabase(projectId, {
+        const saved = await service.saveToDatabase(projectId, {
           businessName: businessNameRef.current,
           theme: themeRef.current,
         });
-        setSaveState('saved');
-      }, 1500);
-    });
-
-    const unsubSel = service.onSelectionChange((type) => {
-      const traits = service.getSelectedComponentTraits();
-      setSelectedComponent({ type, traits });
+        if (saved) {
+          clearOnboardingDraftMedia();
+        }
+      }
+      setIsCanvasLoading(false);
     });
 
     setService(service);

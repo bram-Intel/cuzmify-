@@ -115,7 +115,7 @@ function WizardContent() {
       const newlyCompressed: MediaVaultAsset[] = [];
       for (const file of files.slice(0, 8)) {
         if (!file.type.startsWith('image/')) continue;
-        const webp = await compressImageFileToWebP(file, 1000, 0.78);
+        const webp = await compressImageFileToWebP(file, 850, 0.72);
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').slice(0, 40) || 'Portfolio Shot';
         newlyCompressed.push({
           id: `mv-up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -189,7 +189,6 @@ function WizardContent() {
       });
       const data = await res.json();
       if (res.ok && data?.site?.id) {
-        saveOnboardingDraftMedia([]);
         const params = new URLSearchParams({
           projectId: data.site.id,
           name: finalName,

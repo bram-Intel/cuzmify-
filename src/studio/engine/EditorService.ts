@@ -1073,12 +1073,17 @@ export class EditorService {
     }
   }
 
-  async loadFromDatabase(projectId: string): Promise<{ loaded: boolean; theme?: string; name?: string }> {
+  async loadFromDatabase(
+    projectId: string,
+    opts?: { allowFallback?: boolean }
+  ): Promise<{ loaded: boolean; theme?: string; name?: string }> {
     try {
       const res = await fetch('/api/sites');
       if (!res.ok) return { loaded: false };
       const data = await res.json();
-      const site = data?.sites?.find((s: any) => s.id === projectId) || data?.sites?.[0];
+      const sites = Array.isArray(data?.sites) ? data.sites : [];
+      const exactMatch = sites.find((s: any) => s.id === projectId);
+      const site = exactMatch || (opts?.allowFallback !== false ? sites[0] : undefined);
       if (!site) return { loaded: false };
 
       if (site.theme) {
@@ -1118,7 +1123,7 @@ export class EditorService {
             return { loaded: true, theme: site.theme, name: activeName };
           }
         } catch {
-          // Fall through to htmlContent
+          // Fall through to htmlContent / blueprintData
         }
       }
 
@@ -1127,6 +1132,16 @@ export class EditorService {
         this.adapter.setHtmlContent(site.htmlContent);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
+        return { loaded: true, theme: site.theme, name: activeName };
+      }
+
+      // 3. Render freshly from hydrated blueprintData (newly created sites via POST /api/sites)
+      if (site.blueprintData) {
+        const bp = this.blueprintManager.getBlueprint();
+        const rendered = renderTemplateEngine(bp.templateId, bp, { siteId: site.id });
+        this.adapter.setHtmlContent(rendered.fullHtml);
+        this.adapter.sanitizeCanvas();
+        this.recordSnapshot('Loaded from Blueprint', 'initial', site.theme as ThemeName);
         return { loaded: true, theme: site.theme, name: activeName };
       }
 
