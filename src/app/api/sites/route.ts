@@ -20,7 +20,7 @@ export async function GET() {
   try {
     const userId = await resolveUserId();
     if (!userId) {
-      return NextResponse.json({ sites: [] });
+      return NextResponse.json({ sites: [] }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 
     const sites = await prisma.site.findMany({
@@ -28,7 +28,7 @@ export async function GET() {
       orderBy: { updatedAt: 'desc' },
     });
 
-    return NextResponse.json({ sites });
+    return NextResponse.json({ sites }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   } catch (err: any) {
     console.error('[API GET /api/sites Error]:', err);
     return NextResponse.json({ error: err?.message || 'Failed to fetch sites' }, { status: 500 });

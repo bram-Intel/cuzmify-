@@ -8,6 +8,7 @@ import type { ThemeName } from '@/core/project-schema';
 import type { BusinessBlueprint, CurrencyCode } from '@/core/blueprint-schema';
 import { resolveTemplateEngineId, TEMPLATE_ENGINES, type TemplateEngineId } from '@/core/template-engines';
 import { resolveNicheBlueprint } from '@/core/niche-blueprints';
+import { readStudioLocalSnapshot } from './blueprint-persistence';
 
 export type Breakpoint = 'desktop' | 'tablet' | 'mobile';
 export type SaveState = 'saved' | 'saving' | 'unsaved' | 'error';
@@ -151,14 +152,9 @@ export function EditorProvider({
   // Synchronously warm-hydrate cached blueprint before async GrapesJS loads so mobile & inspector never flash boilerplate on reload
   const initialCachedSnapshot = React.useMemo(() => {
     if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(`cuzmify_project_${currentUserId}_${projectId}`);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed?.blueprint ? (parsed.blueprint as BusinessBlueprint) : null;
-    } catch {
-      return null;
-    }
+    const snap = readStudioLocalSnapshot(window.localStorage, projectId, currentUserId);
+    if (!snap || snap.mediaStrippedForQuota) return null;
+    return snap.blueprint;
   }, [currentUserId, projectId]);
 
   const [blueprint, setBlueprint] = useState<BusinessBlueprint | null>(initialCachedSnapshot);
@@ -246,11 +242,20 @@ export function EditorProvider({
     setSaveState('saving');
     try {
       service.saveToLocalStorage(projectId, theme, currentUserId);
-      await service.saveToDatabase(projectId, { businessName, theme });
-      setSaveState('saved');
-      if (!isAuto) {
-        setSaveToast('✓ Project saved to Database!');
-        setTimeout(() => setSaveToast(null), 3000);
+      const ok = await service.saveToDatabase(projectId, { businessName, theme });
+      if (ok) {
+        service.saveToLocalStorage(projectId, theme, currentUserId);
+        setSaveState('saved');
+        if (!isAuto) {
+          setSaveToast('✓ Project saved to Database!');
+          setTimeout(() => setSaveToast(null), 3000);
+        }
+      } else {
+        setSaveState('error');
+        if (!isAuto) {
+          setSaveToast('⚠️ Cloud save failed — saved locally on device');
+          setTimeout(() => setSaveToast(null), 3500);
+        }
       }
     } catch {
       setSaveState('error');
@@ -275,14 +280,16 @@ export function EditorProvider({
   const handleTemplateSwitch = useCallback((tplId: TemplateEngineId) => {
     setTemplateId(tplId);
     service?.switchTemplate(tplId, projectId);
+    service?.saveToLocalStorage(projectId, theme, currentUserId);
     setSaveToast(`✨ Switched look to "${TEMPLATE_ENGINES[tplId].name}" — all your content stayed intact!`);
     setTimeout(() => setSaveToast(null), 3000);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      service?.saveToLocalStorage(projectId, theme, currentUserId);
-      service?.saveToDatabase(projectId, { businessName, theme });
-      setSaveState('saved');
-    }, 800);
+    saveTimerRef.current = setTimeout(async () => {
+      if (!service) return;
+      service.saveToLocalStorage(projectId, theme, currentUserId);
+      const ok = await service.saveToDatabase(projectId, { businessName, theme });
+      setSaveState(ok ? 'saved' : 'error');
+    }, 600);
   }, [service, projectId, theme, businessName, currentUserId]);
 
   const handleNicheSwitch = useCallback((nextNicheId: string) => {

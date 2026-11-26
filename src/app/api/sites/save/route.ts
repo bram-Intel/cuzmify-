@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
+import { renderTemplateEngine, resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
+import type { BusinessBlueprint } from '@/core/blueprint-schema';
 
 async function readOnboardingIgToken(): Promise<{ accessToken?: string; expiresAt?: Date; handle?: string }> {
   try {
@@ -48,6 +50,39 @@ export async function POST(req: Request) {
       'studio';
     const igCookieToken = await readOnboardingIgToken();
 
+    let parsedBlueprint: BusinessBlueprint | null = null;
+    if (body.blueprintData !== undefined && body.blueprintData !== null) {
+      try {
+        parsedBlueprint =
+          typeof body.blueprintData === 'string'
+            ? (JSON.parse(body.blueprintData) as BusinessBlueprint)
+            : (body.blueprintData as BusinessBlueprint);
+      } catch {
+        parsedBlueprint = null;
+      }
+    }
+
+    const resolveHtmlForSave = (effectiveSiteId: string | undefined, fallbackHtml?: string | null) => {
+      if (typeof htmlContent === 'string' && htmlContent.trim().length > 0) {
+        return htmlContent;
+      }
+      if (parsedBlueprint) {
+        const resolvedTpl = resolveTemplateEngineId(templateId || parsedBlueprint.templateId);
+        return renderTemplateEngine(resolvedTpl, parsedBlueprint, { siteId: effectiveSiteId }).fullHtml;
+      }
+      return fallbackHtml ?? undefined;
+    };
+
+    const resolveGrapesDataForSave = (existingGrapesData?: string | null) => {
+      if (grapesData === null) return null;
+      if (grapesData !== undefined) {
+        return typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData);
+      }
+      // If blueprintData was updated without grapesData, clear stale grapesData so blueprint remains single source of truth
+      if (parsedBlueprint) return null;
+      return existingGrapesData;
+    };
+
     let savedSite;
     if (targetId) {
       const existing = await prisma.site.findUnique({
@@ -63,6 +98,7 @@ export async function POST(req: Request) {
         }
 
         const activeSubdomain = body.subdomain || existing.subdomain || computedSubdomain;
+        const resolvedTplId = resolveTemplateEngineId(templateId || parsedBlueprint?.templateId || existing.templateId);
 
         savedSite = await prisma.site.update({
           where: { id: targetId },
@@ -70,17 +106,12 @@ export async function POST(req: Request) {
             name: name || existing.name,
             subdomain: activeSubdomain,
             customDomain: body.customDomain !== undefined ? body.customDomain : existing.customDomain,
-            nicheId: nicheId || existing.nicheId,
-            templateId: templateId || existing.templateId,
-            template: template || existing.template,
-            category: category || existing.category,
-            htmlContent: htmlContent !== undefined ? htmlContent : existing.htmlContent,
-            grapesData:
-              grapesData !== undefined
-                ? typeof grapesData === 'string'
-                  ? grapesData
-                  : JSON.stringify(grapesData)
-                : existing.grapesData,
+            nicheId: nicheId || parsedBlueprint?.nicheId || existing.nicheId,
+            templateId: resolvedTplId,
+            template: template || TEMPLATE_ENGINES[resolvedTplId]?.name || existing.template,
+            category: category || parsedBlueprint?.profile?.category || existing.category,
+            htmlContent: resolveHtmlForSave(targetId, existing.htmlContent),
+            grapesData: resolveGrapesDataForSave(existing.grapesData),
             blueprintData:
               body.blueprintData !== undefined
                 ? typeof body.blueprintData === 'string'
@@ -96,7 +127,7 @@ export async function POST(req: Request) {
                 }
               : {}),
             whatsappPhone: body.whatsappPhone !== undefined ? body.whatsappPhone : existing.whatsappPhone,
-            currency: body.currency || existing.currency,
+            currency: body.currency || parsedBlueprint?.profile?.currency || existing.currency,
             domain: domain !== undefined ? domain : existing.domain || `${activeSubdomain}.cuzmify.com`,
             status: status || existing.status,
             liveUrl: liveUrl !== undefined ? liveUrl : existing.liveUrl || `/s/${activeSubdomain}`,
@@ -104,6 +135,7 @@ export async function POST(req: Request) {
           },
         });
       } else {
+        const resolvedTplId = resolveTemplateEngineId(templateId || parsedBlueprint?.templateId);
         savedSite = await prisma.site.create({
           data: {
             id: targetId,
@@ -111,11 +143,11 @@ export async function POST(req: Request) {
             name: rawName,
             subdomain: computedSubdomain,
             customDomain: body.customDomain || undefined,
-            nicheId: nicheId || 'beauty_makeup',
-            templateId: templateId || 'editorial-atelier',
-            template: template || 'Editorial Atelier',
-            category: category || 'Service Business',
-            htmlContent: htmlContent || undefined,
+            nicheId: nicheId || parsedBlueprint?.nicheId || 'beauty_makeup',
+            templateId: resolvedTplId,
+            template: template || TEMPLATE_ENGINES[resolvedTplId]?.name || 'Editorial Atelier',
+            category: category || parsedBlueprint?.profile?.category || 'Service Business',
+            htmlContent: resolveHtmlForSave(targetId),
             grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
             blueprintData: body.blueprintData ? (typeof body.blueprintData === 'string' ? body.blueprintData : JSON.stringify(body.blueprintData)) : undefined,
             theme: theme || 'bram-light',
@@ -127,7 +159,7 @@ export async function POST(req: Request) {
                 }
               : {}),
             whatsappPhone: body.whatsappPhone || undefined,
-            currency: body.currency || 'NGN',
+            currency: body.currency || parsedBlueprint?.profile?.currency || 'NGN',
             domain: domain || `${computedSubdomain}.cuzmify.com`,
             status: status || 'draft',
             liveUrl: liveUrl || `/s/${computedSubdomain}`,
@@ -142,23 +174,19 @@ export async function POST(req: Request) {
 
       if (existing) {
         const activeSubdomain = body.subdomain || existing.subdomain || computedSubdomain;
+        const resolvedTplId = resolveTemplateEngineId(templateId || parsedBlueprint?.templateId || existing.templateId);
         savedSite = await prisma.site.update({
           where: { id: existing.id },
           data: {
             name: name || existing.name,
             subdomain: activeSubdomain,
             customDomain: body.customDomain !== undefined ? body.customDomain : existing.customDomain,
-            nicheId: nicheId || existing.nicheId,
-            templateId: templateId || existing.templateId,
-            template: template || existing.template,
-            category: category || existing.category,
-            htmlContent: htmlContent !== undefined ? htmlContent : existing.htmlContent,
-            grapesData:
-              grapesData !== undefined
-                ? typeof grapesData === 'string'
-                  ? grapesData
-                  : JSON.stringify(grapesData)
-                : existing.grapesData,
+            nicheId: nicheId || parsedBlueprint?.nicheId || existing.nicheId,
+            templateId: resolvedTplId,
+            template: template || TEMPLATE_ENGINES[resolvedTplId]?.name || existing.template,
+            category: category || parsedBlueprint?.profile?.category || existing.category,
+            htmlContent: resolveHtmlForSave(existing.id, existing.htmlContent),
+            grapesData: resolveGrapesDataForSave(existing.grapesData),
             blueprintData:
               body.blueprintData !== undefined
                 ? typeof body.blueprintData === 'string'
@@ -174,7 +202,7 @@ export async function POST(req: Request) {
                 }
               : {}),
             whatsappPhone: body.whatsappPhone !== undefined ? body.whatsappPhone : existing.whatsappPhone,
-            currency: body.currency || existing.currency,
+            currency: body.currency || parsedBlueprint?.profile?.currency || existing.currency,
             domain: domain !== undefined ? domain : existing.domain || `${activeSubdomain}.cuzmify.com`,
             status: status || existing.status,
             liveUrl: liveUrl !== undefined ? liveUrl : existing.liveUrl || `/s/${activeSubdomain}`,
@@ -182,17 +210,18 @@ export async function POST(req: Request) {
           },
         });
       } else {
+        const resolvedTplId = resolveTemplateEngineId(templateId || parsedBlueprint?.templateId);
         savedSite = await prisma.site.create({
           data: {
             userId,
             name: rawName,
             subdomain: computedSubdomain,
             customDomain: body.customDomain || undefined,
-            nicheId: nicheId || 'beauty_makeup',
-            templateId: templateId || 'editorial-atelier',
-            template: template || 'Editorial Atelier',
-            category: category || 'Service Business',
-            htmlContent: htmlContent || undefined,
+            nicheId: nicheId || parsedBlueprint?.nicheId || 'beauty_makeup',
+            templateId: resolvedTplId,
+            template: template || TEMPLATE_ENGINES[resolvedTplId]?.name || 'Editorial Atelier',
+            category: category || parsedBlueprint?.profile?.category || 'Service Business',
+            htmlContent: resolveHtmlForSave(undefined),
             grapesData: grapesData ? (typeof grapesData === 'string' ? grapesData : JSON.stringify(grapesData)) : undefined,
             blueprintData: body.blueprintData ? (typeof body.blueprintData === 'string' ? body.blueprintData : JSON.stringify(body.blueprintData)) : undefined,
             theme: theme || 'bram-light',
@@ -204,7 +233,7 @@ export async function POST(req: Request) {
                 }
               : {}),
             whatsappPhone: body.whatsappPhone || undefined,
-            currency: body.currency || 'NGN',
+            currency: body.currency || parsedBlueprint?.profile?.currency || 'NGN',
             domain: domain || `${computedSubdomain}.cuzmify.com`,
             status: status || 'draft',
             liveUrl: liveUrl || `/s/${computedSubdomain}`,
@@ -215,7 +244,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      site: savedSite,
+      site: {
+        id: savedSite.id,
+        name: savedSite.name,
+        subdomain: savedSite.subdomain,
+        domain: savedSite.domain,
+        status: savedSite.status,
+        liveUrl: savedSite.liveUrl,
+        updatedAt: savedSite.updatedAt,
+      },
     });
   } catch (err: any) {
     console.error('[API /api/sites/save Error]:', err);

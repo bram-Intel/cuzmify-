@@ -10,6 +10,12 @@ import { renderTemplateEngine, resolveTemplateEngineId, TEMPLATE_ENGINES, type T
 import { resolveNicheBlueprint } from '@/core/niche-blueprints';
 import type { ThemeName } from '@/core/project-schema';
 import type { CuzmifyComponentTraits } from '@/core/types';
+import {
+  buildSlimSaveSitePayload,
+  readStudioLocalSnapshot,
+  writeStudioLocalSnapshot,
+  type StudioLocalSnapshot,
+} from './blueprint-persistence';
 
 export class EditorService {
   private adapter: GrapesAdapter;
@@ -23,6 +29,8 @@ export class EditorService {
   private isMoving = false;
   private snapshotDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private currentTheme: ThemeName = 'bram-light';
+  private activeSiteId: string | null = null;
+  private hasCustomCanvasBlocks = false;
 
   constructor(grapesEditor: Editor, initialBusinessName?: string) {
     this.adapter = new GrapesAdapter(grapesEditor);
@@ -35,9 +43,13 @@ export class EditorService {
 
     // Forward blueprint updates & dynamically synchronize canvas DOM
     this.blueprintManager.onChange((bp) => {
-      this.syncCanvasWithBlueprint(bp);
+      if (!this.isRestoringState) {
+        this.syncCanvasWithBlueprint(bp);
+      }
       this.blueprintListeners.forEach((fn) => fn(bp));
-      this.notifyChange();
+      if (!this.isRestoringState) {
+        this.notifyChange();
+      }
     });
 
     // Forward history changes to reactive subscribers
@@ -674,11 +686,11 @@ export class EditorService {
     if (!this.adapter || this.isSyncingFromCanvas) return;
     const bp = blueprint || this.blueprintManager.getBlueprint();
 
-    // Fast path: if the active canvas is backed by one of our 3 Lossless Template Engines,
-    // re-render cleanly from Blueprint so services (fixed/starting_at/quote), IG media, and copy stay 100% synced.
-    const checkDoc = this.adapter.getDoc();
-    if (checkDoc && checkDoc.querySelector('[data-cuzmify-template]')) {
-      const rendered = renderTemplateEngine(bp.templateId, bp);
+    // Lossless Template Engine path: always re-render cleanly from Blueprint unless raw custom GrapesJS blocks were inserted,
+    // even if the iframe hasn't completed initial load or is rendered behind a full-screen Studio modal.
+    if (!this.hasCustomCanvasBlocks && bp?.templateId) {
+      const tplId = resolveTemplateEngineId(bp.templateId);
+      const rendered = renderTemplateEngine(tplId, bp, { siteId: this.activeSiteId || undefined });
       this.adapter.setHtmlContent(rendered.fullHtml);
       this.adapter.triggerChange();
       return;
@@ -1010,63 +1022,71 @@ export class EditorService {
   }
 
   // ── Persistence ───────────────────────────────────────────────────────────
-  saveToLocalStorage(projectId: string, theme?: string, userId?: string): void {
-    try {
-      const storageKey = `cuzmify_project_${userId || 'guest'}_${projectId}`;
-      const bp = this.blueprintManager.getBlueprint();
-      const payload = {
-        grapesData: this.adapter.getProjectData(),
-        html: this.adapter.getHtml(),
-        css: this.adapter.getCss(),
-        theme: theme || this.currentTheme,
-        blueprint: bp,
-        businessName: bp.profile.name,
-        savedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(storageKey, JSON.stringify(payload));
-    } catch {
+  getActiveSiteId(): string | null {
+    return this.activeSiteId;
+  }
+
+  saveToLocalStorage(projectId: string, theme?: string, userId?: string): boolean {
+    if (typeof window === 'undefined' || !window.localStorage) return false;
+    const bp = this.blueprintManager.getBlueprint();
+    const res = writeStudioLocalSnapshot(window.localStorage, {
+      projectId,
+      userId,
+      siteId: this.activeSiteId || undefined,
+      theme: theme || this.currentTheme,
+      blueprint: bp,
+      grapesData: this.hasCustomCanvasBlocks ? this.adapter.getProjectData() : undefined,
+      includeGrapesData: this.hasCustomCanvasBlocks,
+    });
+    if (!res.saved) {
       console.warn('[EditorService] Could not save to localStorage');
     }
+    return res.saved;
   }
 
   // ── Database & Cloud Persistence ──────────────────────────────────────────
   async saveToDatabase(
     projectId: string,
-    meta?: { businessName?: string; theme?: string; template?: string; category?: string }
+    meta?: {
+      businessName?: string;
+      theme?: string;
+      template?: string;
+      category?: string;
+      status?: string;
+      subdomain?: string;
+      liveUrl?: string;
+    }
   ): Promise<boolean> {
     try {
-      const html = this.adapter.getHtml();
-      const grapesData = this.adapter.getProjectData();
       const blueprint = this.blueprintManager.getBlueprint();
-      const bpName = blueprint.profile?.name;
-      const finalName = bpName && bpName !== 'Gmakeup Studio' && bpName !== 'Glory Beauty Studio'
-        ? bpName
-        : (meta?.businessName || bpName || 'My Business');
+      const { serialized, canUseKeepalive } = buildSlimSaveSitePayload({
+        projectId,
+        resolvedSiteId: this.activeSiteId || undefined,
+        blueprint,
+        businessName: meta?.businessName,
+        theme: meta?.theme || this.currentTheme,
+        template: meta?.template,
+        category: meta?.category,
+        status: meta?.status,
+        subdomain: meta?.subdomain,
+        liveUrl: meta?.liveUrl,
+        includeCustomCanvas: this.hasCustomCanvasBlocks,
+        htmlContent: this.hasCustomCanvasBlocks ? this.adapter.getHtml() : undefined,
+        grapesData: this.hasCustomCanvasBlocks ? this.adapter.getProjectData() : undefined,
+      });
 
-      const tplId = resolveTemplateEngineId(blueprint.templateId);
-      const cleanSub = (finalName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '') || 'studio';
       const res = await fetch('/api/sites/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siteId: projectId,
-          name: finalName,
-          subdomain: cleanSub,
-          nicheId: blueprint.nicheId || blueprint.profile.nicheId,
-          templateId: tplId,
-          template: meta?.template || TEMPLATE_ENGINES[tplId]?.name,
-          category: meta?.category || blueprint.profile.category,
-          htmlContent: html,
-          grapesData: {
-            ...(typeof grapesData === 'object' ? grapesData : {}),
-            blueprint,
-          },
-          theme: meta?.theme || this.currentTheme,
-          blueprintData: blueprint,
-          liveUrl: `/s/${cleanSub}`,
-        }),
+        body: serialized,
+        ...(canUseKeepalive ? { keepalive: true } : {}),
       });
-      return res.ok;
+      if (!res.ok) return false;
+      const data = await res.json().catch(() => null);
+      if (data?.site?.id) {
+        this.activeSiteId = data.site.id;
+      }
+      return Boolean(data?.success ?? true);
     } catch (err) {
       console.warn('[EditorService] Cloud database save warning:', err);
       return false;
@@ -1076,9 +1096,15 @@ export class EditorService {
   async loadFromDatabase(
     projectId: string,
     opts?: { allowFallback?: boolean }
-  ): Promise<{ loaded: boolean; theme?: string; name?: string }> {
+  ): Promise<{
+    loaded: boolean;
+    siteId?: string;
+    theme?: string;
+    name?: string;
+    blueprint?: BusinessBlueprint;
+  }> {
     try {
-      const res = await fetch('/api/sites');
+      const res = await fetch('/api/sites', { cache: 'no-store' });
       if (!res.ok) return { loaded: false };
       const data = await res.json();
       const sites = Array.isArray(data?.sites) ? data.sites : [];
@@ -1086,63 +1112,76 @@ export class EditorService {
       const site = exactMatch || (opts?.allowFallback !== false ? sites[0] : undefined);
       if (!site) return { loaded: false };
 
+      this.activeSiteId = site.id;
+
       if (site.theme) {
         this.currentTheme = site.theme as ThemeName;
       }
 
-      if (site.grapesData) {
-        try {
-          const parsed = typeof site.grapesData === 'string' ? JSON.parse(site.grapesData) : site.grapesData;
-          if (parsed?.blueprint) {
-            this.blueprintManager.hydrate(parsed.blueprint);
+      this.isRestoringState = true;
+      try {
+        if (site.grapesData && !site.blueprintData) {
+          try {
+            const parsed = typeof site.grapesData === 'string' ? JSON.parse(site.grapesData) : site.grapesData;
+            if (parsed?.blueprint) {
+              this.blueprintManager.hydrate(parsed.blueprint);
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
         }
+
+        if (site.blueprintData) {
+          this.blueprintManager.hydrate(site.blueprintData);
+        }
+
+        // If site has a saved business name, ensure profile is in sync without touching updatedAt
+        if (site.name && site.name !== 'Gmakeup Studio' && site.name !== 'Glory Beauty Studio') {
+          const currentBp = this.blueprintManager.getBlueprint();
+          if (!currentBp.profile.name || currentBp.profile.name === 'Gmakeup Studio' || currentBp.profile.name === 'My Business Studio') {
+            currentBp.profile.name = site.name;
+          }
+        }
+      } finally {
+        this.isRestoringState = false;
       }
 
-      if (site.blueprintData) {
-        this.blueprintManager.hydrate(site.blueprintData);
-      }
+      const hydratedBp = this.blueprintManager.getBlueprint();
+      const activeName = hydratedBp.profile.name || site.name;
 
-      // If site has a saved business name, ensure profile is in sync
-      if (site.name && site.name !== 'Gmakeup Studio' && site.name !== 'Glory Beauty Studio') {
-        this.blueprintManager.updateProfile({ name: site.name });
-      }
-
-      const activeName = this.blueprintManager.getProfile().name || site.name;
-
-      // 1. Try grapesData first
-      if (site.grapesData) {
+      // 1. Custom non-template GrapesJS project data (only when present and blueprint isn't driving the template)
+      if (site.grapesData && !site.blueprintData) {
         try {
           const parsed = typeof site.grapesData === 'string' ? JSON.parse(site.grapesData) : site.grapesData;
           if (parsed && (parsed.pages || parsed.styles || parsed.components)) {
+            this.hasCustomCanvasBlocks = true;
             this.adapter.loadProjectData(parsed);
             this.adapter.sanitizeCanvas();
             this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
-            return { loaded: true, theme: site.theme, name: activeName };
+            return { loaded: true, siteId: site.id, theme: site.theme, name: activeName, blueprint: hydratedBp };
           }
         } catch {
-          // Fall through to htmlContent / blueprintData
+          // Fall through to blueprint / htmlContent
         }
       }
 
-      // 2. Try htmlContent
+      // 2. Render cleanly from authoritative blueprintData so services, photos & copy never drift behind stale grapesData/htmlContent
+      if (site.blueprintData) {
+        this.hasCustomCanvasBlocks = false;
+        const tplId = resolveTemplateEngineId(hydratedBp.templateId || site.templateId);
+        const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: site.id });
+        this.adapter.setHtmlContent(rendered.fullHtml);
+        this.adapter.sanitizeCanvas();
+        this.recordSnapshot('Loaded from Blueprint', 'initial', site.theme as ThemeName);
+        return { loaded: true, siteId: site.id, theme: site.theme, name: activeName, blueprint: hydratedBp };
+      }
+
+      // 3. Fallback to saved htmlContent
       if (site.htmlContent && site.htmlContent.length > 50) {
         this.adapter.setHtmlContent(site.htmlContent);
         this.adapter.sanitizeCanvas();
         this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
-        return { loaded: true, theme: site.theme, name: activeName };
-      }
-
-      // 3. Render freshly from hydrated blueprintData (newly created sites via POST /api/sites)
-      if (site.blueprintData) {
-        const bp = this.blueprintManager.getBlueprint();
-        const rendered = renderTemplateEngine(bp.templateId, bp, { siteId: site.id });
-        this.adapter.setHtmlContent(rendered.fullHtml);
-        this.adapter.sanitizeCanvas();
-        this.recordSnapshot('Loaded from Blueprint', 'initial', site.theme as ThemeName);
-        return { loaded: true, theme: site.theme, name: activeName };
+        return { loaded: true, siteId: site.id, theme: site.theme, name: activeName, blueprint: hydratedBp };
       }
 
       return { loaded: false };
@@ -1151,39 +1190,73 @@ export class EditorService {
     }
   }
 
-  loadFromLocalStorage(projectId: string, userId?: string): { loaded: boolean; theme?: string; name?: string } {
+  loadFromLocalStorage(
+    projectId: string,
+    userId?: string
+  ): {
+    loaded: boolean;
+    siteId?: string;
+    theme?: string;
+    name?: string;
+    snapshot?: StudioLocalSnapshot;
+  } {
     try {
-      const storageKey = `cuzmify_project_${userId || 'guest'}_${projectId}`;
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return { loaded: false };
-      const parsed = JSON.parse(raw);
+      if (typeof window === 'undefined' || !window.localStorage) return { loaded: false };
+      const snap = readStudioLocalSnapshot(window.localStorage, projectId, userId);
+      if (!snap) return { loaded: false };
 
-      if (parsed.theme) {
-        this.currentTheme = parsed.theme as ThemeName;
+      if (snap.siteId) {
+        this.activeSiteId = snap.siteId;
+      } else if (projectId && projectId !== 'proj_default') {
+        this.activeSiteId = projectId;
       }
 
-      if (parsed.blueprint) {
-        this.blueprintManager.hydrate(parsed.blueprint);
+      if (snap.theme) {
+        this.currentTheme = snap.theme as ThemeName;
       }
 
-      if (parsed.businessName && parsed.businessName !== 'Gmakeup Studio' && parsed.businessName !== 'Glory Beauty Studio') {
-        this.blueprintManager.updateProfile({ name: parsed.businessName });
+      this.isRestoringState = true;
+      try {
+        if (snap.blueprint) {
+          this.blueprintManager.hydrate(snap.blueprint);
+        }
+
+        if (snap.businessName && snap.businessName !== 'Gmakeup Studio' && snap.businessName !== 'Glory Beauty Studio') {
+          const bp = this.blueprintManager.getBlueprint();
+          if (!bp.profile.name || bp.profile.name === 'Gmakeup Studio' || bp.profile.name === 'My Business Studio') {
+            bp.profile.name = snap.businessName;
+          }
+        }
+      } finally {
+        this.isRestoringState = false;
       }
 
-      const activeName = this.blueprintManager.getProfile().name || parsed.businessName;
+      const hydratedBp = this.blueprintManager.getBlueprint();
+      const activeName = hydratedBp.profile.name || snap.businessName;
 
-      if (parsed.grapesData) {
-        this.adapter.loadProjectData(parsed.grapesData);
+      if (snap.grapesData) {
+        this.hasCustomCanvasBlocks = true;
+        this.adapter.loadProjectData(snap.grapesData);
         this.adapter.sanitizeCanvas();
-        this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
-        return { loaded: true, theme: parsed.theme, name: activeName };
+        this.recordSnapshot('Loaded from LocalStorage', 'initial', snap.theme as ThemeName);
+        return { loaded: true, siteId: this.activeSiteId || undefined, theme: snap.theme, name: activeName, snapshot: snap };
       }
 
-      if (parsed.html && typeof parsed.html === 'string' && parsed.html.length > 50) {
-        this.adapter.setHtmlContent(parsed.html);
+      if (snap.blueprint) {
+        this.hasCustomCanvasBlocks = false;
+        const tplId = resolveTemplateEngineId(hydratedBp.templateId);
+        const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: this.activeSiteId || projectId });
+        this.adapter.setHtmlContent(rendered.fullHtml);
         this.adapter.sanitizeCanvas();
-        this.recordSnapshot('Loaded from LocalStorage', 'initial', parsed.theme as ThemeName);
-        return { loaded: true, theme: parsed.theme, name: activeName };
+        this.recordSnapshot('Loaded from LocalStorage Blueprint', 'initial', snap.theme as ThemeName);
+        return { loaded: true, siteId: this.activeSiteId || undefined, theme: snap.theme, name: activeName, snapshot: snap };
+      }
+
+      if (snap.html && typeof snap.html === 'string' && snap.html.length > 50) {
+        this.adapter.setHtmlContent(snap.html);
+        this.adapter.sanitizeCanvas();
+        this.recordSnapshot('Loaded from LocalStorage', 'initial', snap.theme as ThemeName);
+        return { loaded: true, siteId: this.activeSiteId || undefined, theme: snap.theme, name: activeName, snapshot: snap };
       }
 
       return { loaded: false };
@@ -1346,6 +1419,28 @@ export class EditorService {
     return success;
   }
 
+  private syncSectionOrderToBlueprint(): void {
+    const sections = this.adapter.getSectionsList();
+    const knownIds = new Set(['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking']);
+    const order: string[] = [];
+    for (const sec of sections) {
+      const normalized = sec.id === 'gallery' ? 'portfolio' : sec.id;
+      if (knownIds.has(normalized) && !order.includes(normalized)) {
+        order.push(normalized);
+      }
+    }
+    if (order.length < 2) return;
+    const bp = this.blueprintManager.getBlueprint();
+    const tplId = resolveTemplateEngineId(bp.templateId);
+    const prevScoped = bp.templateDesignOverrides?.[tplId] || bp.designOverrides || {};
+    bp.designOverrides = { ...prevScoped, sectionOrder: order };
+    bp.templateDesignOverrides = {
+      ...(bp.templateDesignOverrides || {}),
+      [tplId]: { ...prevScoped, sectionOrder: order },
+    };
+    bp.updatedAt = new Date().toISOString();
+  }
+
   // ── Section Re-ordering APIs ──────────────────────────────────────────────
   getSectionsList(): { id: string; type: string; name: string; index: number }[] {
     return this.adapter.getSectionsList();
@@ -1353,24 +1448,36 @@ export class EditorService {
 
   moveSectionUp(index: number): void {
     this.adapter.moveSectionUp(index);
+    this.syncSectionOrderToBlueprint();
     this.recordSnapshot('Moved section up', 'section_reorder');
     this.notifyChange();
   }
 
   moveSectionDown(index: number): void {
     this.adapter.moveSectionDown(index);
+    this.syncSectionOrderToBlueprint();
     this.recordSnapshot('Moved section down', 'section_reorder');
     this.notifyChange();
   }
 
   moveSectionTo(fromIndex: number, toIndex: number): void {
     this.adapter.moveSectionTo(fromIndex, toIndex);
+    this.syncSectionOrderToBlueprint();
     this.recordSnapshot('Reordered section', 'section_reorder');
     this.notifyChange();
   }
 
   removeSection(index: number): void {
+    const target = this.adapter.getSectionsList()[index];
     this.adapter.removeSection(index);
+    if (target) {
+      const normalized = target.id === 'gallery' ? 'portfolio' : target.id;
+      if (['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking'].includes(normalized)) {
+        const bp = this.blueprintManager.getBlueprint();
+        bp.sectionVisibility = { ...(bp.sectionVisibility || {}), [normalized]: false };
+        bp.updatedAt = new Date().toISOString();
+      }
+    }
     this.recordSnapshot('Removed section', 'section_reorder');
     this.notifyChange();
   }
@@ -1384,6 +1491,7 @@ export class EditorService {
   }
 
   addBlock(blockId: string): void {
+    this.hasCustomCanvasBlocks = true;
     this.adapter.addBlock(blockId);
     this.recordSnapshot(`Added ${blockId}`, 'block_insert');
     this.notifyChange();

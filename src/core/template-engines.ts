@@ -486,12 +486,12 @@ function renderSharedEnquiryForm(
       if (f.type === 'textarea') {
         return `<div class="cz-field">
           <label style="display:block;font-size:11px;font-weight:600;color:${labelColor};margin-bottom:6px;">${escapeHtml(f.label)}</label>
-          <textarea name="${f.name}" rows="3" placeholder="${escapeHtml(f.placeholder)}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:14px;font-family:inherit;box-sizing:border-box;resize:vertical;"></textarea>
+          <textarea name="${f.name}" rows="3" placeholder="${escapeHtml(f.placeholder)}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:16px;font-family:inherit;box-sizing:border-box;resize:vertical;"></textarea>
         </div>`;
       }
       return `<div class="cz-field">
         <label style="display:block;font-size:11px;font-weight:600;color:${labelColor};margin-bottom:6px;">${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>
-        <input type="${f.type}" name="${f.name}" ${f.required ? 'required' : ''} placeholder="${escapeHtml(f.placeholder)}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+        <input type="${f.type}" name="${f.name}" ${f.required ? 'required' : ''} placeholder="${escapeHtml(f.placeholder)}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:16px;font-family:inherit;box-sizing:border-box;"/>
       </div>`;
     })
     .join('');
@@ -506,17 +506,17 @@ function renderSharedEnquiryForm(
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
       <div class="cz-field">
         <label style="display:block;font-size:11px;font-weight:600;color:${labelColor};margin-bottom:6px;">Your Name *</label>
-        <input type="text" name="clientName" required placeholder="Full name" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+        <input type="text" name="clientName" required placeholder="Full name" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:16px;font-family:inherit;box-sizing:border-box;"/>
       </div>
       <div class="cz-field">
         <label style="display:block;font-size:11px;font-weight:600;color:${labelColor};margin-bottom:6px;">Your Phone / WhatsApp *</label>
-        <input type="tel" name="clientPhone" required placeholder="e.g. 0803 000 0000" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+        <input type="tel" name="clientPhone" required placeholder="e.g. 0803 000 0000" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:16px;font-family:inherit;box-sizing:border-box;"/>
       </div>
     </div>
 
     <div class="cz-field">
       <label style="display:block;font-size:11px;font-weight:600;color:${labelColor};margin-bottom:6px;">Service / Package</label>
-      <select name="serviceName" data-cuzmify-type="service-select" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:14px;font-family:inherit;box-sizing:border-box;">
+      <select name="serviceName" data-cuzmify-type="service-select" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid ${inputBorder};background:${inputBg};color:${inputColor};font-size:16px;font-family:inherit;box-sizing:border-box;">
         ${serviceOptionsHtml}
       </select>
     </div>

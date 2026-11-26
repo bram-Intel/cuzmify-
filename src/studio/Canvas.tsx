@@ -8,6 +8,7 @@ import { Lock } from 'lucide-react';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { renderTemplateEngine } from '@/core/template-engines';
 import { clearOnboardingDraftMedia, loadOnboardingDraftMedia, mergeOnboardingMediaVault } from '@/lib/onboarding-media-draft';
+import { reconcileLocalAndCloudBlueprints } from './engine/blueprint-persistence';
 import { StudioLoader } from './StudioLoader';
 
 export function Canvas() {
@@ -24,8 +25,8 @@ export function Canvas() {
     businessName,
     setBusinessName,
     theme,
+    setTheme,
     breakpoint,
-    handleThemeChange,
   } = useEditor();
 
   const { data: session } = useSession();
@@ -164,20 +165,52 @@ export function Canvas() {
     });
 
     // Subscribe to changes early so initial onboarding hydration also persists
+    let hasPendingCloudSync = false;
+    const flushPendingAutosave = () => {
+      const pendingTimer = (globalThis as Record<string, unknown>).__cuzmifyAutoSave as ReturnType<typeof setTimeout> | undefined;
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        (globalThis as Record<string, unknown>).__cuzmifyAutoSave = undefined;
+      }
+      if (!hasPendingCloudSync) return;
+      hasPendingCloudSync = false;
+      service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
+      void service.saveToDatabase(projectId, {
+        businessName: businessNameRef.current,
+        theme: themeRef.current,
+      });
+    };
+
+    const handleVisibilityFlush = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingAutosave();
+      }
+    };
+    window.addEventListener('pagehide', flushPendingAutosave);
+    document.addEventListener('visibilitychange', handleVisibilityFlush);
+
     const unsubChange = service.onChanged(() => {
       setSaveState('unsaved');
       setCanUndo(service.canUndo());
       setCanRedo(service.canRedo());
 
+      // Persist synchronously to localStorage on every mutation so instant mobile pull-to-refresh never loses services or edits
+      service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
+      hasPendingCloudSync = true;
+
       clearTimeout((globalThis as Record<string, unknown>).__cuzmifyAutoSave as ReturnType<typeof setTimeout>);
       (globalThis as Record<string, unknown>).__cuzmifyAutoSave = setTimeout(async () => {
+        hasPendingCloudSync = false;
         service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
-        await service.saveToDatabase(projectId, {
+        const ok = await service.saveToDatabase(projectId, {
           businessName: businessNameRef.current,
           theme: themeRef.current,
         });
-        setSaveState('saved');
-      }, 1500);
+        if (ok) {
+          service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
+        }
+        setSaveState(ok ? 'saved' : 'error');
+      }, 600);
     });
 
     const unsubSel = service.onSelectionChange((type) => {
@@ -189,18 +222,20 @@ export function Canvas() {
     const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const draftOnboardingMedia = loadOnboardingDraftMedia();
-    const hasWarmState = localRes.loaded || draftOnboardingMedia.length > 0;
+    const hasWarmState = (localRes.loaded && !localRes.snapshot?.mediaStrippedForQuota) || draftOnboardingMedia.length > 0;
 
     if (localRes.loaded) {
-      if (localRes.theme) handleThemeChange(localRes.theme as any);
+      if (localRes.theme) setTheme(localRes.theme as any);
       if (localRes.name) {
         setBusinessName(localRes.name);
         businessNameRef.current = localRes.name;
       }
       service.sanitizeCanvas();
       service.syncCanvasWithBlueprint();
-      setIsCanvasLoading(false);
-      setIsHydratingSite(false);
+      if (!localRes.snapshot?.mediaStrippedForQuota) {
+        setIsCanvasLoading(false);
+        setIsHydratingSite(false);
+      }
     } else if (draftOnboardingMedia.length > 0) {
       const urlTpl = urlParams?.get('template') || urlParams?.get('templateId');
       const urlCat = urlParams?.get('category') || urlParams?.get('nicheId');
@@ -278,25 +313,48 @@ export function Canvas() {
       }
     }
 
-    // 2. Background Cloud Database Sync (never clobber fresh onboarding draft uploads)
+    // 2. Background Cloud Database Sync (timestamp-aware so newer local edits are never clobbered by an interrupted save)
     service.loadFromDatabase(projectId, { allowFallback: draftOnboardingMedia.length === 0 }).then(async (cloudRes) => {
       if (cloudRes.loaded) {
-        if (cloudRes.theme) handleThemeChange(cloudRes.theme as any);
-        if (cloudRes.name) {
-          setBusinessName(cloudRes.name);
-          businessNameRef.current = cloudRes.name;
+        const reconciled = reconcileLocalAndCloudBlueprints({
+          localSnapshot: localRes.snapshot || null,
+          cloudBlueprint: cloudRes.blueprint || service.getBlueprint(),
+          cloudSiteId: cloudRes.siteId,
+        });
+
+        if (reconciled.winner === 'local' && reconciled.blueprint) {
+          service.applyExternalBlueprint(reconciled.blueprint, cloudRes.siteId || projectId);
+          if (reconciled.blueprint.profile?.name) {
+            setBusinessName(reconciled.blueprint.profile.name);
+            businessNameRef.current = reconciled.blueprint.profile.name;
+          }
+          service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
+          if (reconciled.needsCloudResync) {
+            const resynced = await service.saveToDatabase(cloudRes.siteId || projectId, {
+              businessName: businessNameRef.current,
+              theme: themeRef.current,
+            });
+            setSaveState(resynced ? 'saved' : 'error');
+          }
+        } else {
+          if (cloudRes.theme) setTheme(cloudRes.theme as any);
+          if (cloudRes.name) {
+            setBusinessName(cloudRes.name);
+            businessNameRef.current = cloudRes.name;
+          }
+          if (draftOnboardingMedia.length > 0) {
+            const mergedCloud = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 20);
+            service.setMediaVault(mergedCloud);
+          }
+          service.sanitizeCanvas();
+          service.syncCanvasWithBlueprint();
+          const bp = service.getBlueprint();
+          if (bp?.mediaVault && bp.mediaVault.length > 0) {
+            service.injectInstagramMediaToCanvas(bp.mediaVault);
+          }
+          service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
         }
-        if (draftOnboardingMedia.length > 0) {
-          const mergedCloud = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 20);
-          service.setMediaVault(mergedCloud);
-        }
-        service.sanitizeCanvas();
-        service.syncCanvasWithBlueprint();
-        const bp = service.getBlueprint();
-        if (bp?.mediaVault && bp.mediaVault.length > 0) {
-          service.injectInstagramMediaToCanvas(bp.mediaVault);
-        }
-      } else if (!hasWarmState) {
+      } else if (!hasWarmState && !localRes.loaded) {
         // Cold brand-new session with zero saved DB site: initialize cleanly from URL template/niche once DB check completes
         const urlTpl = urlParams?.get('template') || urlParams?.get('templateId');
         const urlCat = urlParams?.get('category') || urlParams?.get('nicheId');
@@ -304,6 +362,13 @@ export function Canvas() {
         const rendered = renderTemplateEngine(urlTpl || service.getTemplateId(), service.getBlueprint(), { siteId: projectId });
         service.loadHtml(rendered.fullHtml, 'Initial Template', 'initial');
         service.sanitizeCanvas();
+      } else if (localRes.loaded) {
+        // Local snapshot existed while DB had no record yet — push warm local state to cloud
+        const pushed = await service.saveToDatabase(projectId, {
+          businessName: businessNameRef.current,
+          theme: themeRef.current,
+        });
+        setSaveState(pushed ? 'saved' : 'error');
       }
 
       if (draftOnboardingMedia.length > 0) {
@@ -333,11 +398,13 @@ export function Canvas() {
     }
 
     cleanupRef.current = () => {
+      window.removeEventListener('pagehide', flushPendingAutosave);
+      document.removeEventListener('visibilitychange', handleVisibilityFlush);
       unsubChange();
       unsubSel();
       service.destroy();
     };
-  }, [projectId, setService, setSaveState, setCanUndo, setCanRedo, setSelectedComponent, setIsHydratingSite, handleThemeChange]);
+  }, [projectId, setService, setSaveState, setCanUndo, setCanRedo, setSelectedComponent, setIsHydratingSite, setTheme]);
 
   useEffect(() => {
     initEditor();

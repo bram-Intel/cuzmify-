@@ -107,24 +107,17 @@ function EditorShellInner() {
 
     if (service) {
       service.saveToLocalStorage(projectId);
-      try {
-        await fetch('/api/sites/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            siteId: projectId,
-            name: businessName,
-            subdomain: cleanSubdomain,
-            htmlContent: service.getHtml(),
-            grapesData: service.getProjectData(),
-            blueprintData: service.getBlueprint(),
-            status: 'live',
-            liveUrl: publicUrl,
-          }),
-        });
-      } catch (err) {
-        console.warn('[Publish] Cloud publish error:', err);
+      const publishedOk = await service.saveToDatabase(projectId, {
+        businessName,
+        status: 'live',
+        subdomain: cleanSubdomain,
+        liveUrl: publicUrl,
+      });
+      if (!publishedOk) {
+        setIsPublishing(false);
+        throw new Error('Failed to publish website');
       }
+      service.saveToLocalStorage(projectId);
     }
 
     setIsPublishing(false);
@@ -132,7 +125,11 @@ function EditorShellInner() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-[#F1F5F9] text-[#0F172A]" suppressHydrationWarning>
+    <div
+      data-cuzmify-studio="true"
+      className="flex flex-col h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#F1F5F9] text-[#0F172A]"
+      suppressHydrationWarning
+    >
       {/* Top Bar */}
       {!isPreviewMode && !activeModuleModal && !showPublish && (
         <TopBar
@@ -143,8 +140,13 @@ function EditorShellInner() {
         />
       )}
 
-      {/* Main Workspace */}
-      <div className={`flex flex-1 overflow-hidden min-h-0 relative ${activeModuleModal || showPublish ? 'hidden' : ''}`}>
+      {/* Main Workspace (kept mounted behind full-screen modals so GrapesJS iframe never suspends on display:none) */}
+      <div
+        aria-hidden={Boolean(activeModuleModal || showPublish)}
+        className={`flex flex-1 overflow-hidden min-h-0 relative ${
+          activeModuleModal || showPublish ? 'invisible pointer-events-none' : ''
+        }`}
+      >
         {/* Desktop Left Sidebar (>=1024px) */}
         {!isPreviewMode && isLeftPanelOpen && (
           <div className="hidden lg:flex h-full shrink-0">
@@ -155,11 +157,11 @@ function EditorShellInner() {
         {/* Mobile Touch-Safe 60fps Owner Studio (<1024px) */}
         <MobilePreviewPane />
 
-        {/* Desktop Interactive GrapesJS Visual Canvas (>=1024px visible; off-screen real box on <1024px so EditorService iframe stays live) */}
+        {/* Desktop Interactive GrapesJS Visual Canvas (>=1024px visible; viewport-contained hidden box on <1024px so no wide off-screen element causes scroll/zoom drift) */}
         <div
           className={
-            'fixed -left-[9999px] top-0 w-[1200px] h-[800px] opacity-0 pointer-events-none overflow-hidden ' +
-            'lg:static lg:left-auto lg:top-auto lg:w-auto lg:h-full lg:opacity-100 lg:pointer-events-auto lg:flex lg:flex-1 lg:min-w-0'
+            'fixed inset-0 w-full h-full -z-50 opacity-0 pointer-events-none overflow-hidden ' +
+            'lg:static lg:inset-auto lg:z-auto lg:w-auto lg:h-full lg:opacity-100 lg:pointer-events-auto lg:flex lg:flex-1 lg:min-w-0'
           }
         >
           <Canvas />

@@ -335,3 +335,26 @@ h1, h2, h3, h4, h5, h6, .font-display {
   text-align: left !important;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   MOBILE STUDIO VIEWPORT & TOUCH-ZOOM CONTAINMENT
+   Prevents unintended double-tap zoom, horizontal viewport drift,
+   and iOS Safari / Android Chrome <16px input focus auto-zoom.
+══════════════════════════════════════════════════════════════ */
+[data-cuzmify-studio],
+[data-cuzmify-studio-modal] {
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: none;
+  max-width: 100vw;
+}
+
+@media (max-width: 1023px) {
+  [data-cuzmify-studio] input,
+  [data-cuzmify-studio] select,
+  [data-cuzmify-studio] textarea,
+  [data-cuzmify-studio-modal] input,
+  [data-cuzmify-studio-modal] select,
+  [data-cuzmify-studio-modal] textarea {
+    font-size: 16px !important;
+  }
+}
+

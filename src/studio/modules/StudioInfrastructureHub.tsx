@@ -447,7 +447,10 @@ export function StudioInfrastructureHub({
   ];
 
   return createPortal(
-    <div className="fixed inset-0 z-[100000] bg-[#F8FAFC] flex flex-col text-slate-900 font-sans animate-in fade-in duration-200">
+    <div
+      data-cuzmify-studio-modal="true"
+      className="fixed inset-0 z-[100000] bg-[#F8FAFC] flex flex-col text-slate-900 font-sans animate-in fade-in duration-200"
+    >
       {/* ── Top Bar ── */}
       <header className="h-14 sm:h-16 px-3 sm:px-6 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
@@ -834,6 +837,7 @@ export function StudioInfrastructureHub({
                           const mode = e.target.value as ServicePriceMode;
                           service.updateServiceItem(srv.id, { priceMode: mode, ...(mode === 'quote' ? { price: 0 } : {}) });
                           service.syncCanvasWithBlueprint();
+                          void handleSave(true);
                         }}
                         className="text-[11px] font-bold bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-slate-700"
                       >
@@ -851,6 +855,9 @@ export function StudioInfrastructureHub({
                               const val = parseFloat(e.target.value);
                               service.updateServiceItem(srv.id, { price: isNaN(val) ? 0 : val });
                               service.syncCanvasWithBlueprint();
+                            }}
+                            onBlur={() => {
+                              void handleSave(true);
                             }}
                             className="w-20 text-sm font-mono font-extrabold text-[#0D5771] bg-transparent focus:outline-none"
                             title="Tap to edit price"
@@ -873,6 +880,7 @@ export function StudioInfrastructureHub({
                         onClick={() => {
                           service.deleteServiceItem(srv.id);
                           service.syncCanvasWithBlueprint();
+                          void handleSave(true);
                           if (isEditing) setEditingServiceId(null);
                         }}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"

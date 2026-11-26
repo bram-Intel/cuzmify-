@@ -299,7 +299,7 @@ export function MobilePreviewPane() {
           />
         ) : (
           <div
-            className="flex-1 overflow-y-auto"
+            className="flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
             suppressHydrationWarning
             dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
           />
@@ -374,7 +374,7 @@ export function MobilePreviewPane() {
       )}
 
       {/* Scrollable Workspace Body */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3 space-y-3">
         {/* 2. Guided Setup Card (only once hydrated so 0/3 never flashes over ready sites) */}
         {!isHydratingSite && blueprint && !allReady && (
           <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
@@ -534,13 +534,24 @@ export function MobilePreviewPane() {
           ) : (
             <>
               <style>{`
+                .cz-mobile-editable-preview {
+                  touch-action: pan-y;
+                  overflow-x: hidden;
+                  max-width: 100%;
+                }
+                .cz-mobile-editable-preview * {
+                  touch-action: manipulation;
+                }
+                .cz-mobile-editable-preview form input,
+                .cz-mobile-editable-preview form select,
+                .cz-mobile-editable-preview form textarea {
+                  pointer-events: none;
+                }
                 .cz-mobile-editable-preview img {
                   cursor: pointer;
-                  touch-action: manipulation;
                 }
                 .cz-mobile-editable-preview [data-cuzmify-field] {
                   cursor: text;
-                  touch-action: manipulation;
                 }
                 .cz-mobile-editable-preview [data-cz-mobile-picked="true"] {
                   outline: 2px solid #0D5771 !important;

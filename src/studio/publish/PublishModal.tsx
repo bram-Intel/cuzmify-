@@ -72,6 +72,7 @@ export function PublishModal({ onClose, onPublish }: PublishModalProps) {
 
   return createPortal(
     <div
+      data-cuzmify-studio-modal="true"
       className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-150"
       style={{ isolation: 'isolate' }}
     >

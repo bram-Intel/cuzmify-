@@ -30,7 +30,7 @@ import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type Product
 import { ServiceImagePicker } from './ServiceImagePicker';
 
 export function ModuleConfigModal() {
-  const { activeModuleModal, setActiveModuleModal, service, blueprint, setSaveToast } = useEditor();
+  const { activeModuleModal, setActiveModuleModal, service, blueprint, setSaveToast, handleSave } = useEditor();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -105,6 +105,7 @@ export function ModuleConfigModal() {
       enabled: true,
     });
     service.syncCanvasWithBlueprint();
+    void handleSave(true);
     setNewServiceName('');
     setNewServiceDesc('');
     setNewServiceImageUrl('');
@@ -140,6 +141,7 @@ export function ModuleConfigModal() {
       imageUrl: editServiceImageUrl.trim() || undefined,
     });
     service.syncCanvasWithBlueprint();
+    void handleSave(true);
     setEditingServiceId(null);
     setSaveToast(`✦ Updated Service: ${editServiceName.trim()}`);
     setTimeout(() => setSaveToast(null), 2500);
@@ -251,7 +253,10 @@ export function ModuleConfigModal() {
   const testWhatsAppUrl = service.generateWhatsAppLink({ type: 'booking' });
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      data-cuzmify-studio-modal="true"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden relative z-50">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
