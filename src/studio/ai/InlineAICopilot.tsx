@@ -1,12 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Wand2, Zap, Crown, MessageSquare, ChevronDown, Check, X, ArrowRight, CornerDownLeft } from 'lucide-react';
+import { Sparkles, Wand2, Zap, Crown, MessageSquare, ChevronDown, Check, X, ArrowRight, CornerDownLeft, Copy } from 'lucide-react';
 import { useEditor } from '../engine/EditorContext';
 import { AIEngine, type InlineRewriteResult } from './AIEngine';
+import {
+  buildElementSnapshotFromSelection,
+  copyTextToClipboard,
+  formatMcpElementReference,
+} from '../mcp-target-clipboard';
 
 export function InlineAICopilot() {
-  const { service, selectedComponent, isPreviewMode } = useEditor();
+  const { service, selectedComponent, isPreviewMode, blueprint, projectId, breakpoint, setSaveToast } = useEditor();
   const [selectedText, setSelectedText] = useState('');
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -163,6 +168,31 @@ export function InlineAICopilot() {
         </button>
 
         <div className="h-3.5 w-px bg-slate-200 mx-0.5 shrink-0" />
+
+        {/* Copy Element Target for external MCP agent */}
+        <button
+          onClick={async () => {
+            if (!service) return;
+            const snap = buildElementSnapshotFromSelection(
+              service.getSelectedElementDom(),
+              service.getSelectedElementDetails(),
+              { siteId: projectId, blueprint, viewport: breakpoint }
+            );
+            if (!snap) return;
+            const copied = await copyTextToClipboard(formatMcpElementReference(snap));
+            if (copied) {
+              setToastMessage('✓ Copied MCP Target');
+              setSaveToast(`📋 Copied <${snap.tagName}> target for external MCP agent!`);
+              setTimeout(() => setToastMessage(null), 2000);
+              setTimeout(() => setSaveToast(null), 2400);
+            }
+          }}
+          className="h-7 px-2 flex items-center gap-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:text-[#0D5771] hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer whitespace-nowrap"
+          title="Copy selected element target to clipboard for external MCP agent"
+        >
+          <Copy className="w-3 h-3 text-[#0D5771]" />
+          <span>Copy</span>
+        </button>
 
         {/* Trailing Command Action: Ask AI */}
         <button

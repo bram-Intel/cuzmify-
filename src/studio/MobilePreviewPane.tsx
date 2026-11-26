@@ -17,6 +17,9 @@ import {
   Type,
   Check,
   Loader2,
+  Crosshair,
+  Copy,
+  ArrowUp,
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import { renderTemplateEngine, TEMPLATE_ENGINES, TEMPLATE_ENGINE_LIST } from '@/core/template-engines';
@@ -30,12 +33,18 @@ import {
   type MobileImageTarget,
   type MobileTextTarget,
 } from './mobile-preview-edit';
+import {
+  buildElementSnapshotFromDom,
+  copyTextToClipboard,
+  formatMcpElementReference,
+  type CapturedElementSnapshot,
+} from './mcp-target-clipboard';
 import { AIPanel } from './ai/AIPanel';
 
 /**
  * Touch-safe, 60fps Mobile Owner Studio (<1024px).
- * Supports direct 1-tap image swapping from the Media Vault (or phone upload)
- * and double-tap inline text editing via slick mobile bottom sheets.
+ * Supports direct 1-tap image swapping from the Media Vault (or phone upload),
+ * double-tap inline text editing, AND 1-tap "Copy Element for MCP" for any div/img/text/section.
  */
 export function MobilePreviewPane() {
   const {
@@ -56,10 +65,19 @@ export function MobilePreviewPane() {
 
   // Mobile quick-edit sheets
   const [activeImageTarget, setActiveImageTarget] = useState<MobileImageTarget | null>(null);
+  const [activeImageEl, setActiveImageEl] = useState<HTMLImageElement | null>(null);
   const [activeTextTarget, setActiveTextTarget] = useState<MobileTextTarget | null>(null);
+  const [activeTextEl, setActiveTextEl] = useState<HTMLElement | null>(null);
   const [textDraft, setTextDraft] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
+  // Mobile Pick-to-Copy Element mode (for copying ANY div, section, button, img, or text for external MCP agents)
+  const [pickToCopyMode, setPickToCopyMode] = useState(false);
+  const [pickedDomEl, setPickedDomEl] = useState<HTMLElement | null>(null);
+  const [pickedSnapshot, setPickedSnapshot] = useState<CapturedElementSnapshot | null>(null);
+  const [copiedBanner, setCopiedBanner] = useState(false);
+
+  const previewRootRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTapRef = useRef<{ el: HTMLElement | null; time: number }>({ el: null, time: 0 });
 
@@ -84,6 +102,41 @@ export function MobilePreviewPane() {
   const cleanSlug = (businessName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 28) || 'studio';
   const fontUrl = TEMPLATE_ENGINES[rendered.templateId]?.googleFontsUrl;
 
+  const clearPickedHighlight = (el?: HTMLElement | null) => {
+    const target = el ?? pickedDomEl;
+    if (target) target.removeAttribute('data-cz-mobile-picked');
+  };
+
+  const selectElementForCopy = (el: HTMLElement) => {
+    clearPickedHighlight();
+    el.setAttribute('data-cz-mobile-picked', 'true');
+    setPickedDomEl(el);
+    setPickedSnapshot(
+      buildElementSnapshotFromDom(el, {
+        siteId: projectId,
+        blueprint: activeBp,
+        viewport: 'mobile',
+      })
+    );
+    setCopiedBanner(false);
+  };
+
+  const copyDomElementToClipboard = async (el: HTMLElement | null) => {
+    if (!el) return;
+    const snap = buildElementSnapshotFromDom(el, {
+      siteId: projectId,
+      blueprint: activeBp,
+      viewport: 'mobile',
+    });
+    const ok = await copyTextToClipboard(formatMcpElementReference(snap));
+    if (ok) {
+      setCopiedBanner(true);
+      setSaveToast(`📋 Copied <${snap.tagName}> target for external MCP agent!`);
+      setTimeout(() => setCopiedBanner(false), 1800);
+      setTimeout(() => setSaveToast(null), 2600);
+    }
+  };
+
   const commitBlueprintUpdate = (nextBp: typeof activeBp, toastMsg: string) => {
     if (!service) return;
     service.applyExternalBlueprint(nextBp, projectId);
@@ -96,13 +149,14 @@ export function MobilePreviewPane() {
     const resolved = resolveMobileTextTarget(rawEl, activeBp);
     if (!resolved) return;
     setActiveImageTarget(null);
+    setActiveImageEl(null);
+    setActiveTextEl((rawEl.closest('[data-cuzmify-field]') as HTMLElement | null) || rawEl);
     setActiveTextTarget(resolved);
     setTextDraft(resolved.value);
   };
 
   const findClickedImage = (target: HTMLElement): HTMLImageElement | null => {
     if (target.tagName === 'IMG') return target as HTMLImageElement;
-    // Handle containers wrapping images (e.g. .cz-hero-media or aspect-ratio boxes)
     const imgChild = target.querySelector('img');
     if (imgChild && target.children.length <= 2) return imgChild as HTMLImageElement;
     return null;
@@ -112,12 +166,19 @@ export function MobilePreviewPane() {
     const rawTarget = e.target as HTMLElement | null;
     if (!rawTarget) return;
 
-    // Prevent links/buttons inside preview from navigating while editing on mobile
     if (rawTarget.closest('a, button, form')) {
       e.preventDefault();
     }
 
-    // Ignore form inputs so user isn't surprised
+    // Pick-to-Copy mode: tapping ANY element (div, section, img, button, h1, span) selects it to copy for MCP
+    if (pickToCopyMode) {
+      e.stopPropagation();
+      if (previewRootRef.current && rawTarget !== previewRootRef.current) {
+        selectElementForCopy(rawTarget);
+      }
+      return;
+    }
+
     if (rawTarget.closest('input, select, textarea')) return;
 
     // 1. Single-tap on an image opens the Vault image swap sheet immediately
@@ -126,11 +187,13 @@ export function MobilePreviewPane() {
       e.stopPropagation();
       const target = resolveMobileImageTarget(imgEl, activeBp);
       setActiveTextTarget(null);
+      setActiveTextEl(null);
+      setActiveImageEl(imgEl);
       setActiveImageTarget(target);
       return;
     }
 
-    // 2. Touch/click double-tap detection (<360ms on same field) for slick mobile inline text edit
+    // 2. Touch/click double-tap detection (<360ms on same field) for inline text edit
     const fieldEl = rawTarget.closest('[data-cuzmify-field]') as HTMLElement | null;
     if (!fieldEl) return;
 
@@ -148,6 +211,7 @@ export function MobilePreviewPane() {
   };
 
   const handlePreviewDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (pickToCopyMode) return;
     const rawTarget = e.target as HTMLElement | null;
     if (!rawTarget || rawTarget.tagName === 'IMG') return;
     if (rawTarget.closest('a, button')) e.preventDefault();
@@ -157,11 +221,20 @@ export function MobilePreviewPane() {
     openTextEditorForElement(fieldEl);
   };
 
+  const handleStepToParent = () => {
+    if (!pickedDomEl || !previewRootRef.current) return;
+    const parent = pickedDomEl.parentElement;
+    if (parent && parent !== previewRootRef.current && previewRootRef.current.contains(parent)) {
+      selectElementForCopy(parent);
+    }
+  };
+
   const handlePickVaultAsset = (asset: MediaVaultAsset) => {
     if (!activeImageTarget) return;
     const { blueprint: nextBp, summary } = applyMobileImageReplacement(activeBp, activeImageTarget, asset);
     commitBlueprintUpdate(nextBp, summary);
     setActiveImageTarget(null);
+    setActiveImageEl(null);
   };
 
   const handleUploadNewPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,6 +262,7 @@ export function MobilePreviewPane() {
       const { blueprint: nextBp, summary } = applyMobileImageReplacement(activeBp, activeImageTarget, uploadedAsset);
       commitBlueprintUpdate(nextBp, summary);
       setActiveImageTarget(null);
+      setActiveImageEl(null);
     } catch {
       alert('Could not process photo.');
     } finally {
@@ -203,7 +277,11 @@ export function MobilePreviewPane() {
     const { blueprint: nextBp, summary } = applyMobileTextEdit(activeBp, activeTextTarget, textDraft);
     commitBlueprintUpdate(nextBp, summary);
     setActiveTextTarget(null);
+    setActiveTextEl(null);
   };
+
+  const pickedImgChild = pickedDomEl ? findClickedImage(pickedDomEl) : null;
+  const pickedEditableField = pickedDomEl ? resolveMobileTextTarget(pickedDomEl, activeBp) : null;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F1F5F9] lg:hidden">
@@ -355,36 +433,71 @@ export function MobilePreviewPane() {
           </div>
         )}
 
-        {/* 3. Framed Live Website Preview with Tap-Photo & Double-Tap Text Editing */}
+        {/* 3. Framed Live Website Preview with Tap-Photo, Double-Tap Text & Copy MCP Target */}
         <div className="rounded-2xl overflow-hidden border border-slate-200/90 shadow-md bg-white">
           {/* Mini Browser Address Bar */}
-          <div className="h-9 bg-slate-50 border-b border-slate-200 px-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-mono text-slate-600 truncate min-w-0">
+          <div className="h-9 bg-slate-50 border-b border-slate-200 px-2.5 flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white border border-slate-200 text-[10px] font-mono text-slate-600 truncate min-w-0">
               <Lock className="w-3 h-3 text-emerald-600 shrink-0" />
               <span className="truncate">cuzmify.vercel.app/s/{cleanSlug}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveModuleModal('profile')}
-              className="px-2.5 py-1 rounded-lg bg-[#0D5771]/10 text-[#0D5771] text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3 h-3" />
-              <span>Edit Info</span>
-            </button>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !pickToCopyMode;
+                  setPickToCopyMode(next);
+                  if (!next) {
+                    clearPickedHighlight();
+                    setPickedDomEl(null);
+                    setPickedSnapshot(null);
+                  } else {
+                    setActiveImageTarget(null);
+                    setActiveTextTarget(null);
+                  }
+                }}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all border ${
+                  pickToCopyMode
+                    ? 'bg-[#0D5771] text-white border-[#0D5771] shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-[#0D5771]/40'
+                }`}
+                title="Tap any div, image, button, or section to copy its MCP reference"
+              >
+                <Crosshair className="w-3 h-3" />
+                <span>{pickToCopyMode ? 'Picking' : 'Copy Target'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveModuleModal('profile')}
+                className="px-2 py-1 rounded-lg bg-[#0D5771]/10 text-[#0D5771] text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <SlidersHorizontal className="w-3 h-3" />
+                <span>Info</span>
+              </button>
+            </div>
           </div>
 
           {/* Lightweight Touch Editing Hint Bar */}
-          <div className="px-3 py-1.5 bg-[#0D5771]/5 border-b border-slate-100 flex items-center justify-center gap-3 text-[10px] font-mono text-[#0D5771]">
-            <span className="flex items-center gap-1">
-              <ImageIcon className="w-3 h-3 shrink-0" />
-              <span>Tap photo to swap</span>
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="flex items-center gap-1">
-              <Type className="w-3 h-3 shrink-0" />
-              <span>Double-tap text to edit</span>
-            </span>
-          </div>
+          {pickToCopyMode ? (
+            <div className="px-3 py-1.5 bg-[#0D5771] text-white flex items-center justify-center gap-2 text-[10px] font-mono font-bold">
+              <Crosshair className="w-3 h-3 text-amber-300 shrink-0" />
+              <span>Copy Target Mode · Tap any div, photo, button, or section</span>
+            </div>
+          ) : (
+            <div className="px-3 py-1.5 bg-[#0D5771]/5 border-b border-slate-100 flex items-center justify-center gap-3 text-[10px] font-mono text-[#0D5771]">
+              <span className="flex items-center gap-1">
+                <ImageIcon className="w-3 h-3 shrink-0" />
+                <span>Tap photo to swap</span>
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="flex items-center gap-1">
+                <Type className="w-3 h-3 shrink-0" />
+                <span>Double-tap text to edit</span>
+              </span>
+            </div>
+          )}
 
           {/* Interactive Live Rendered Site */}
           <style>{`
@@ -396,8 +509,14 @@ export function MobilePreviewPane() {
               cursor: text;
               touch-action: manipulation;
             }
+            .cz-mobile-editable-preview [data-cz-mobile-picked="true"] {
+              outline: 2px solid #0D5771 !important;
+              outline-offset: 2px !important;
+              box-shadow: 0 0 0 4px rgba(13, 87, 113, 0.2) !important;
+            }
           `}</style>
           <div
+            ref={previewRootRef}
             className="cz-mobile-editable-preview"
             onClick={handlePreviewClick}
             onDoubleClick={handlePreviewDoubleClick}
@@ -408,11 +527,107 @@ export function MobilePreviewPane() {
         </div>
       </div>
 
+      {/* ── SLICK MOBILE TRAY: PICKED ELEMENT COPY FOR EXTERNAL MCP ── */}
+      {pickToCopyMode && pickedSnapshot && (
+        <div className="fixed inset-x-0 bottom-16 z-[100000] p-3 pointer-events-none flex justify-center">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-3.5 space-y-2.5 pointer-events-auto animate-in slide-in-from-bottom duration-150">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="px-2 py-0.5 rounded-md bg-[#0D5771]/10 text-[#0D5771] text-[11px] font-mono font-bold shrink-0">
+                  &lt;{pickedSnapshot.tagName}{pickedSnapshot.id ? `#${pickedSnapshot.id}` : ''}&gt;
+                </span>
+                <span className="text-[11px] font-mono text-slate-500 truncate">
+                  {pickedSnapshot.selector}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  clearPickedHighlight();
+                  setPickedDomEl(null);
+                  setPickedSnapshot(null);
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {pickedSnapshot.text && (
+              <p className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 line-clamp-2">
+                &ldquo;{pickedSnapshot.text}&rdquo;
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleStepToParent}
+                className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                title="Select parent wrapper div or section"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+                <span>Parent</span>
+              </button>
+
+              {pickedImgChild && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearPickedHighlight();
+                    setPickToCopyMode(false);
+                    setActiveImageEl(pickedImgChild);
+                    setActiveImageTarget(resolveMobileImageTarget(pickedImgChild, activeBp));
+                    setPickedDomEl(null);
+                    setPickedSnapshot(null);
+                  }}
+                  className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
+                >
+                  Swap Photo
+                </button>
+              )}
+
+              {pickedEditableField && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearPickedHighlight();
+                    setPickToCopyMode(false);
+                    if (pickedDomEl) openTextEditorForElement(pickedDomEl);
+                    setPickedDomEl(null);
+                    setPickedSnapshot(null);
+                  }}
+                  className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
+                >
+                  Edit Text
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => copyDomElementToClipboard(pickedDomEl)}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  copiedBanner
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-[#0D5771] hover:bg-[#083D50] text-white shadow-sm'
+                }`}
+              >
+                {copiedBanner ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedBanner ? 'Copied for MCP!' : 'Copy Target for MCP'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── SLICK MOBILE BOTTOM SHEET 1: VAULT IMAGE PICKER ── */}
       {activeImageTarget && (
         <div
           className="fixed inset-0 z-[100001] bg-slate-950/60 backdrop-blur-[2px] flex items-end justify-center animate-in fade-in duration-150"
-          onClick={() => setActiveImageTarget(null)}
+          onClick={() => {
+            setActiveImageTarget(null);
+            setActiveImageEl(null);
+          }}
         >
           <div
             className="w-full max-w-lg bg-white rounded-t-3xl border-t border-slate-200 shadow-2xl p-4 pb-6 space-y-4 animate-in slide-in-from-bottom duration-200 max-h-[82vh] flex flex-col"
@@ -440,13 +655,27 @@ export function MobilePreviewPane() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setActiveImageTarget(null)}
-                className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-800 cursor-pointer shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => copyDomElementToClipboard(activeImageEl)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                  title="Copy target element for external MCP agent"
+                >
+                  <Copy className="w-3.5 h-3.5 text-[#0D5771]" />
+                  <span>Copy MCP</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveImageTarget(null);
+                    setActiveImageEl(null);
+                  }}
+                  className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Quick Phone Upload CTA */}
@@ -481,6 +710,7 @@ export function MobilePreviewPane() {
                   type="button"
                   onClick={() => {
                     setActiveImageTarget(null);
+                    setActiveImageEl(null);
                     setActiveModuleModal('media');
                   }}
                   className="text-[11px] font-bold text-[#0D5771] cursor-pointer"
@@ -533,7 +763,10 @@ export function MobilePreviewPane() {
       {activeTextTarget && (
         <div
           className="fixed inset-0 z-[100001] bg-slate-950/60 backdrop-blur-[2px] flex items-end justify-center animate-in fade-in duration-150"
-          onClick={() => setActiveTextTarget(null)}
+          onClick={() => {
+            setActiveTextTarget(null);
+            setActiveTextEl(null);
+          }}
         >
           <form
             onSubmit={handleSaveTextEdit}
@@ -542,19 +775,33 @@ export function MobilePreviewPane() {
           >
             <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto" />
             <div className="flex items-center justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-[#0D5771] font-bold">
                   Inline Edit
                 </p>
-                <h3 className="text-sm font-bold text-slate-900">{activeTextTarget.label}</h3>
+                <h3 className="text-sm font-bold text-slate-900 truncate">{activeTextTarget.label}</h3>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveTextTarget(null)}
-                className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-800 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => copyDomElementToClipboard(activeTextEl)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                  title="Copy target element for external MCP agent"
+                >
+                  <Copy className="w-3.5 h-3.5 text-[#0D5771]" />
+                  <span>Copy MCP</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTextTarget(null);
+                    setActiveTextEl(null);
+                  }}
+                  className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {activeTextTarget.multiline ? (
@@ -578,7 +825,10 @@ export function MobilePreviewPane() {
             <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setActiveTextTarget(null)}
+                onClick={() => {
+                  setActiveTextTarget(null);
+                  setActiveTextEl(null);
+                }}
                 className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
               >
                 Cancel

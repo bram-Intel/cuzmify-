@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultBlueprint } from '@/core/blueprint-schema';
 import { applyMobileImageReplacement, applyMobileTextEdit } from '@/studio/mobile-preview-edit';
+import {
+  buildElementSnapshotFromSelection,
+  formatMcpElementReference,
+  sanitizeHtmlSnippetForMcp,
+} from '@/studio/mcp-target-clipboard';
 
 describe('Mobile Live Preview Quick-Edit Mutations', () => {
   it('swaps hero, service, and portfolio images cleanly from Media Vault without duplication', () => {
@@ -87,5 +92,38 @@ describe('Mobile Live Preview Quick-Edit Mutations', () => {
     );
     expect(r3.blueprint.modules.services.items[0].price).toBe(75000);
     expect(r3.blueprint.modules.services.items[0].priceMode).toBe('fixed');
+  });
+
+  it('formats crisp external MCP target clipboard references and strips bloated base64 URIs', () => {
+    const bp = createDefaultBlueprint({ name: 'Brandy Queen', templateId: 'editorial-atelier' });
+    const rawHtml =
+      '<div data-cuzmify-target-id="srv-9"><img src="data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA=" /><h3>Bridal Glam</h3></div>';
+
+    const sanitized = sanitizeHtmlSnippetForMcp(rawHtml);
+    expect(sanitized).toContain('[uploaded-image-data]');
+    expect(sanitized).not.toContain('UklGRh4AAABX');
+
+    const snap = buildElementSnapshotFromSelection(
+      null,
+      {
+        id: 'srv-9',
+        tagName: 'div',
+        text: 'Bridal Glam',
+        htmlSnippet: rawHtml,
+      },
+      { siteId: 'site_123', blueprint: bp, viewport: 'mobile' }
+    );
+    expect(snap).not.toBeNull();
+    const formatted = formatMcpElementReference({
+      ...snap!,
+      sectionId: 'services',
+      cuzmifyTargetId: 'srv-9',
+      selector: '#services [data-cuzmify-target-id="srv-9"]',
+    });
+    expect(formatted).toContain('[Cuzmify MCP Target Element]');
+    expect(formatted).toContain('siteId="site_123"');
+    expect(formatted).toContain('viewport="mobile"');
+    expect(formatted).toContain('upsert_service_package(id="srv-9")');
+    expect(formatted).toContain('[uploaded-image-data]');
   });
 });

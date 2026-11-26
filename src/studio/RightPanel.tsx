@@ -34,10 +34,16 @@ import {
   Settings,
   Upload,
   Check,
+  Copy,
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import { DESIGN_TOKENS } from './theme/DesignTokens';
 import { AIEngine } from './ai/AIEngine';
+import {
+  buildElementSnapshotFromSelection,
+  copyTextToClipboard,
+  formatMcpElementReference,
+} from './mcp-target-clipboard';
 import type { ThemeName } from '@/core/project-schema';
 
 // ── Color Sanitizer ─────────────────────────────────────────────────────────
@@ -296,7 +302,26 @@ function InspectorCard({
 
 // ── AI Rewrite Inline Block ────────────────────────────────────────────────
 function AIRewriteHelper({ service }: { service: ReturnType<typeof useEditor>['service'] }) {
+  const { blueprint, projectId, breakpoint, setSaveToast } = useEditor();
   const [loading, setLoading] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState(false);
+
+  const handleCopyCurrentTextTarget = async () => {
+    if (!service) return;
+    const snap = buildElementSnapshotFromSelection(
+      service.getSelectedElementDom(),
+      service.getSelectedElementDetails(),
+      { siteId: projectId, blueprint, viewport: breakpoint }
+    );
+    if (!snap) return;
+    const ok = await copyTextToClipboard(formatMcpElementReference(snap));
+    if (ok) {
+      setCopiedTarget(true);
+      setSaveToast(`📋 Copied <${snap.tagName}> target for external MCP agent!`);
+      setTimeout(() => setCopiedTarget(false), 1800);
+      setTimeout(() => setSaveToast(null), 2400);
+    }
+  };
 
   const handleRewrite = async (style: 'polish' | 'punchy' | 'tone_luxury') => {
     if (!service || loading) return;
@@ -323,7 +348,18 @@ function AIRewriteHelper({ service }: { service: ReturnType<typeof useEditor>['s
           <Wand2 className="w-3.5 h-3.5 text-[#0D5771]" />
           <span>AI COPYWRITER</span>
         </span>
-        {loading && <span className="animate-pulse text-[9px]">Generating…</span>}
+        <div className="flex items-center gap-1.5">
+          {loading && <span className="animate-pulse text-[9px]">Generating…</span>}
+          <button
+            type="button"
+            onClick={handleCopyCurrentTextTarget}
+            className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[9px] font-bold text-slate-600 hover:text-[#0D5771] hover:border-[#0D5771]/40 flex items-center gap-1 cursor-pointer transition-all"
+            title="Copy target element for external MCP agent"
+          >
+            {copiedTarget ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5" />}
+            <span>{copiedTarget ? 'Copied' : 'Copy MCP'}</span>
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-1">
         {[
@@ -1286,8 +1322,27 @@ function NoSelectionPanel() {
 
 // ── Main Streamlined RightPanel ─────────────────────────────────────────────
 export function RightPanel() {
-  const { selectedComponent, service, attachSelectedToChat } = useEditor();
+  const { selectedComponent, service, attachSelectedToChat, blueprint, projectId, breakpoint, setSaveToast } = useEditor();
+  const [copiedMcpTarget, setCopiedMcpTarget] = useState(false);
   const type = selectedComponent.type?.toLowerCase() ?? null;
+
+  const handleCopyForMcp = async () => {
+    if (!service) return;
+    const snap = buildElementSnapshotFromSelection(
+      service.getSelectedElementDom(),
+      service.getSelectedElementDetails(),
+      { siteId: projectId, blueprint, viewport: breakpoint }
+    );
+    if (!snap) return;
+    const formatted = formatMcpElementReference(snap);
+    const copied = await copyTextToClipboard(formatted);
+    if (copied) {
+      setCopiedMcpTarget(true);
+      setSaveToast(`📋 Copied <${snap.tagName}> target for external MCP agent!`);
+      setTimeout(() => setCopiedMcpTarget(false), 2000);
+      setTimeout(() => setSaveToast(null), 2600);
+    }
+  };
 
   const isButton =
     type === 'button' ||
@@ -1347,13 +1402,27 @@ export function RightPanel() {
               <p className="text-[11px] text-slate-600 leading-snug">
                 Target this element with AI prompts to modify copy or styling with zero impact on other sections.
               </p>
-              <button
-                onClick={attachSelectedToChat}
-                className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-[11px] font-bold shadow-md shadow-[#0D5771]/20 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-amber-300" />
-                <span>Target Element with AI</span>
-              </button>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={attachSelectedToChat}
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white text-[11px] font-bold shadow-md shadow-[#0D5771]/20 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span className="truncate">Target w/ AI</span>
+                </button>
+                <button
+                  onClick={handleCopyForMcp}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                    copiedMcpTarget
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-white hover:bg-slate-50 text-[#0D5771] border-[#0D5771]/30 shadow-2xs'
+                  }`}
+                  title="Copy element selector, ID, and HTML reference to clipboard for external MCP agents"
+                >
+                  {copiedMcpTarget ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
+                  <span className="truncate">{copiedMcpTarget ? 'Copied!' : 'Copy MCP'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Context-Aware Inspector Sections */}

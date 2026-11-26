@@ -1317,6 +1317,11 @@ export class EditorService {
     };
   }
 
+  getSelectedElementDom(): HTMLElement | null {
+    const comp = this.adapter.getSelectedComponent() as any;
+    return (comp?.getEl?.() as HTMLElement | undefined) || null;
+  }
+
   replaceSelectedComponent(newHtml: string): boolean {
     const success = this.adapter.replaceSelectedComponent(newHtml);
     if (success) {
