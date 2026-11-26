@@ -54,6 +54,7 @@ export function MobilePreviewPane() {
     templateId,
     nicheId,
     isPreviewMode,
+    isHydratingSite,
     service,
     handleTemplateSwitch,
     handleSave,
@@ -289,11 +290,18 @@ export function MobilePreviewPane() {
     return (
       <div className="flex-1 flex flex-col overflow-hidden bg-white lg:hidden">
         {fontUrl && <link rel="stylesheet" href={fontUrl} />}
-        <div
-          className="flex-1 overflow-y-auto"
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
-        />
+        {isHydratingSite || !blueprint ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
+            <Loader2 className="w-7 h-7 animate-spin text-[#0D5771]" />
+            <p className="text-xs font-mono text-slate-500">Loading your live site…</p>
+          </div>
+        ) : (
+          <div
+            className="flex-1 overflow-y-auto"
+            suppressHydrationWarning
+            dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
+          />
+        )}
       </div>
     );
   }
@@ -365,8 +373,8 @@ export function MobilePreviewPane() {
 
       {/* Scrollable Workspace Body */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {/* 2. Guided Setup Card */}
-        {!allReady && (
+        {/* 2. Guided Setup Card (only once hydrated so 0/3 never flashes over ready sites) */}
+        {!isHydratingSite && blueprint && !allReady && (
           <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
             <button
               type="button"
@@ -514,31 +522,56 @@ export function MobilePreviewPane() {
             </div>
           )}
 
-          {/* Interactive Live Rendered Site */}
-          <style>{`
-            .cz-mobile-editable-preview img {
-              cursor: pointer;
-              touch-action: manipulation;
-            }
-            .cz-mobile-editable-preview [data-cuzmify-field] {
-              cursor: text;
-              touch-action: manipulation;
-            }
-            .cz-mobile-editable-preview [data-cz-mobile-picked="true"] {
-              outline: 2px solid #0D5771 !important;
-              outline-offset: 2px !important;
-              box-shadow: 0 0 0 4px rgba(13, 87, 113, 0.2) !important;
-            }
-          `}</style>
-          <div
-            ref={previewRootRef}
-            className="cz-mobile-editable-preview"
-            onClick={handlePreviewClick}
-            onDoubleClick={handlePreviewDoubleClick}
-            onSubmit={(e) => e.preventDefault()}
-            suppressHydrationWarning
-            dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
-          />
+          {/* Interactive Live Rendered Site (or clean skeleton while hydrating user DB data) */}
+          {isHydratingSite || !blueprint ? (
+            <div className="p-6 space-y-4 bg-white min-h-[420px] flex flex-col justify-center">
+              <div className="flex flex-col items-center text-center space-y-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#0D5771]/10 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#0D5771]" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-800 font-display">Loading your studio…</p>
+                  <p className="text-[11px] font-mono text-slate-400">Syncing photos, services &amp; custom design</p>
+                </div>
+              </div>
+              <div className="space-y-2.5 pt-2 animate-pulse">
+                <div className="h-4 w-28 bg-slate-100 rounded-full mx-auto" />
+                <div className="h-8 w-4/5 bg-slate-100 rounded-xl mx-auto" />
+                <div className="h-44 w-full bg-slate-100 rounded-2xl" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-20 bg-slate-100 rounded-xl" />
+                  <div className="h-20 bg-slate-100 rounded-xl" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <style>{`
+                .cz-mobile-editable-preview img {
+                  cursor: pointer;
+                  touch-action: manipulation;
+                }
+                .cz-mobile-editable-preview [data-cuzmify-field] {
+                  cursor: text;
+                  touch-action: manipulation;
+                }
+                .cz-mobile-editable-preview [data-cz-mobile-picked="true"] {
+                  outline: 2px solid #0D5771 !important;
+                  outline-offset: 2px !important;
+                  box-shadow: 0 0 0 4px rgba(13, 87, 113, 0.2) !important;
+                }
+              `}</style>
+              <div
+                ref={previewRootRef}
+                className="cz-mobile-editable-preview"
+                onClick={handlePreviewClick}
+                onDoubleClick={handlePreviewDoubleClick}
+                onSubmit={(e) => e.preventDefault()}
+                suppressHydrationWarning
+                dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
+              />
+            </>
+          )}
         </div>
       </div>
 

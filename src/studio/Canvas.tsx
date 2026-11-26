@@ -18,6 +18,7 @@ export function Canvas() {
     setCanRedo,
     setSelectedComponent,
     setActiveModuleModal,
+    setIsHydratingSite,
     projectId,
     businessName,
     setBusinessName,
@@ -183,9 +184,12 @@ export function Canvas() {
       setSelectedComponent({ type, traits });
     });
 
-    // 1. Instant 0ms SWR Hydration: Hydrate from LocalStorage or Default Template immediately
+    // 1. Instant 0ms SWR Hydration: Hydrate from LocalStorage if warm; otherwise hold overlay until DB loads (no boilerplate flash!)
     const localRes = service.loadFromLocalStorage(projectId, userIdRef.current);
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const draftOnboardingMedia = loadOnboardingDraftMedia();
+    const hasWarmState = localRes.loaded || draftOnboardingMedia.length > 0;
+
     if (localRes.loaded) {
       if (localRes.theme) handleThemeChange(localRes.theme as any);
       if (localRes.name) {
@@ -195,7 +199,8 @@ export function Canvas() {
       service.sanitizeCanvas();
       service.syncCanvasWithBlueprint();
       setIsCanvasLoading(false);
-    } else {
+      setIsHydratingSite(false);
+    } else if (draftOnboardingMedia.length > 0) {
       const urlTpl = urlParams?.get('template') || urlParams?.get('templateId');
       const urlCat = urlParams?.get('category') || urlParams?.get('nicheId');
       if (urlCat) service.switchNiche(urlCat, projectId);
@@ -203,10 +208,10 @@ export function Canvas() {
       service.loadHtml(rendered.fullHtml, 'Initial Template', 'initial');
       service.sanitizeCanvas();
       setIsCanvasLoading(false);
+      setIsHydratingSite(false);
     }
 
     // Hydrate gallery photos uploaded during Onboarding Step 2 (survives Google/Email auth redirect)
-    const draftOnboardingMedia = loadOnboardingDraftMedia();
     if (draftOnboardingMedia.length > 0) {
       const merged = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 20);
       service.setMediaVault(merged);
@@ -290,6 +295,14 @@ export function Canvas() {
         if (bp?.mediaVault && bp.mediaVault.length > 0) {
           service.injectInstagramMediaToCanvas(bp.mediaVault);
         }
+      } else if (!hasWarmState) {
+        // Cold brand-new session with zero saved DB site: initialize cleanly from URL template/niche once DB check completes
+        const urlTpl = urlParams?.get('template') || urlParams?.get('templateId');
+        const urlCat = urlParams?.get('category') || urlParams?.get('nicheId');
+        if (urlCat) service.switchNiche(urlCat, projectId);
+        const rendered = renderTemplateEngine(urlTpl || service.getTemplateId(), service.getBlueprint(), { siteId: projectId });
+        service.loadHtml(rendered.fullHtml, 'Initial Template', 'initial');
+        service.sanitizeCanvas();
       }
 
       if (draftOnboardingMedia.length > 0) {
@@ -302,10 +315,17 @@ export function Canvas() {
           clearOnboardingDraftMedia();
         }
       }
+
+      if (!hasWarmState) {
+        setService(service);
+      }
       setIsCanvasLoading(false);
+      setIsHydratingSite(false);
     });
 
-    setService(service);
+    if (hasWarmState) {
+      setService(service);
+    }
     if (typeof window !== 'undefined') {
       (window as any).__cuzmifyService = service;
       (window as any).__cuzmifyEditor = editor;
@@ -316,7 +336,7 @@ export function Canvas() {
       unsubSel();
       service.destroy();
     };
-  }, [projectId, setService, setSaveState, setCanUndo, setCanRedo, setSelectedComponent, handleThemeChange]);
+  }, [projectId, setService, setSaveState, setCanUndo, setCanRedo, setSelectedComponent, setIsHydratingSite, handleThemeChange]);
 
   useEffect(() => {
     initEditor();

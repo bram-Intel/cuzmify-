@@ -66,6 +66,9 @@ interface EditorContextValue {
   isPreviewMode: boolean;
   setIsPreviewMode: (v: boolean) => void;
 
+  isHydratingSite: boolean;
+  setIsHydratingSite: (v: boolean) => void;
+
   canUndo: boolean;
   setCanUndo: (v: boolean) => void;
 
@@ -141,26 +144,54 @@ export function EditorProvider({
   const [targetElement, setTargetElement] = useState<TargetElementContext | null>(null);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [activeModuleModal, setActiveModuleModal] = useState<ModuleModalType>(null);
-  const [blueprint, setBlueprint] = useState<BusinessBlueprint | null>(null);
 
   const { data: session } = useSession();
   const currentUserId = session?.user?.id || session?.user?.email || 'guest';
+
+  // Synchronously warm-hydrate cached blueprint before async GrapesJS loads so mobile & inspector never flash boilerplate on reload
+  const initialCachedSnapshot = React.useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(`cuzmify_project_${currentUserId}_${projectId}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.blueprint ? (parsed.blueprint as BusinessBlueprint) : null;
+    } catch {
+      return null;
+    }
+  }, [currentUserId, projectId]);
+
+  const [blueprint, setBlueprint] = useState<BusinessBlueprint | null>(initialCachedSnapshot);
+  const [isHydratingSite, setIsHydratingSite] = useState<boolean>(() => !initialCachedSnapshot);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    if (initialCachedSnapshot) {
+      setBlueprint((prev) => prev || initialCachedSnapshot);
+      if (initialCachedSnapshot.templateId) setTemplateId(resolveTemplateEngineId(initialCachedSnapshot.templateId));
+      if (initialCachedSnapshot.nicheId) setNicheId(initialCachedSnapshot.nicheId);
+      if (initialCachedSnapshot.profile?.name && initialCachedSnapshot.profile.name !== 'Gmakeup Studio') {
+        setBusinessName(initialCachedSnapshot.profile.name);
+      }
+      setIsHydratingSite(false);
+    }
+  }, [initialCachedSnapshot]);
 
   // Synchronize reactive history state (Undo / Redo buttons) and Blueprint
   React.useEffect(() => {
     if (!service) return;
 
-    if (initialInstagram || initialCurrency || initialWhatsapp || initialCategory) {
-      service.updateProfile({
-        ...(initialInstagram ? { instagramHandle: initialInstagram } : {}),
-        ...(initialCurrency ? { currency: initialCurrency } : {}),
-        ...(initialWhatsapp ? { whatsapp: initialWhatsapp } : {}),
-        ...(initialCategory ? { category: initialCategory } : {}),
-      });
-      if (initialWhatsapp) {
-        service.updateWhatsAppConfig({ phoneNumber: initialWhatsapp });
-      }
+    const currentProf = service.getBlueprint()?.profile;
+    const profilePatch: Record<string, any> = {};
+    if (initialInstagram && !currentProf?.instagramHandle) profilePatch.instagramHandle = initialInstagram;
+    if (initialCurrency && !currentProf?.currency) profilePatch.currency = initialCurrency;
+    if (initialWhatsapp && !currentProf?.whatsapp) profilePatch.whatsapp = initialWhatsapp;
+    if (initialCategory && !currentProf?.category) profilePatch.category = initialCategory;
+    if (Object.keys(profilePatch).length > 0) {
+      service.updateProfile(profilePatch);
+    }
+    if (initialWhatsapp && !service.getWhatsAppConfig()?.phoneNumber) {
+      service.updateWhatsAppConfig({ phoneNumber: initialWhatsapp });
     }
 
     const initialBp = service.getBlueprint();
@@ -302,6 +333,7 @@ export function EditorProvider({
     leftPanelTab, setLeftPanelTab,
     isLeftPanelOpen, setIsLeftPanelOpen,
     isPreviewMode, setIsPreviewMode,
+    isHydratingSite, setIsHydratingSite,
     canUndo, setCanUndo,
     canRedo, setCanRedo,
     businessName, setBusinessName,
