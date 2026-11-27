@@ -16,7 +16,7 @@ async function resolveUserId() {
   return null;
 }
 
-const STUDIO_SITE_SELECT = {
+const DASHBOARD_SITE_SELECT = {
   id: true,
   userId: true,
   name: true,
@@ -35,9 +35,13 @@ const STUDIO_SITE_SELECT = {
   instagramHandle: true,
   whatsappPhone: true,
   currency: true,
-  blueprintData: true,
   createdAt: true,
   updatedAt: true,
+} as const;
+
+const STUDIO_SITE_SELECT = {
+  ...DASHBOARD_SITE_SELECT,
+  blueprintData: true,
 } as const;
 
 export async function GET(req: Request) {
@@ -88,6 +92,7 @@ export async function GET(req: Request) {
     const sites = await prisma.site.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
+      select: DASHBOARD_SITE_SELECT,
     });
 
     return NextResponse.json({ sites }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });

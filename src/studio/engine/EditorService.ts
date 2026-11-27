@@ -135,6 +135,7 @@ export class EditorService {
       const profileUpdates: Partial<BusinessProfile> = {};
 
       // 1. Check Primary Brand Name Anchor
+      const isModernTemplate = Boolean(doc.querySelector('[data-cuzmify-template]'));
       const brandEl = doc.querySelector(
         '[data-cuzmify-field="business-name"], .brand-name, .cuzmify-brand-name, nav[data-cuzmify-type="navbar"] span:first-of-type, nav[data-brand] span:first-of-type'
       );
@@ -144,13 +145,15 @@ export class EditorService {
           profileUpdates.name = rawBrand;
           profileUpdated = true;
 
-          // Keep announcement bar synced in real-time
-          const announcementSpans = doc.querySelectorAll('div span');
-          announcementSpans.forEach((el) => {
-            if (el.textContent && el.textContent.includes('✦') && el.textContent.toLowerCase().includes('luxury artistry')) {
-              el.textContent = `✦ ${rawBrand} Luxury Artistry`;
-            }
-          });
+          // Keep legacy announcement bar synced in real-time
+          if (!isModernTemplate) {
+            const announcementSpans = doc.querySelectorAll('div span');
+            announcementSpans.forEach((el) => {
+              if (el.textContent && el.textContent.includes('✦') && el.textContent.toLowerCase().includes('luxury artistry')) {
+                el.textContent = `✦ ${rawBrand} Luxury Artistry`;
+              }
+            });
+          }
         }
       }
 
@@ -404,7 +407,7 @@ export class EditorService {
           html: '',
           css: '',
           theme,
-          blueprintJson: JSON.stringify(bp),
+          blueprintJson: this.historyManager.serializeBlueprint(bp),
         });
         return;
       }
@@ -429,7 +432,7 @@ export class EditorService {
   }
 
   private handleDebouncedChange(description: string, source: HistorySnapshot['source']): void {
-    if (this.isRestoringState || this.historyManager.isPerformingRestore) return;
+    if (this.isRestoringState || this.isSyncingFromCanvas || this.historyManager.isPerformingRestore) return;
 
     // While user is actively typing in RTE, do not trigger DOM modifications or React re-renders mid-stroke
     if (this.isRteActive) {
@@ -474,7 +477,7 @@ export class EditorService {
 
     try {
       if (previous.blueprintJson) {
-        const parsedBp = JSON.parse(previous.blueprintJson) as BusinessBlueprint;
+        const parsedBp = this.historyManager.deserializeBlueprint(previous.blueprintJson);
         this.blueprintManager.hydrate(parsedBp);
         this.lastSyncedCanvasKey = '';
         if (!this.adapter.isHeadless) {
@@ -521,7 +524,7 @@ export class EditorService {
 
     try {
       if (next.blueprintJson) {
-        const parsedBp = JSON.parse(next.blueprintJson) as BusinessBlueprint;
+        const parsedBp = this.historyManager.deserializeBlueprint(next.blueprintJson);
         this.blueprintManager.hydrate(parsedBp);
         this.lastSyncedCanvasKey = '';
         if (!this.adapter.isHeadless) {
@@ -823,6 +826,19 @@ export class EditorService {
     return this.blueprintManager.onChange(listener);
   }
 
+  private computeCanvasSyncKey(bp: BusinessBlueprint): string {
+    const tplId = resolveTemplateEngineId(bp.templateId);
+    const visKey = Object.entries(bp.sectionVisibility || {})
+      .filter(([, v]) => v === false)
+      .map(([k]) => k)
+      .sort()
+      .join(',');
+    const injKey = Object.keys((bp.templateInjections?.[tplId] || bp.injections) || {})
+      .sort()
+      .join(',');
+    return `${tplId}:${bp.updatedAt || ''}:${this.activeSiteId || ''}:${bp.modules?.services?.items?.length || 0}:${visKey}:${injKey}`;
+  }
+
   public syncCanvasWithBlueprint(blueprint?: BusinessBlueprint): void {
     if (!this.adapter || this.isSyncingFromCanvas) return;
     // Headless mobile runtime renders directly from React blueprint state — zero hidden iframe DOM rebuild needed
@@ -833,22 +849,19 @@ export class EditorService {
     // even if the iframe hasn't completed initial load or is rendered behind a full-screen Studio modal.
     if (!this.hasCustomCanvasBlocks && bp?.templateId) {
       const tplId = resolveTemplateEngineId(bp.templateId);
-      const visKey = Object.entries(bp.sectionVisibility || {})
-        .filter(([, v]) => v === false)
-        .map(([k]) => k)
-        .sort()
-        .join(',');
-      const injKey = Object.keys((bp.templateInjections?.[tplId] || bp.injections) || {})
-        .sort()
-        .join(',');
-      const syncKey = `${tplId}:${bp.updatedAt || ''}:${this.activeSiteId || ''}:${bp.modules?.services?.items?.length || 0}:${visKey}:${injKey}`;
+      const syncKey = this.computeCanvasSyncKey(bp);
       if (this.lastSyncedCanvasKey === syncKey) {
         return;
       }
       this.lastSyncedCanvasKey = syncKey;
       const rendered = renderTemplateEngine(tplId, bp, { siteId: this.activeSiteId || undefined });
-      this.adapter.setHtmlContent(rendered.fullHtml);
-      this.adapter.triggerChange();
+      this.isSyncingFromCanvas = true;
+      try {
+        this.adapter.setHtmlContent(rendered.fullHtml);
+        this.adapter.sanitizeCanvas();
+      } finally {
+        this.isSyncingFromCanvas = false;
+      }
       return;
     }
 
@@ -1338,10 +1351,16 @@ export class EditorService {
         if (!this.adapter.isHeadless) {
           const tplId = resolveTemplateEngineId(hydratedBp.templateId || site.templateId);
           const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: site.id });
-          this.adapter.setHtmlContent(rendered.fullHtml);
-          this.adapter.sanitizeCanvas();
-          this.lastSyncedCanvasKey = `${tplId}:${hydratedBp.updatedAt || ''}:${site.id}:${hydratedBp.modules?.services?.items?.length || 0}`;
+          this.isSyncingFromCanvas = true;
+          try {
+            this.adapter.setHtmlContent(rendered.fullHtml);
+            this.adapter.sanitizeCanvas();
+          } finally {
+            this.isSyncingFromCanvas = false;
+          }
+          this.lastSyncedCanvasKey = this.computeCanvasSyncKey(hydratedBp);
         }
+        this.blueprintListeners.forEach((fn) => fn(hydratedBp));
         this.recordSnapshot('Loaded from Blueprint', 'initial', site.theme as ThemeName);
         return { loaded: true, siteId: site.id, theme: site.theme, name: activeName, blueprint: hydratedBp };
       }
@@ -1349,9 +1368,15 @@ export class EditorService {
       // 3. Fallback to saved htmlContent
       if (site.htmlContent && site.htmlContent.length > 50) {
         if (!this.adapter.isHeadless) {
-          this.adapter.setHtmlContent(site.htmlContent);
-          this.adapter.sanitizeCanvas();
+          this.isSyncingFromCanvas = true;
+          try {
+            this.adapter.setHtmlContent(site.htmlContent);
+            this.adapter.sanitizeCanvas();
+          } finally {
+            this.isSyncingFromCanvas = false;
+          }
         }
+        this.blueprintListeners.forEach((fn) => fn(hydratedBp));
         this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
         return { loaded: true, siteId: site.id, theme: site.theme, name: activeName, blueprint: hydratedBp };
       }
@@ -1359,6 +1384,82 @@ export class EditorService {
       return { loaded: false };
     } catch {
       return { loaded: false };
+    }
+  }
+
+  /**
+   * Pulls the latest cloud blueprint on demand (e.g. Refresh button or cross-device / MCP sync)
+   * and synchronizes both React state and Desktop/Mobile preview surfaces.
+   */
+  async refreshFromCloud(projectId: string): Promise<{
+    refreshed: boolean;
+    updated: boolean;
+    siteId?: string;
+    theme?: string;
+    name?: string;
+    blueprint?: BusinessBlueprint;
+  }> {
+    const prevBp = this.blueprintManager.getBlueprint();
+    const prevStamp = `${resolveTemplateEngineId(prevBp?.templateId)}:${prevBp?.updatedAt || ''}`;
+    this.lastSyncedCanvasKey = '';
+    const targetId = this.activeSiteId || projectId;
+    const res = await this.loadFromDatabase(targetId, { allowFallback: true });
+    if (!res.loaded || !res.blueprint) {
+      return { refreshed: false, updated: false };
+    }
+    const nextStamp = `${resolveTemplateEngineId(res.blueprint.templateId)}:${res.blueprint.updatedAt || ''}`;
+    return {
+      refreshed: true,
+      updated: nextStamp !== prevStamp,
+      siteId: res.siteId,
+      theme: res.theme,
+      name: res.name,
+      blueprint: res.blueprint,
+    };
+  }
+
+  /**
+   * Checks whether Cloud DB holds a strictly newer blueprint (e.g. edited from Mobile or MCP)
+   * and hydrates it only when newer so clean background tabs never drift out of sync.
+   */
+  async syncIfCloudNewer(projectId: string): Promise<{
+    synced: boolean;
+    siteId?: string;
+    theme?: string;
+    name?: string;
+    blueprint?: BusinessBlueprint;
+  }> {
+    try {
+      const targetId = this.activeSiteId || projectId;
+      const res = await fetch(`/api/sites?mode=studio&siteId=${encodeURIComponent(targetId)}`, { cache: 'no-store' });
+      if (!res.ok) return { synced: false };
+      const data = await res.json();
+      const sites = Array.isArray(data?.sites) ? data.sites : [];
+      const site = sites.find((s: any) => s.id === targetId) || sites[0];
+      if (!site?.blueprintData) return { synced: false };
+
+      const cloudBp = typeof site.blueprintData === 'string' ? JSON.parse(site.blueprintData) : site.blueprintData;
+      const localBp = this.blueprintManager.getBlueprint();
+      const cloudTime = cloudBp?.updatedAt ? Date.parse(cloudBp.updatedAt) : 0;
+      const localTime = localBp?.updatedAt ? Date.parse(localBp.updatedAt) : 0;
+      const cloudTpl = resolveTemplateEngineId(cloudBp?.templateId || site.templateId);
+      const localTpl = resolveTemplateEngineId(localBp?.templateId);
+
+      if ((cloudTime > 0 && cloudTime > localTime) || (cloudTime >= localTime && cloudTpl !== localTpl)) {
+        const full = await this.refreshFromCloud(site.id || targetId);
+        if (full.refreshed && full.blueprint) {
+          return {
+            synced: true,
+            siteId: full.siteId,
+            theme: full.theme,
+            name: full.name,
+            blueprint: full.blueprint,
+          };
+        }
+      }
+      return { synced: false };
+    } catch {
+      return { synced: false };
     }
   }
 
@@ -1421,9 +1522,14 @@ export class EditorService {
         if (!this.adapter.isHeadless) {
           const tplId = resolveTemplateEngineId(hydratedBp.templateId);
           const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: this.activeSiteId || projectId });
-          this.adapter.setHtmlContent(rendered.fullHtml);
-          this.adapter.sanitizeCanvas();
-          this.lastSyncedCanvasKey = `${tplId}:${hydratedBp.updatedAt || ''}:${this.activeSiteId || ''}:${hydratedBp.modules?.services?.items?.length || 0}`;
+          this.isSyncingFromCanvas = true;
+          try {
+            this.adapter.setHtmlContent(rendered.fullHtml);
+            this.adapter.sanitizeCanvas();
+          } finally {
+            this.isSyncingFromCanvas = false;
+          }
+          this.lastSyncedCanvasKey = this.computeCanvasSyncKey(hydratedBp);
         }
         this.recordSnapshot('Loaded from LocalStorage Blueprint', 'initial', snap.theme as ThemeName);
         return { loaded: true, siteId: this.activeSiteId || undefined, theme: snap.theme, name: activeName, snapshot: snap };

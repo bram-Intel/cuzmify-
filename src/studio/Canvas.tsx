@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useEditor } from './engine/EditorContext';
 import { EditorService } from './engine/EditorService';
-import { Lock } from 'lucide-react';
+import { Lock, RefreshCw } from 'lucide-react';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 import { attachStudioRuntime } from './engine/studio-runtime';
 import { StudioLoader } from './StudioLoader';
@@ -19,6 +19,8 @@ export function Canvas() {
     setSelectedComponent,
     setActiveModuleModal,
     setIsHydratingSite,
+    isRefreshing,
+    handleRefreshSite,
     projectId,
     businessName,
     setBusinessName,
@@ -223,12 +225,22 @@ export function Canvas() {
             <span>https://{domain}</span>
           </div>
 
-          <div className="text-[#94A3B8] font-bold text-[9px] uppercase tracking-wider hidden sm:block">
-            {breakpoint === 'mobile'
-              ? '📱 Mobile Viewport (390px)'
-              : breakpoint === 'tablet'
-              ? '📱 Tablet Viewport (768px)'
-              : '🖥️ Interactive Desktop Mode'}
+          <div className="flex items-center gap-2">
+            {breakpoint !== 'desktop' && (
+              <span className="text-[#94A3B8] font-bold text-[9px] uppercase tracking-wider hidden sm:inline">
+                {breakpoint === 'mobile' ? '390px' : '768px'}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleRefreshSite()}
+              disabled={isRefreshing}
+              title="Refresh canvas with latest Mobile or MCP changes"
+              className="px-2.5 py-0.5 rounded-lg bg-[#FFFFFF] hover:bg-[#0D5771]/8 text-[#0D5771] border border-[#E2E8F0] hover:border-[#0D5771]/35 font-sans font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isRefreshing ? 'Syncing…' : 'Refresh'}</span>
+            </button>
           </div>
         </div>
 

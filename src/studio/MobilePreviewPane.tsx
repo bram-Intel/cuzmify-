@@ -7,7 +7,7 @@ import {
   Phone,
   CheckCircle2,
   Lock,
-  SlidersHorizontal,
+  RefreshCw,
   ChevronDown,
   ChevronUp,
   Sparkles,
@@ -36,6 +36,7 @@ import { compressImageFileToWebP } from '@/lib/image-compress';
 import {
   applyMobileImageReplacement,
   applyMobileTextEdit,
+  findEditableMobileTextElement,
   resolveMobileImageTarget,
   resolveMobileTextTarget,
   type MobileImageTarget,
@@ -125,10 +126,12 @@ export function MobilePreviewPane() {
     nicheId,
     isPreviewMode,
     isHydratingSite,
+    isRefreshing,
     activeModuleModal,
     service,
     handleTemplateSwitch,
     handleSave,
+    handleRefreshSite,
     setActiveModuleModal,
     setSaveToast,
   } = useEditor();
@@ -232,7 +235,7 @@ export function MobilePreviewPane() {
     if (!resolved) return;
     setActiveImageTarget(null);
     setActiveImageEl(null);
-    setActiveTextEl((rawEl.closest('[data-cuzmify-field]') as HTMLElement | null) || rawEl);
+    setActiveTextEl(findEditableMobileTextElement(rawEl) || rawEl);
     setActiveTextTarget(resolved);
     setTextDraft(resolved.value);
   };
@@ -280,8 +283,8 @@ export function MobilePreviewPane() {
       return;
     }
 
-    // 2. Touch/click double-tap detection (<360ms on same field) for inline text edit
-    const fieldEl = rawTarget.closest('[data-cuzmify-field]') as HTMLElement | null;
+    // 2. Touch/click double-tap detection (<500ms on same editable element) for inline text edit
+    const fieldEl = findEditableMobileTextElement(rawTarget);
     if (!fieldEl) return;
 
     const now = Date.now();
@@ -302,7 +305,7 @@ export function MobilePreviewPane() {
     const rawTarget = e.target as HTMLElement | null;
     if (!rawTarget || rawTarget.tagName === 'IMG' || rawTarget.tagName === 'VIDEO') return;
     if (rawTarget.closest('a, button')) e.preventDefault();
-    const fieldEl = rawTarget.closest('[data-cuzmify-field]') as HTMLElement | null;
+    const fieldEl = findEditableMobileTextElement(rawTarget);
     if (!fieldEl) return;
     lastTapRef.current = { el: null, time: 0 };
     openTextEditorForElement(fieldEl);
@@ -596,11 +599,13 @@ export function MobilePreviewPane() {
 
               <button
                 type="button"
-                onClick={() => setActiveModuleModal('profile')}
-                className="px-2 py-1 rounded-lg bg-[#0D5771]/10 text-[#0D5771] text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                onClick={() => void handleRefreshSite()}
+                disabled={isRefreshing}
+                title="Refresh preview with latest Desktop or MCP changes"
+                className="px-2 py-1 rounded-lg bg-[#0D5771]/10 hover:bg-[#0D5771]/18 text-[#0D5771] text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all disabled:opacity-60"
               >
-                <SlidersHorizontal className="w-3 h-3" />
-                <span>Info</span>
+                <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>{isRefreshing ? 'Syncing' : 'Refresh'}</span>
               </button>
             </div>
           </div>
@@ -652,7 +657,9 @@ export function MobilePreviewPane() {
                 .cz-mobile-editable-preview video {
                   cursor: pointer;
                 }
-                .cz-mobile-editable-preview [data-cuzmify-field] {
+                .cz-mobile-editable-preview [data-cuzmify-field],
+                .cz-mobile-editable-preview [data-cuzmify-slot],
+                .cz-mobile-editable-preview [data-cuzmify-type="custom-section"] {
                   cursor: text;
                 }
                 .cz-mobile-editable-preview [data-cz-mobile-picked="true"] {

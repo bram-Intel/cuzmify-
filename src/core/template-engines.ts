@@ -825,8 +825,8 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
   const activeOv = getActiveDesignOverrides('editorial-atelier', bp);
 
   const css = `
-    :root { --cz-bg:#FAF7F2; --cz-surface:#FFFFFF; --cz-ink:#1C1917; --cz-muted:#6B635B; --cz-accent:#9A6B4C; --cz-border:#E7E0D6; }
-    .cz-ea-root { background:var(--cz-bg); color:var(--cz-ink); font-family:'Plus Jakarta Sans',system-ui,sans-serif; margin:0; }
+    :root, [data-cuzmify-template="editorial-atelier"] { --cz-bg:#FAF7F2; --cz-surface:#FFFFFF; --cz-ink:#1C1917; --cz-muted:#6B635B; --cz-accent:#9A6B4C; --cz-border:#E7E0D6; }
+    .cz-ea-root { background-color:#FAF7F2; background-color:var(--cz-bg); color:#1C1917; color:var(--cz-ink); font-family:'Plus Jakarta Sans',system-ui,sans-serif; margin:0; min-height:100vh; }
     .cz-ea-serif { font-family:'Cormorant Garamond',Georgia,serif; }
     .cz-ea-container { max-width:1080px; margin:0 auto; padding:0 20px; box-sizing:border-box; }
     .cz-ea-hero-grid { display:grid; grid-template-columns:1fr; gap:32px; align-items:center; padding-top:36px; padding-bottom:52px; }
@@ -980,15 +980,15 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
   );
 
   const navbarHtml = isSectionVisible(bp, 'navbar')
-    ? `<nav data-cuzmify-type="navbar" style="border-bottom:1px solid var(--cz-border);background:var(--cz-bg);backdrop-filter:blur(10px);position:sticky;top:0;z-index:30;">
+    ? `<nav data-cuzmify-type="navbar" style="border-bottom:1px solid var(--cz-border, #E7E0D6);background-color:var(--cz-bg, #FAF7F2);backdrop-filter:blur(10px);position:sticky;top:0;z-index:30;">
       <div class="cz-ea-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <span data-cuzmify-field="business-name" class="brand-name cz-ea-serif" style="font-size:1.3rem;font-weight:700;letter-spacing:0.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(profile.name)}</span>
-        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
+        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:999px;background-color:var(--cz-ink, #1C1917);color:var(--cz-bg, #FAF7F2);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
       </div>
     </nav>`
     : '';
 
-  const html = `<div class="cz-ea-root" data-cuzmify-template="editorial-atelier">
+  const html = `<div class="cz-ea-root" data-cuzmify-template="editorial-atelier" style="background-color:var(--cz-bg, #FAF7F2);color:var(--cz-ink, #1C1917);min-height:100vh;">
     ${navbarHtml}
 
     ${bodySections}
@@ -1021,8 +1021,8 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   const activeOv = getActiveDesignOverrides('noir-showcase', bp);
 
   const css = `
-    :root { --cz-noir-bg:#09090B; --cz-noir-card:#141418; --cz-noir-text:#FAFAFA; --cz-noir-muted:#A1A1AA; --cz-noir-accent:#F59E0B; }
-    .cz-nr-root { background:var(--cz-noir-bg); color:var(--cz-noir-text); font-family:'DM Sans',system-ui,sans-serif; margin:0; min-height:100%; }
+    :root, [data-cuzmify-template="noir-showcase"] { --cz-noir-bg:#09090B; --cz-noir-card:#141418; --cz-noir-text:#FAFAFA; --cz-noir-muted:#A1A1AA; --cz-noir-accent:#F59E0B; }
+    .cz-nr-root { background-color:#09090B; background-color:var(--cz-noir-bg); color:#FAFAFA; color:var(--cz-noir-text); font-family:'DM Sans',system-ui,sans-serif; margin:0; min-height:100vh; }
     .cz-nr-display { font-family:'Outfit',system-ui,sans-serif; letter-spacing:-0.02em; }
     .cz-nr-container { max-width:1160px; margin:0 auto; padding:0 20px; box-sizing:border-box; }
     .cz-nr-gallery { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
@@ -1165,15 +1165,15 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   );
 
   const navbarHtml = isSectionVisible(bp, 'navbar')
-    ? `<nav data-cuzmify-type="navbar" style="position:sticky;top:0;z-index:30;background:var(--cz-noir-bg);color:var(--cz-noir-text);border-bottom:1px solid rgba(255,255,255,0.1);">
+    ? `<nav data-cuzmify-type="navbar" style="position:sticky;top:0;z-index:30;background-color:var(--cz-noir-bg, #09090B);color:var(--cz-noir-text, #FAFAFA);border-bottom:1px solid rgba(255,255,255,0.1);">
       <div class="cz-nr-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <span data-cuzmify-field="business-name" class="brand-name cz-nr-display" style="font-size:1.05rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--cz-noir-text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(profile.name)}</span>
-        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:10px;background:var(--cz-noir-accent);color:#09090B;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
+        <span data-cuzmify-field="business-name" class="brand-name cz-nr-display" style="font-size:1.05rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--cz-noir-text, #FAFAFA);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(profile.name)}</span>
+        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:10px;background-color:var(--cz-noir-accent, #F59E0B);color:#09090B;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
       </div>
     </nav>`
     : '';
 
-  const html = `<div class="cz-nr-root" data-cuzmify-template="noir-showcase">
+  const html = `<div class="cz-nr-root" data-cuzmify-template="noir-showcase" style="background-color:var(--cz-noir-bg, #09090B);color:var(--cz-noir-text, #FAFAFA);min-height:100vh;">
     ${navbarHtml}
 
     ${bodySections}
@@ -1207,8 +1207,8 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   const activeOv = getActiveDesignOverrides('modern-studio', bp);
 
   const css = `
-    :root { --cz-ms-bg:#F8FAFC; --cz-ms-card:#FFFFFF; --cz-ms-primary:#0D5771; --cz-ms-ink:#0F172A; --cz-ms-muted:#64748B; --cz-ms-border:#E2E8F0; }
-    .cz-ms-root { background:var(--cz-ms-bg); color:var(--cz-ms-ink); font-family:'Inter',system-ui,sans-serif; margin:0; }
+    :root, [data-cuzmify-template="modern-studio"] { --cz-ms-bg:#F8FAFC; --cz-ms-card:#FFFFFF; --cz-ms-primary:#0D5771; --cz-ms-ink:#0F172A; --cz-ms-muted:#64748B; --cz-ms-border:#E2E8F0; }
+    .cz-ms-root { background-color:#F8FAFC; background-color:var(--cz-ms-bg); color:#0F172A; color:var(--cz-ms-ink); font-family:'Inter',system-ui,sans-serif; margin:0; min-height:100vh; }
     .cz-ms-heading { font-family:'Outfit',system-ui,sans-serif; }
     .cz-ms-container { max-width:1080px; margin:0 auto; padding:0 18px; box-sizing:border-box; }
     .cz-ms-services { display:grid; grid-template-columns:1fr; gap:16px; }
@@ -1364,18 +1364,18 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   );
 
   const navbarHtml = isSectionVisible(bp, 'navbar')
-    ? `<nav data-cuzmify-type="navbar" style="background:var(--cz-ms-card);border-bottom:1px solid var(--cz-ms-border);position:sticky;top:0;z-index:30;">
+    ? `<nav data-cuzmify-type="navbar" style="background-color:var(--cz-ms-card, #FFFFFF);border-bottom:1px solid var(--cz-ms-border, #E2E8F0);position:sticky;top:0;z-index:30;">
       <div class="cz-ms-container" style="height:60px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <div style="display:flex;align-items:center;gap:8px;min-width:0;">
           <span style="width:8px;height:8px;border-radius:999px;background:#10B981;flex-shrink:0;"></span>
           <span data-cuzmify-field="business-name" class="brand-name cz-ms-heading" style="font-size:1.05rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(profile.name)}</span>
         </div>
-        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:8px 16px;border-radius:10px;background:var(--cz-ms-primary);color:#FFFFFF;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(primaryCta)}</a>
+        <a data-cuzmify-field="primary-cta" href="#booking" style="padding:8px 16px;border-radius:10px;background-color:var(--cz-ms-primary, #0D5771);color:#FFFFFF;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(primaryCta)}</a>
       </div>
     </nav>`
     : '';
 
-  const html = `<div class="cz-ms-root" data-cuzmify-template="modern-studio">
+  const html = `<div class="cz-ms-root" data-cuzmify-template="modern-studio" style="background-color:var(--cz-ms-bg, #F8FAFC);color:var(--cz-ms-ink, #0F172A);min-height:100vh;">
     ${navbarHtml}
 
     ${bodySections}

@@ -6,16 +6,43 @@ import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 export class GrapesAdapter implements EditorAdapter {
   public readonly isHeadless = false;
   private editor: Editor;
+  private templateCss = '';
 
   constructor(grapesEditor: Editor) {
     this.editor = grapesEditor;
     this.setupCanvasDragListeners();
   }
 
+  private syncTemplateCssToIframe(): void {
+    try {
+      const doc = this.editor.Canvas?.getDocument();
+      if (!doc || !doc.head) return;
+      const existing = doc.getElementById('cuzmify-template-css');
+      if (!this.templateCss) {
+        existing?.remove();
+        return;
+      }
+      let styleEl = existing as HTMLStyleElement | null;
+      if (!styleEl) {
+        styleEl = doc.createElement('style');
+        styleEl.id = 'cuzmify-template-css';
+        doc.head.appendChild(styleEl);
+      } else if (doc.head.lastElementChild !== styleEl) {
+        doc.head.appendChild(styleEl);
+      }
+      if (styleEl.textContent !== this.templateCss) {
+        styleEl.textContent = this.templateCss;
+      }
+    } catch {
+      // iframe not ready yet
+    }
+  }
+
   // ── Real-Time Canvas Drag Drop Indicator ──────────────────────────────────
   private setupCanvasDragListeners(): void {
     try {
       this.editor.on('load', () => {
+        this.syncTemplateCssToIframe();
         const doc = this.editor.Canvas.getDocument();
         if (!doc) return;
 
@@ -93,7 +120,7 @@ export class GrapesAdapter implements EditorAdapter {
 
   // ── HTML / CSS access ─────────────────────────────────────────────────────
   getHtml(): string {
-    const css = this.editor.getCss();
+    const css = this.getCss();
     const html = this.editor.getHtml();
     if (css && css.trim().length > 0 && !html.includes(css)) {
       return `<style>${css}</style>\n${html}`;
@@ -102,7 +129,13 @@ export class GrapesAdapter implements EditorAdapter {
   }
 
   getCss(): string {
-    return this.editor.getCss() ?? '';
+    const editorCss = this.editor.getCss() ?? '';
+    if (this.templateCss && editorCss) {
+      return editorCss.includes(this.templateCss)
+        ? editorCss
+        : `${this.templateCss}\n${editorCss}`;
+    }
+    return this.templateCss || editorCss;
   }
 
   getProjectData(): Record<string, unknown> {
@@ -111,11 +144,15 @@ export class GrapesAdapter implements EditorAdapter {
 
   loadProjectData(data: Record<string, unknown>): void {
     try {
+      this.templateCss = '';
+      this.syncTemplateCssToIframe();
       this.editor.loadProjectData(data);
       this.editor.trigger('cuzmify:change');
     } catch {
       this.editor.once('load', () => {
         try {
+          this.templateCss = '';
+          this.syncTemplateCssToIframe();
           this.editor.loadProjectData(data);
           this.editor.trigger('cuzmify:change');
         } catch {
@@ -127,34 +164,46 @@ export class GrapesAdapter implements EditorAdapter {
 
   setHtmlContent(fullHtml: string): void {
     if (!fullHtml) return;
-    try {
-      let css = '';
-      let cleanHtml = fullHtml;
+    let css = '';
+    const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = styleRegex.exec(fullHtml)) !== null) {
+      css += '\n' + match[1];
+    }
+    const cleanHtml = fullHtml.replace(styleRegex, '').trim();
+    const isModernTemplate = cleanHtml.includes('data-cuzmify-template');
 
-      const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
-      let match;
-      while ((match = styleRegex.exec(fullHtml)) !== null) {
-        css += '\n' + match[1];
-      }
-      cleanHtml = fullHtml.replace(styleRegex, '').trim();
-
-      if (css) {
+    const applyToEditor = () => {
+      if (isModernTemplate) {
+        // Bypass GrapesJS CSSOM shorthand parser so CSS variables (e.g. --cz-noir-bg),
+        // @media queries, and scoped customCss render 100% identically to Mobile & Live sites,
+        // while clearing any leftover CssComposer rules from previously active templates.
+        this.templateCss = css.trim();
         try {
-          this.editor.setStyle(css);
+          this.editor.setStyle('');
         } catch {}
+      } else {
+        this.templateCss = '';
+        if (css) {
+          try {
+            this.editor.setStyle(css);
+          } catch {}
+        }
       }
 
       this.editor.setComponents(cleanHtml);
+      this.syncTemplateCssToIframe();
       try {
         this.editor.refresh();
       } catch {}
-      this.editor.trigger('cuzmify:change');
+    };
+
+    try {
+      applyToEditor();
     } catch {
       this.editor.once('load', () => {
         try {
-          this.editor.setComponents(fullHtml);
-          this.editor.refresh();
-          this.editor.trigger('cuzmify:change');
+          applyToEditor();
         } catch {
           // bypass
         }
@@ -164,7 +213,7 @@ export class GrapesAdapter implements EditorAdapter {
 
   sanitizeCanvas(): void {
     try {
-      // 1. Ensure responsive CSS stylesheet is always fresh in the document head
+      // 1. Ensure responsive CSS & lossless template stylesheet are always fresh in the document head
       const doc = this.editor.Canvas?.getDocument();
       if (doc) {
         let style = doc.getElementById('cuzmify-base-css');
@@ -174,6 +223,7 @@ export class GrapesAdapter implements EditorAdapter {
           doc.head.appendChild(style);
         }
         style.innerHTML = RESPONSIVE_CORE_CSS;
+        this.syncTemplateCssToIframe();
 
         // Skip legacy DOM mutations if canvas uses a modern Lossless Template Engine
         if (!doc.querySelector('[data-cuzmify-template]')) {

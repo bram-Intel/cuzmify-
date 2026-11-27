@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultBlueprint } from '@/core/blueprint-schema';
-import { applyMobileImageReplacement, applyMobileTextEdit } from '@/studio/mobile-preview-edit';
+import { renderTemplateEngine } from '@/core/template-engines';
+import { HistoryManager } from '@/studio/engine/HistoryManager';
+import {
+  applyMobileImageReplacement,
+  applyMobileTextEdit,
+  replaceTextInHtmlFragment,
+} from '@/studio/mobile-preview-edit';
 import {
   buildElementSnapshotFromSelection,
   formatMcpElementReference,
@@ -184,5 +190,134 @@ describe('Mobile Live Preview Quick-Edit Mutations', () => {
     expect(formattedVidTarget).toContain('mediaKind="video"');
     expect(formattedVidTarget).toContain('video: [embedded-vault-video role=hero]');
     expect(formattedVidTarget).toContain('poster: /api/media/ig?mediaId=555');
+  });
+
+  it('edits AI-injected footer slot text and custom section text without corrupting HTML attributes or entities', () => {
+    const bp = createDefaultBlueprint({ name: 'Leba Studio', templateId: 'noir-showcase' });
+    bp.templateInjections = {
+      'noir-showcase': {
+        footer:
+          '<div class="cz-footer-wrap" style="padding:32px 20px;background:#09090B;"><h4 style="margin:0;">Leba Luxury Atelier</h4><p class="cz-copy">&copy; 2026 Leba &amp; Co. &bull; Lekki Phase 1</p></div>',
+      },
+    };
+    bp.customSections = [
+      {
+        id: 'sec-hours',
+        title: 'Studio Hours',
+        eyebrow: 'Visit Us',
+        layout: 'hours_info',
+        items: [{ label: 'Tue – Sat', detail: '9:00 AM – 7:00 PM' }],
+      },
+    ];
+
+    const footerEdit = applyMobileTextEdit(
+      bp,
+      {
+        kind: 'slot_text',
+        slot: 'footer',
+        originalText: '© 2026 Leba & Co. • Lekki Phase 1',
+        occurrenceIndex: 0,
+        label: 'Footer Text',
+        value: '© 2026 Leba & Co. • Lekki Phase 1',
+        multiline: false,
+      },
+      '© 2026 Leba Beauty • Victoria Island, Lagos'
+    );
+
+    const updatedFooter = footerEdit.blueprint.templateInjections?.['noir-showcase']?.footer || '';
+    expect(updatedFooter).toContain('Victoria Island, Lagos');
+    expect(updatedFooter).toContain('class="cz-footer-wrap"');
+    expect(updatedFooter).toContain('class="cz-copy"');
+
+    const secEdit = applyMobileTextEdit(
+      footerEdit.blueprint,
+      {
+        kind: 'custom_section',
+        sectionId: 'sec-hours',
+        part: 'item_detail',
+        itemIndex: 0,
+        label: 'Item Detail',
+        value: '9:00 AM – 7:00 PM',
+        multiline: true,
+      },
+      '10:00 AM – 8:00 PM'
+    );
+    expect(secEdit.blueprint.customSections?.[0].items?.[0].detail).toBe('10:00 AM – 8:00 PM');
+
+    const frag = replaceTextInHtmlFragment(
+      '<a href="https://instagram.com/leba" class="leba">Follow <strong>Leba</strong></a>',
+      'Follow Leba',
+      'Follow @lebabeauty'
+    );
+    expect(frag.replaced).toBe(true);
+    expect(frag.html).toBe('<a href="https://instagram.com/leba" class="leba">Follow @lebabeauty</a>');
+  });
+
+  it('interns large base64 media blobs in HistoryManager via flyweight table and restores losslessly on undo/redo', () => {
+    const history = new HistoryManager(20);
+    const largeDataUrl = `data:image/webp;base64,${'A'.repeat(250_000)}`;
+    const bp1 = createDefaultBlueprint({
+      name: 'Flyweight Studio',
+      templateId: 'noir-showcase',
+      mediaVault: [
+        {
+          id: 'mv-big',
+          url: largeDataUrl,
+          thumbnailUrl: largeDataUrl,
+          name: 'HD Cover',
+          type: 'hero',
+          source: 'upload',
+          addedAt: '',
+        },
+      ],
+    });
+
+    const slim1 = history.serializeBlueprint(bp1);
+    // Serialized history snapshot should be tiny (<5KB), not >500KB!
+    expect(slim1.length).toBeLessThan(5000);
+    expect(slim1).toContain('__cz_blob__:');
+
+    history.push({
+      id: 's1',
+      timestamp: 1,
+      description: 'Initial',
+      source: 'initial',
+      html: '',
+      css: '',
+      theme: 'bram-light',
+      blueprintJson: slim1,
+    });
+
+    const bp2 = { ...bp1, customCopy: { headline: 'Updated Cinema Headline' } };
+    history.push({
+      id: 's2',
+      timestamp: 2,
+      description: 'Edited headline',
+      source: 'manual_edit',
+      html: '',
+      css: '',
+      theme: 'bram-light',
+      blueprintJson: history.serializeBlueprint(bp2),
+    });
+
+    const undone = history.undo();
+    expect(undone).not.toBeNull();
+    const restoredBp1 = history.deserializeBlueprint(undone!.blueprintJson!);
+    expect(restoredBp1.mediaVault[0].url).toBe(largeDataUrl);
+    expect(restoredBp1.mediaVault[0].thumbnailUrl).toBe(largeDataUrl);
+
+    const redone = history.redo();
+    const restoredBp2 = history.deserializeBlueprint(redone!.blueprintJson!);
+    expect(restoredBp2.customCopy?.headline).toBe('Updated Cinema Headline');
+    expect(restoredBp2.mediaVault[0].url).toBe(largeDataUrl);
+  });
+
+  it('renders Noir Showcase with explicit obsidian background-color CSS and inline root fallback', () => {
+    const bp = createDefaultBlueprint({ name: 'Obsidian Cuts', templateId: 'noir-showcase' });
+    const rendered = renderTemplateEngine('noir-showcase', bp);
+    expect(rendered.css).toContain('background-color:#09090B;');
+    expect(rendered.css).toContain('background-color:var(--cz-noir-bg);');
+    expect(rendered.html).toContain('data-cuzmify-template="noir-showcase"');
+    expect(rendered.html).toContain('background-color:var(--cz-noir-bg, #09090B)');
   });
 });

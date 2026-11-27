@@ -69,6 +69,7 @@ interface EditorContextValue {
 
   isHydratingSite: boolean;
   setIsHydratingSite: (v: boolean) => void;
+  isRefreshing: boolean;
 
   canUndo: boolean;
   setCanUndo: (v: boolean) => void;
@@ -97,6 +98,7 @@ interface EditorContextValue {
   handleUndo: () => void;
   handleRedo: () => void;
   handleSave: (isAuto?: boolean) => Promise<void>;
+  handleRefreshSite: () => Promise<void>;
   handleThemeChange: (t: ThemeName) => void;
   handleDeviceChange: (b: Breakpoint) => void;
   handlePreviewToggle: () => void;
@@ -159,6 +161,7 @@ export function EditorProvider({
 
   const [blueprint, setBlueprint] = useState<BusinessBlueprint | null>(initialCachedSnapshot);
   const [isHydratingSite, setIsHydratingSite] = useState<boolean>(() => !initialCachedSnapshot);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
@@ -264,6 +267,35 @@ export function EditorProvider({
     }
   }, [service, projectId, theme, businessName, currentUserId]);
 
+  const handleRefreshSite = useCallback(async () => {
+    if (!service || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const res = await service.refreshFromCloud(projectId);
+      if (res.refreshed && res.blueprint) {
+        setBlueprint({ ...res.blueprint });
+        if (res.blueprint.templateId) setTemplateId(resolveTemplateEngineId(res.blueprint.templateId));
+        if (res.blueprint.nicheId) setNicheId(res.blueprint.nicheId);
+        if (res.name && res.name !== 'Gmakeup Studio') setBusinessName(res.name);
+        if (res.theme) setTheme(res.theme as ThemeName);
+        setCanUndo(service.canUndo());
+        setCanRedo(service.canRedo());
+        service.saveToLocalStorage(projectId, (res.theme as ThemeName) || theme, currentUserId);
+        setSaveState('saved');
+        setSaveToast(res.updated ? '✓ Synced latest changes!' : '✓ Live preview is up to date');
+        setTimeout(() => setSaveToast(null), 2500);
+      } else {
+        setSaveToast('⚠️ Could not reach cloud to refresh');
+        setTimeout(() => setSaveToast(null), 2600);
+      }
+    } catch {
+      setSaveToast('⚠️ Refresh failed — check your connection');
+      setTimeout(() => setSaveToast(null), 2600);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [service, isRefreshing, projectId, theme, currentUserId]);
+
   const handleThemeChange = useCallback((t: ThemeName) => {
     setTheme(t);
     service?.applyTheme(t);
@@ -341,6 +373,7 @@ export function EditorProvider({
     isLeftPanelOpen, setIsLeftPanelOpen,
     isPreviewMode, setIsPreviewMode,
     isHydratingSite, setIsHydratingSite,
+    isRefreshing,
     canUndo, setCanUndo,
     canRedo, setCanRedo,
     businessName, setBusinessName,
@@ -352,7 +385,7 @@ export function EditorProvider({
     handleTemplateSwitch,
     handleNicheSwitch,
     attachSelectedToChat,
-    handleUndo, handleRedo, handleSave,
+    handleUndo, handleRedo, handleSave, handleRefreshSite,
     handleThemeChange, handleDeviceChange, handlePreviewToggle,
   };
 

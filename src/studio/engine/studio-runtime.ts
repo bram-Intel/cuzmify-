@@ -54,6 +54,7 @@ export function attachStudioRuntime(
   let cloudSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let hasPendingLocalWrite = false;
   let hasPendingCloudSync = false;
+  let lastFocusSyncAt = 0;
   let destroyed = false;
 
   const flushPendingAutosave = () => {
@@ -78,13 +79,37 @@ export function attachStudioRuntime(
     }
   };
 
-  const handleVisibilityFlush = () => {
-    if (document.visibilityState === 'hidden') {
-      flushPendingAutosave();
+  const checkBackgroundCloudSync = async () => {
+    if (destroyed || hasPendingLocalWrite || hasPendingCloudSync) return;
+    const now = Date.now();
+    if (now - lastFocusSyncAt < 3000) return;
+    lastFocusSyncAt = now;
+    const res = await service.syncIfCloudNewer(projectId);
+    if (!destroyed && res.synced && res.blueprint) {
+      if (res.theme) setTheme(res.theme as ThemeName);
+      if (res.name) {
+        setBusinessName(res.name);
+        businessNameRef.current = res.name;
+      }
+      service.saveToLocalStorage(projectId, themeRef.current, userIdRef.current);
+      setSaveState('saved');
     }
   };
 
+  const handleVisibilityFlush = () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingAutosave();
+    } else if (document.visibilityState === 'visible') {
+      void checkBackgroundCloudSync();
+    }
+  };
+
+  const handleWindowFocus = () => {
+    void checkBackgroundCloudSync();
+  };
+
   window.addEventListener('pagehide', flushPendingAutosave);
+  window.addEventListener('focus', handleWindowFocus);
   document.addEventListener('visibilitychange', handleVisibilityFlush);
 
   const unsubChange = service.onChanged(() => {
@@ -339,6 +364,7 @@ export function attachStudioRuntime(
     if (localSaveTimer) clearTimeout(localSaveTimer);
     if (cloudSaveTimer) clearTimeout(cloudSaveTimer);
     window.removeEventListener('pagehide', flushPendingAutosave);
+    window.removeEventListener('focus', handleWindowFocus);
     document.removeEventListener('visibilitychange', handleVisibilityFlush);
     unsubChange();
     service.destroy();

@@ -51,6 +51,24 @@ export default async function DashboardPage() {
     ? await prisma.site.findMany({
         where: { userId },
         orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          userId: true,
+          name: true,
+          subdomain: true,
+          customDomain: true,
+          domain: true,
+          template: true,
+          templateId: true,
+          nicheId: true,
+          plan: true,
+          category: true,
+          status: true,
+          liveUrl: true,
+          theme: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       })
     : [];
 

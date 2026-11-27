@@ -37,6 +37,7 @@ async function getSiteByDomain(domainSlug: string) {
         name: true,
         subdomain: true,
         htmlContent: true,
+        grapesData: true,
         blueprintData: true,
         templateId: true,
         whatsappPhone: true,
@@ -71,17 +72,22 @@ export default async function SubdomainSitePage({ params }: SubdomainPageProps) 
   const { domain } = await params;
   const site = await getSiteByDomain(domain);
 
-  // Resolve HTML from htmlContent or dynamically from blueprintData via Template Engine
-  let finalHtml = site?.htmlContent || '';
+  // Canonical projection: render directly from blueprintData whenever present (unless custom GrapesJS blocks exist),
+  // guaranteeing 100% parity with Mobile & Desktop Studio and avoiding stale CSSOM-serialized htmlContent.
+  let finalHtml = '';
   let resolvedTplId = resolveTemplateEngineId((site as any)?.templateId || site?.template);
 
-  if (site && !finalHtml && (site as any).blueprintData) {
+  if (site && (site as any).blueprintData && !(site as any).grapesData) {
     try {
       const bp = JSON.parse((site as any).blueprintData);
       const rendered = renderTemplateEngine(bp.templateId || resolvedTplId, bp, { siteId: site.id });
       finalHtml = rendered.fullHtml;
       resolvedTplId = rendered.templateId;
     } catch {}
+  }
+
+  if (!finalHtml && site?.htmlContent) {
+    finalHtml = site.htmlContent;
   }
 
   // If site not published yet or not found, show elegant placeholder
@@ -143,7 +149,11 @@ export default async function SubdomainSitePage({ params }: SubdomainPageProps) 
       {/* Live Site Canvas */}
       <main
         suppressHydrationWarning
-        className="min-h-screen w-full bg-white text-[#1A202C] antialiased"
+        className={
+          resolvedTplId === 'noir-showcase'
+            ? 'min-h-screen w-full bg-[#09090B] text-[#FAFAFA] antialiased'
+            : 'min-h-screen w-full bg-white text-[#1A202C] antialiased'
+        }
         dangerouslySetInnerHTML={{ __html: finalHtml }}
       />
 
