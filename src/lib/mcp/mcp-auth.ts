@@ -5,6 +5,8 @@ function getMcpSigningSecret(): string {
 }
 
 const TRUSTED_MCP_ORIGINS = new Set([
+  'https://cuzmify.com',
+  'https://www.cuzmify.com',
   'https://cuzmify.vercel.app',
   'https://chatgpt.com',
   'https://chat.openai.com',

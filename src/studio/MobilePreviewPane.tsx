@@ -199,6 +199,8 @@ export function MobilePreviewPane() {
   const allReady = doneSteps === 3;
 
   const cleanSlug = (businessName || 'studio').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 28) || 'studio';
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  const previewDomainLabel = rootDomain ? `${cleanSlug}.${rootDomain}` : `cuzmify.vercel.app/s/${cleanSlug}`;
   const fontUrl = TEMPLATE_ENGINES[rendered.templateId]?.googleFontsUrl;
 
   const clearPickedHighlight = (el?: HTMLElement | null) => {
@@ -639,7 +641,7 @@ export function MobilePreviewPane() {
           <div className="h-9 bg-slate-50 border-b border-slate-200 px-2.5 flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white border border-slate-200 text-[10px] font-mono text-slate-600 truncate min-w-0">
               <Lock className="w-3 h-3 text-emerald-600 shrink-0" />
-              <span className="truncate">cuzmify.vercel.app/s/{cleanSlug}</span>
+              <span className="truncate">{previewDomainLabel}</span>
             </div>
 
             <div className="flex items-center gap-1 shrink-0">

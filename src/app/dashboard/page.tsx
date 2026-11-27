@@ -93,6 +93,20 @@ export default async function DashboardPage() {
   }
 
   const primarySite = sites[0] ?? null;
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  const primarySlug = primarySite
+    ? (primarySite.subdomain || primarySite.name.toLowerCase().replace(/[^a-z0-9]/g, '')).slice(0, 30) || primarySite.id
+    : '';
+  const primaryDisplayDomain = primarySite
+    ? primarySite.customDomain || (rootDomain ? `${primarySlug}.${rootDomain}` : `/s/${primarySite.subdomain || primarySite.id}`)
+    : '';
+  const primaryLiveHref = primarySite
+    ? primarySite.customDomain
+      ? `https://${primarySite.customDomain}`
+      : rootDomain
+        ? `https://${primarySlug}.${rootDomain}`
+        : `/s/${primarySite.subdomain || primarySite.id}`
+    : '/';
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-[#1A202C] relative overflow-hidden pb-24">
@@ -129,7 +143,7 @@ export default async function DashboardPage() {
                   )}
                 </div>
                 <p className="text-xs text-[#64748B] font-mono">
-                  {primarySite.customDomain || `/s/${primarySite.subdomain || primarySite.id}`} • {primarySite.category}
+                  {primaryDisplayDomain} • {primarySite.category}
                 </p>
               </div>
 
@@ -143,7 +157,7 @@ export default async function DashboardPage() {
                 </Link>
 
                 <Link
-                  href={`/s/${primarySite.subdomain || primarySite.id}`}
+                  href={primaryLiveHref}
                   target="_blank"
                   className="flex-1 sm:flex-none justify-center px-4 py-2.5 rounded-xl bg-[#0D5771] hover:bg-[#083D50] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs"
                 >

@@ -10,8 +10,12 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+const resolvedSiteOrigin =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}` : 'https://cuzmify.com');
+
 export const metadata: Metadata = {
-  metadataBase: new URL('https://cuzmify.vercel.app'),
+  metadataBase: new URL(resolvedSiteOrigin),
   title: 'Cuzmify — Turn Your Instagram Into a Portfolio & Booking Website',
   description:
     'Import your real Instagram work, organize service packages, switch designer layouts without losing content, and receive structured WhatsApp bookings in minutes.',

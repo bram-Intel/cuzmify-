@@ -50,12 +50,15 @@ export function buildPublicSiteMetadata(site: PublicSiteRecord | null, fallbackS
     if (rawImg && rawImg.startsWith('http')) ogImage = rawImg;
   }
 
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim();
   const canonical =
     seo.canonicalUrl?.trim() ||
     (site.customDomain
       ? `https://${site.customDomain}`
       : site.subdomain
-        ? `https://cuzmify.vercel.app/s/${site.subdomain}`
+        ? rootDomain
+          ? `https://${site.subdomain}.${rootDomain}`
+          : `https://cuzmify.com/s/${site.subdomain}`
         : undefined);
 
   return {
@@ -81,18 +84,24 @@ export function buildPublicSiteMetadata(site: PublicSiteRecord | null, fallbackS
   };
 }
 
-export function buildPublicSiteJsonLd(site: PublicSiteRecord, baseOrigin = 'https://cuzmify.vercel.app') {
+export function buildPublicSiteJsonLd(
+  site: PublicSiteRecord,
+  baseOrigin = process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}` : 'https://cuzmify.com'
+) {
   const bp = parseSiteBlueprint(site.blueprintData);
   const seo = bp?.seo || {};
   const profile = bp?.profile;
   const services = (bp?.modules?.services?.items || []).filter((s) => s.enabled !== false);
   const currency = profile?.currency || 'NGN';
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim();
   const url =
     seo.canonicalUrl?.trim() ||
     (site.customDomain
       ? `https://${site.customDomain}`
       : site.subdomain
-        ? `${baseOrigin}/s/${site.subdomain}`
+        ? rootDomain
+          ? `https://${site.subdomain}.${rootDomain}`
+          : `${baseOrigin}/s/${site.subdomain}`
         : `${baseOrigin}/site/${site.id}`);
 
   const jsonLd: Record<string, any> = {

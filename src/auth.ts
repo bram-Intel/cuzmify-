@@ -11,7 +11,8 @@ if (typeof process !== 'undefined' && process.env) {
     process.env.NEXTAUTH_URL &&
     (process.env.NEXTAUTH_URL.includes('<') ||
       process.env.NEXTAUTH_URL.includes('>') ||
-      !process.env.NEXTAUTH_URL.startsWith('http'))
+      !process.env.NEXTAUTH_URL.startsWith('http') ||
+      (Boolean(process.env.NEXT_PUBLIC_ROOT_DOMAIN) && process.env.NEXTAUTH_URL.includes('.vercel.app')))
   ) {
     delete process.env.NEXTAUTH_URL;
   }
