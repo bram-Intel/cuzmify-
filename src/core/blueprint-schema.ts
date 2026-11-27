@@ -140,6 +140,8 @@ export interface MediaVaultAsset {
   rawThumbUrl?: string;
   name: string;
   type: 'logo' | 'hero' | 'gallery' | 'service' | 'product' | 'general' | 'video' | 'testimonial';
+  mediaKind?: 'image' | 'video';
+  mimeType?: string;
   source: 'upload' | 'instagram' | 'unsplash' | 'template' | 'ai_generated';
   caption?: string;
   instagramPostUrl?: string;

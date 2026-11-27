@@ -20,11 +20,18 @@ import {
   Crosshair,
   Copy,
   ArrowUp,
+  Play,
 } from 'lucide-react';
 import { useEditor } from './engine/EditorContext';
 import { StudioLoader } from './StudioLoader';
 import { renderTemplateEngine, TEMPLATE_ENGINES, TEMPLATE_ENGINE_LIST } from '@/core/template-engines';
 import { createDefaultBlueprint, type MediaVaultAsset } from '@/core/blueprint-schema';
+import {
+  getAssetPosterUrl,
+  getAssetRenderSource,
+  isVideoMediaUrl,
+  resolveAssetMediaKind,
+} from '@/core/media-utils';
 import { compressImageFileToWebP } from '@/lib/image-compress';
 import {
   applyMobileImageReplacement,
@@ -98,7 +105,7 @@ export function MobilePreviewPane() {
 
   // Mobile quick-edit sheets
   const [activeImageTarget, setActiveImageTarget] = useState<MobileImageTarget | null>(null);
-  const [activeImageEl, setActiveImageEl] = useState<HTMLImageElement | null>(null);
+  const [activeImageEl, setActiveImageEl] = useState<HTMLImageElement | HTMLVideoElement | null>(null);
   const [activeTextTarget, setActiveTextTarget] = useState<MobileTextTarget | null>(null);
   const [activeTextEl, setActiveTextEl] = useState<HTMLElement | null>(null);
   const [textDraft, setTextDraft] = useState('');
@@ -134,7 +141,7 @@ export function MobilePreviewPane() {
   }, [templateId, activeBp, projectId, isCoveredByModal]);
 
   const mediaVault = activeBp.mediaVault || [];
-  const imageAssets = mediaVault.filter((m) => m.type !== 'video' && Boolean(m.thumbnailUrl || m.url));
+  const vaultAssets = mediaVault.filter((m) => Boolean(getAssetRenderSource(m)));
   const mediaCount = mediaVault.length;
   const serviceCount = activeBp.modules?.services?.items?.length || 0;
   const hasWhatsapp = Boolean((activeBp.modules?.whatsapp?.phoneNumber || activeBp.profile?.whatsapp || '').trim());
@@ -197,10 +204,14 @@ export function MobilePreviewPane() {
     setTextDraft(resolved.value);
   };
 
-  const findClickedImage = (target: HTMLElement): HTMLImageElement | null => {
-    if (target.tagName === 'IMG') return target as HTMLImageElement;
-    const imgChild = target.querySelector('img');
-    if (imgChild && target.children.length <= 2) return imgChild as HTMLImageElement;
+  const findClickedImage = (target: HTMLElement): HTMLImageElement | HTMLVideoElement | null => {
+    if (target.tagName === 'IMG' || target.tagName === 'VIDEO') {
+      return target as HTMLImageElement | HTMLVideoElement;
+    }
+    const mediaChild = target.querySelector('img, video');
+    if (mediaChild && target.children.length <= 2) {
+      return mediaChild as HTMLImageElement | HTMLVideoElement;
+    }
     return null;
   };
 
@@ -255,7 +266,7 @@ export function MobilePreviewPane() {
   const handlePreviewDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (pickToCopyMode) return;
     const rawTarget = e.target as HTMLElement | null;
-    if (!rawTarget || rawTarget.tagName === 'IMG') return;
+    if (!rawTarget || rawTarget.tagName === 'IMG' || rawTarget.tagName === 'VIDEO') return;
     if (rawTarget.closest('a, button')) e.preventDefault();
     const fieldEl = rawTarget.closest('[data-cuzmify-field]') as HTMLElement | null;
     if (!fieldEl) return;
@@ -283,21 +294,39 @@ export function MobilePreviewPane() {
     const file = e.target.files?.[0];
     if (!file || !activeImageTarget) return;
     if (file.size > 15 * 1024 * 1024) {
-      alert('Photo exceeds 15MB. Please pick a smaller image.');
+      alert('Media file exceeds 15MB. Please pick a smaller image or video.');
       return;
     }
 
     setIsUploadingPhoto(true);
     try {
-      const dataUrl = await compressImageFileToWebP(file, 1200, 0.8);
+      const isVideo = file.type.startsWith('video/');
+      const dataUrl = isVideo
+        ? await new Promise<string>((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = () => res(reader.result as string);
+            reader.onerror = rej;
+            reader.readAsDataURL(file);
+          })
+        : await compressImageFileToWebP(file, 1200, 0.8);
       const rawName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim();
-      const cleanName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : 'Uploaded Photo';
+      const defaultName = isVideo ? 'Uploaded Video' : 'Uploaded Photo';
+      const cleanName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : defaultName;
       const uploadedAsset: MediaVaultAsset = {
         id: `mv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         url: dataUrl,
-        thumbnailUrl: dataUrl,
+        thumbnailUrl: isVideo ? undefined : dataUrl,
         name: cleanName,
-        type: activeImageTarget.role === 'hero' ? 'hero' : activeImageTarget.role === 'service' ? 'service' : 'gallery',
+        type:
+          activeImageTarget.role === 'hero'
+            ? 'hero'
+            : isVideo
+              ? 'video'
+              : activeImageTarget.role === 'service'
+                ? 'service'
+                : 'gallery',
+        mediaKind: isVideo ? 'video' : 'image',
+        mimeType: file.type || undefined,
         source: 'upload',
         addedAt: new Date().toISOString(),
       };
@@ -306,7 +335,7 @@ export function MobilePreviewPane() {
       setActiveImageTarget(null);
       setActiveImageEl(null);
     } catch {
-      alert('Could not process photo.');
+      alert('Could not process media file.');
     } finally {
       setIsUploadingPhoto(false);
       e.target.value = '';
@@ -552,7 +581,7 @@ export function MobilePreviewPane() {
             <div className="px-3 py-1.5 bg-[#0D5771]/5 border-b border-slate-100 flex items-center justify-center gap-3 text-[10px] font-mono text-[#0D5771]">
               <span className="flex items-center gap-1">
                 <ImageIcon className="w-3 h-3 shrink-0" />
-                <span>Tap photo to swap</span>
+                <span>Tap media to swap</span>
               </span>
               <span className="text-slate-300">•</span>
               <span className="flex items-center gap-1">
@@ -585,7 +614,8 @@ export function MobilePreviewPane() {
                 .cz-mobile-editable-preview form textarea {
                   pointer-events: none;
                 }
-                .cz-mobile-editable-preview img {
+                .cz-mobile-editable-preview img,
+                .cz-mobile-editable-preview video {
                   cursor: pointer;
                 }
                 .cz-mobile-editable-preview [data-cuzmify-field] {
@@ -665,7 +695,7 @@ export function MobilePreviewPane() {
                   }}
                   className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
                 >
-                  Swap Photo
+                  {pickedImgChild.tagName === 'VIDEO' ? 'Swap Video' : 'Swap Media'}
                 </button>
               )}
 
@@ -719,19 +749,29 @@ export function MobilePreviewPane() {
             <div className="w-10 h-1 rounded-full bg-slate-200 mx-auto shrink-0" />
             <div className="flex items-center justify-between gap-2 shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                  {activeImageTarget.currentSrc && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={activeImageTarget.currentSrc}
-                      alt={activeImageTarget.label}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
+                <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 shrink-0">
+                  {activeImageTarget.currentSrc &&
+                    (activeImageTarget.mediaKind === 'video' || isVideoMediaUrl(activeImageTarget.currentSrc) ? (
+                      <video
+                        src={activeImageTarget.currentSrc}
+                        muted
+                        loop
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={activeImageTarget.currentSrc}
+                        alt={activeImageTarget.label}
+                        className="w-full h-full object-cover"
+                      />
+                    ))}
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-mono uppercase tracking-wider text-[#0D5771] font-bold">
-                    Replace Photo
+                    {activeImageTarget.mediaKind === 'video' ? 'Replace Video' : 'Replace Photo'}
                   </p>
                   <h3 className="text-sm font-bold text-slate-900 truncate">{activeImageTarget.label}</h3>
                 </div>
@@ -764,7 +804,7 @@ export function MobilePreviewPane() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               onChange={handleUploadNewPhoto}
               className="hidden"
             />
@@ -779,14 +819,14 @@ export function MobilePreviewPane() {
               ) : (
                 <UploadCloud className="w-4 h-4" />
               )}
-              <span>{isUploadingPhoto ? 'Uploading…' : 'Upload New Photo from Phone'}</span>
+              <span>{isUploadingPhoto ? 'Uploading…' : 'Upload Photo or Video from Phone'}</span>
             </button>
 
             {/* Media Vault Grid */}
             <div className="flex-1 overflow-y-auto min-h-0 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-                  Media Vault ({imageAssets.length})
+                  Media Vault ({vaultAssets.length})
                 </span>
                 <button
                   type="button"
@@ -801,31 +841,49 @@ export function MobilePreviewPane() {
                 </button>
               </div>
 
-              {imageAssets.length === 0 ? (
+              {vaultAssets.length === 0 ? (
                 <div className="py-8 text-center rounded-2xl border border-dashed border-slate-200 text-xs text-slate-500">
-                  No photos in your Media Vault yet. Upload one above!
+                  No photos or videos in your Media Vault yet. Upload one above!
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2.5 pb-1">
-                  {imageAssets.map((asset) => {
-                    const thumb = asset.thumbnailUrl || asset.url;
+                  {vaultAssets.map((asset) => {
+                    const mediaSrc = getAssetRenderSource(asset);
+                    const poster = getAssetPosterUrl(asset);
+                    const kind = resolveAssetMediaKind(asset);
                     const isCurrent =
-                      activeImageTarget.currentSrc === thumb ||
+                      activeImageTarget.currentSrc === mediaSrc ||
                       activeImageTarget.currentSrc === asset.url ||
+                      (Boolean(poster) && activeImageTarget.currentSrc === poster) ||
                       (activeImageTarget.assetId && activeImageTarget.assetId === asset.id);
                     return (
                       <button
                         key={asset.id}
                         type="button"
                         onClick={() => handlePickVaultAsset(asset)}
-                        className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
+                        className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all cursor-pointer bg-slate-900 ${
                           isCurrent
                             ? 'border-[#0D5771] ring-2 ring-[#0D5771]/25'
                             : 'border-slate-200 hover:border-slate-400'
                         }`}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={thumb} alt={asset.name} className="w-full h-full object-cover" />
+                        {kind === 'video' ? (
+                          poster ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={poster} alt={asset.name} className="w-full h-full object-cover opacity-85" />
+                          ) : (
+                            <video src={mediaSrc} muted playsInline preload="metadata" className="w-full h-full object-cover opacity-85" />
+                          )
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={mediaSrc} alt={asset.name} className="w-full h-full object-cover" />
+                        )}
+                        {kind === 'video' && (
+                          <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/75 text-white text-[9px] font-mono font-bold inline-flex items-center gap-0.5">
+                            <Play className="w-2.5 h-2.5 fill-white" />
+                            <span>VID</span>
+                          </span>
+                        )}
                         {isCurrent && (
                           <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#0D5771] text-white flex items-center justify-center shadow-sm">
                             <Check className="w-3 h-3" />

@@ -11,6 +11,12 @@ import {
 import { resolveNicheBlueprint } from '@/core/niche-blueprints';
 import { resolveTemplateEngineId, TEMPLATE_ENGINES } from '@/core/template-engines';
 import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
+import {
+  getAssetPosterUrl,
+  getAssetRenderSource,
+  isVideoMediaUrl,
+  resolveAssetMediaKind,
+} from '@/core/media-utils';
 import { inspectRenderedSite, type SiteAccountMeta } from './site-inspector';
 
 export interface McpToolProperty {
@@ -427,15 +433,15 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         tag: { type: 'string', description: 'Short badge label like SIGNATURE, BRIDAL, VIP, POPULAR.' },
         imageUrl: {
           type: 'string',
-          description: 'Public https:// image URL or empty string "" to remove the current service image.',
+          description: 'Public https:// image or video URL (or empty string "" to remove the current service media).',
         },
         mediaAssetId: {
           type: 'string',
-          description: 'Media Vault asset ID from mediaItems to attach as the service image.',
+          description: 'Media Vault asset ID from mediaItems (photo or video) to attach as the service media.',
         },
         photoNumber: {
           type: 'number',
-          description: '1-based photo number from mediaItems to attach as the service image (e.g. 1, 2).',
+          description: '1-based item number from mediaItems (photo or video) to attach as the service media (e.g. 1, 2).',
         },
       },
       required: ['name'],
@@ -580,14 +586,14 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'promote_media_to_hero',
-    description: 'Set an existing Media Vault photo as the main Hero cover image (matched by assetId first, then 1-based photoNumber from get_site_blueprint mediaItems, then name/caption query).',
+    description: 'Set an existing Media Vault photo or video reel as the main Hero cover media (matched by assetId first, then 1-based photoNumber from get_site_blueprint mediaItems, then name/caption query). Preserves mediaKind ("video" renders as <video>, "image" as <img>).',
     annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
       properties: {
         siteId: { type: 'string', description: 'Optional site ID (external MCP).' },
         assetId: { type: 'string', description: 'Media asset ID from mediaItems.' },
-        photoNumber: { type: 'number', description: '1-based index of the photo in the Media Vault.' },
+        photoNumber: { type: 'number', description: '1-based index of the photo or video in the Media Vault.' },
         query: { type: 'string', description: 'Keyword to match asset name or caption.' },
       },
     },
@@ -824,14 +830,22 @@ export function executeBlueprintMcpTool(
           templateDesignOverrides: bp.templateDesignOverrides || {},
           sectionVisibility: bp.sectionVisibility || {},
           servicesCount: bp.modules.services.items.length,
-          services: bp.modules.services.items.map((s) => ({
-            id: s.id,
-            name: s.name,
-            price: s.price,
-            priceMode: s.priceMode,
-            hasImage: Boolean(s.imageUrl),
-            imageUrl: s.imageUrl?.startsWith('data:') ? '[embedded uploaded image]' : s.imageUrl || '',
-          })),
+          services: bp.modules.services.items.map((s) => {
+            const mediaKind = s.imageUrl ? (isVideoMediaUrl(s.imageUrl) ? 'video' : 'image') : null;
+            return {
+              id: s.id,
+              name: s.name,
+              price: s.price,
+              priceMode: s.priceMode,
+              hasImage: Boolean(s.imageUrl),
+              mediaKind,
+              imageUrl: s.imageUrl?.startsWith('data:')
+                ? mediaKind === 'video'
+                  ? '[embedded uploaded video]'
+                  : '[embedded uploaded image]'
+                : s.imageUrl || '',
+            };
+          }),
           productsCount: bp.modules.products?.items?.length || 0,
           products: (bp.modules.products?.items || []).map((p) => ({
             id: p.id,
@@ -845,6 +859,7 @@ export function executeBlueprintMcpTool(
           faqs: (bp.faqs || []).slice(0, 15),
           customSections: bp.customSections || [],
           mediaCount: bp.mediaVault.length,
+          mediaSummary: inspection.mediaSummary,
           mediaItems: inspection.mediaInventory,
           seo: bp.seo || {},
           activeInjections: inspection.activeInjections,
@@ -887,6 +902,7 @@ export function executeBlueprintMcpTool(
           skippedSections: inspection.skippedSections,
           copyMetrics: inspection.copyMetrics,
           mediaInventory: inspection.mediaInventory,
+          mediaSummary: inspection.mediaSummary,
           seoAudit: inspection.seoAudit,
           activeInjections: inspection.activeInjections,
           availableSlots: inspection.availableSlots,
@@ -1463,30 +1479,39 @@ export function executeBlueprintMcpTool(
       const finalMode: ServicePriceMode =
         numericPrice <= 0 ? 'quote' : requestedMode && ['fixed', 'starting_at', 'quote'].includes(requestedMode) ? requestedMode : 'fixed';
 
-      const resolveServiceImageArg = (): { provided: boolean; url?: string } => {
+      const resolveServiceImageArg = (): { provided: boolean; url?: string; isVideo?: boolean } => {
         if (typeof args.mediaAssetId === 'string' && args.mediaAssetId.trim()) {
           const found = (bp.mediaVault || []).find((m) => m.id === args.mediaAssetId.trim());
-          if (found && (found.thumbnailUrl || found.url)) {
-            return { provided: true, url: found.thumbnailUrl || found.url };
+          const src = getAssetRenderSource(found);
+          if (found && src) {
+            return { provided: true, url: src, isVideo: resolveAssetMediaKind(found) === 'video' };
           }
         }
         if (typeof args.photoNumber === 'number' && !Number.isNaN(args.photoNumber)) {
-          const vault = (bp.mediaVault || []).filter((m) => Boolean(m.thumbnailUrl || m.url));
+          const vault = (bp.mediaVault || []).filter((m) => Boolean(getAssetRenderSource(m)));
           const asset = vault[Math.max(0, Math.round(args.photoNumber) - 1)];
-          if (asset) {
-            return { provided: true, url: asset.thumbnailUrl || asset.url };
+          const src = getAssetRenderSource(asset);
+          if (asset && src) {
+            return { provided: true, url: src, isVideo: resolveAssetMediaKind(asset) === 'video' };
           }
         }
         if (typeof args.imageUrl === 'string') {
           const trimmed = args.imageUrl.trim();
           if (!trimmed) return { provided: true, url: undefined };
-          if (/^(https?:\/\/|data:image\/)/i.test(trimmed)) {
-            return { provided: true, url: trimmed.slice(0, 600000) };
+          if (/^(https?:\/\/|data:(?:image|video)\/|\/api\/media\/ig\b)/i.test(trimmed)) {
+            return { provided: true, url: trimmed.slice(0, 600000), isVideo: isVideoMediaUrl(trimmed) };
           }
         }
         return { provided: false };
       };
       const resolvedImg = resolveServiceImageArg();
+      const mediaNote = resolvedImg.provided
+        ? resolvedImg.url
+          ? resolvedImg.isVideo
+            ? ' (with video)'
+            : ' (with photo)'
+          : ' (removed media)'
+        : '';
 
       if (existingIdx >= 0) {
         const cur = items[existingIdx];
@@ -1505,7 +1530,7 @@ export function executeBlueprintMcpTool(
         return {
           ok: true,
           blueprint: bp,
-          changeSummary: `Updated service "${cleanName}"${resolvedImg.provided ? (resolvedImg.url ? ' (with photo)' : ' (removed photo)') : ''}`,
+          changeSummary: `Updated service "${cleanName}"${mediaNote}`,
           data: { service: items[existingIdx] },
         };
       }
@@ -1529,7 +1554,7 @@ export function executeBlueprintMcpTool(
       return {
         ok: true,
         blueprint: bp,
-        changeSummary: `Added service "${cleanName}" (${priceStr})`,
+        changeSummary: `Added service "${cleanName}" (${priceStr})${resolvedImg.provided && resolvedImg.url ? mediaNote : ''}`,
         data: { service: created },
       };
     }
@@ -1763,15 +1788,27 @@ export function executeBlueprintMcpTool(
       if (targetIdx === -1) {
         return { ok: false, blueprint: bp, changeSummary: 'Photo not found', error: 'Could not find that photo in Media Vault.' };
       }
-      const picked = { ...vault[targetIdx], type: 'hero' as const };
-      const rest = vault.filter((_, i) => i !== targetIdx).map((m) => (m.type === 'hero' ? { ...m, type: 'gallery' as const } : m));
+      const mediaKind = resolveAssetMediaKind(vault[targetIdx]);
+      const picked = { ...vault[targetIdx], type: 'hero' as const, mediaKind };
+      const rest = vault
+        .filter((_, i) => i !== targetIdx)
+        .map((m) =>
+          m.type === 'hero'
+            ? { ...m, type: (resolveAssetMediaKind(m) === 'video' ? 'video' : 'gallery') as 'video' | 'gallery' }
+            : m
+        );
       bp.mediaVault = [picked, ...rest];
       bp.updatedAt = new Date().toISOString();
       return {
         ok: true,
         blueprint: bp,
-        changeSummary: `Promoted "${picked.name}" to Hero Cover photo`,
-        data: { heroAssetId: picked.id, heroName: picked.name },
+        changeSummary: `Promoted "${picked.name}" to Hero Cover ${mediaKind}`,
+        data: {
+          heroAssetId: picked.id,
+          heroName: picked.name,
+          heroMediaKind: mediaKind,
+          hasPoster: mediaKind === 'video' ? Boolean(getAssetPosterUrl(picked)) : false,
+        },
       };
     }
 

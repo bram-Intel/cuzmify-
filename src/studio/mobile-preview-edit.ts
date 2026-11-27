@@ -1,4 +1,10 @@
 import type { BusinessBlueprint, MediaVaultAsset } from '@/core/blueprint-schema';
+import {
+  getAssetRenderSource,
+  isVideoMediaUrl,
+  resolveAssetMediaKind,
+  type MediaKind,
+} from '@/core/media-utils';
 
 export type BlueprintCopyKey = Extract<keyof NonNullable<BusinessBlueprint['customCopy']>, string>;
 
@@ -6,6 +12,7 @@ export interface MobileImageTarget {
   role: 'hero' | 'service' | 'gallery';
   label: string;
   currentSrc: string;
+  mediaKind?: MediaKind;
   serviceId?: string;
   assetId?: string;
 }
@@ -63,50 +70,67 @@ const COPY_FIELD_META: Record<
 };
 
 /**
- * Resolves a clicked <img> inside the mobile live preview to its semantic blueprint slot.
+ * Resolves a clicked <img> or <video> inside the mobile live preview to its semantic blueprint slot.
  */
-export function resolveMobileImageTarget(imgEl: HTMLImageElement, bp: BusinessBlueprint): MobileImageTarget {
-  const roleAttr = imgEl.getAttribute('data-cuzmify-img-role');
-  const assetAttr = imgEl.getAttribute('data-cuzmify-asset-id') || undefined;
+export function resolveMobileImageTarget(
+  mediaEl: HTMLImageElement | HTMLVideoElement,
+  bp: BusinessBlueprint
+): MobileImageTarget {
+  const roleAttr = mediaEl.getAttribute('data-cuzmify-img-role');
+  const assetAttr = mediaEl.getAttribute('data-cuzmify-asset-id') || undefined;
   const targetAttr =
-    imgEl.getAttribute('data-cuzmify-target-id') ||
-    imgEl.closest('[data-cuzmify-target-id]')?.getAttribute('data-cuzmify-target-id') ||
+    mediaEl.getAttribute('data-cuzmify-target-id') ||
+    mediaEl.closest('[data-cuzmify-target-id]')?.getAttribute('data-cuzmify-target-id') ||
     undefined;
-  const currentSrc = imgEl.getAttribute('src') || imgEl.src || '';
+  const currentSrc =
+    mediaEl.getAttribute('src') ||
+    mediaEl.getAttribute('poster') ||
+    mediaEl.currentSrc ||
+    (mediaEl as HTMLImageElement).src ||
+    '';
+  const tagName = mediaEl.tagName?.toLowerCase();
+  const explicitKind = mediaEl.getAttribute('data-cuzmify-media-kind');
+  const mediaKind: MediaKind =
+    explicitKind === 'video' || tagName === 'video' || isVideoMediaUrl(currentSrc) ? 'video' : 'image';
 
-  if (roleAttr === 'service' || (targetAttr && imgEl.closest('[data-cuzmify-type="services"]'))) {
+  if (roleAttr === 'service' || (targetAttr && mediaEl.closest('[data-cuzmify-type="services"]'))) {
     const srv = bp.modules.services.items.find((s) => s.id === targetAttr);
     return {
       role: 'service',
       serviceId: targetAttr,
-      label: srv ? `${srv.name} Photo` : 'Service Photo',
+      label: srv ? `${srv.name} ${mediaKind === 'video' ? 'Video' : 'Photo'}` : 'Service Media',
       currentSrc,
+      mediaKind,
     };
   }
 
-  if (roleAttr === 'hero' || imgEl.closest('[data-cuzmify-type="hero"], .cz-hero-media')) {
+  if (roleAttr === 'hero' || mediaEl.closest('[data-cuzmify-type="hero"], .cz-hero-media')) {
     return {
       role: 'hero',
       assetId: assetAttr,
-      label: 'Hero Cover Photo',
+      label: mediaKind === 'video' ? 'Hero Cover Video' : 'Hero Cover Photo',
       currentSrc,
+      mediaKind,
     };
   }
 
   const resolvedAsset =
     (assetAttr ? bp.mediaVault.find((m) => m.id === assetAttr) : undefined) ||
-    bp.mediaVault.find((m) => (m.thumbnailUrl || m.url) === currentSrc);
+    bp.mediaVault.find(
+      (m) => m.url === currentSrc || m.thumbnailUrl === currentSrc || getAssetRenderSource(m) === currentSrc
+    );
 
   return {
     role: 'gallery',
     assetId: resolvedAsset?.id || assetAttr,
-    label: resolvedAsset?.name ? `Portfolio: ${resolvedAsset.name}` : 'Portfolio Photo',
+    label: resolvedAsset?.name ? `Portfolio: ${resolvedAsset.name}` : 'Portfolio Media',
     currentSrc,
+    mediaKind: resolvedAsset ? resolveAssetMediaKind(resolvedAsset) : mediaKind,
   };
 }
 
 /**
- * Replaces the target image slot cleanly inside a cloned BusinessBlueprint.
+ * Replaces the target image/video slot cleanly inside a cloned BusinessBlueprint.
  */
 export function applyMobileImageReplacement(
   inputBp: BusinessBlueprint,
@@ -114,31 +138,37 @@ export function applyMobileImageReplacement(
   pickedAsset: MediaVaultAsset
 ): { blueprint: BusinessBlueprint; summary: string } {
   const bp: BusinessBlueprint = JSON.parse(JSON.stringify(inputBp));
-  const nextUrl = pickedAsset.thumbnailUrl || pickedAsset.url;
+  const pickedKind = resolveAssetMediaKind(pickedAsset);
+  const nextUrl = getAssetRenderSource(pickedAsset);
+  const kindNoun = pickedKind === 'video' ? 'video' : 'photo';
 
   if (target.role === 'service' && target.serviceId) {
     bp.modules.services.items = bp.modules.services.items.map((srv) =>
       srv.id === target.serviceId ? { ...srv, imageUrl: nextUrl } : srv
     );
     bp.updatedAt = new Date().toISOString();
-    return { blueprint: bp, summary: 'Updated service photo' };
+    return { blueprint: bp, summary: `Updated service ${kindNoun}` };
   }
 
   const vault = [...(bp.mediaVault || [])];
   const existsIdx = vault.findIndex((m) => m.id === pickedAsset.id);
   if (existsIdx === -1) {
-    vault.unshift({ ...pickedAsset });
+    vault.unshift({ ...pickedAsset, mediaKind: pickedKind });
   }
 
   if (target.role === 'hero') {
     const pickedIdx = vault.findIndex((m) => m.id === pickedAsset.id);
     if (pickedIdx >= 0) {
       const [chosen] = vault.splice(pickedIdx, 1);
-      const updatedRest = vault.map((m, i) => (i === 0 && m.type === 'hero' ? { ...m, type: 'gallery' as const } : m));
-      bp.mediaVault = [{ ...chosen, type: 'hero' }, ...updatedRest];
+      const updatedRest = vault.map((m, i) =>
+        i === 0 && m.type === 'hero'
+          ? { ...m, type: (resolveAssetMediaKind(m) === 'video' ? 'video' : 'gallery') as MediaVaultAsset['type'] }
+          : m
+      );
+      bp.mediaVault = [{ ...chosen, type: 'hero', mediaKind: pickedKind }, ...updatedRest];
     }
     bp.updatedAt = new Date().toISOString();
-    return { blueprint: bp, summary: 'Updated hero cover photo' };
+    return { blueprint: bp, summary: `Updated hero cover ${kindNoun}` };
   }
 
   // Gallery slot swap: swap clicked portfolio position with picked asset cleanly
@@ -151,7 +181,7 @@ export function applyMobileImageReplacement(
   }
   bp.mediaVault = vault;
   bp.updatedAt = new Date().toISOString();
-  return { blueprint: bp, summary: 'Updated portfolio photo' };
+  return { blueprint: bp, summary: `Updated portfolio ${kindNoun}` };
 }
 
 /**

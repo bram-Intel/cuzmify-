@@ -1,4 +1,5 @@
 import type { BusinessBlueprint } from '@/core/blueprint-schema';
+import { isVideoMediaUrl, type MediaKind } from '@/core/media-utils';
 
 export interface CapturedElementSnapshot {
   siteId?: string;
@@ -14,18 +15,20 @@ export interface CapturedElementSnapshot {
   cuzmifyAssetId?: string;
   cuzmifyImgRole?: string;
   cuzmifySlot?: string;
+  mediaKind?: MediaKind;
   selector: string;
   text?: string;
   imageSrc?: string;
+  posterSrc?: string;
   href?: string;
   classes?: string;
   htmlSnippet?: string;
 }
 
-function sanitizeImageRef(rawSrc?: string, assetId?: string, role?: string): string {
+function sanitizeImageRef(rawSrc?: string, assetId?: string, role?: string, kind: MediaKind = 'image'): string {
   if (!rawSrc) return '';
   if (rawSrc.startsWith('data:')) {
-    return `[embedded-vault-image${assetId ? ` id=${assetId}` : ''}${role ? ` role=${role}` : ''}]`;
+    return `[embedded-vault-${kind}${assetId ? ` id=${assetId}` : ''}${role ? ` role=${role}` : ''}]`;
   }
   return rawSrc.slice(0, 260);
 }
@@ -37,6 +40,7 @@ export function sanitizeHtmlSnippetForMcp(rawHtml: string, maxLen = 700): string
   if (!rawHtml) return '';
   const compact = rawHtml
     .replace(/data:image\/[^;"'\s)]+;base64,[A-Za-z0-9+/=]+/gi, '[uploaded-image-data]')
+    .replace(/data:video\/[^;"'\s)]+;base64,[A-Za-z0-9+/=]+/gi, '[uploaded-video-data]')
     .replace(/\s+/g, ' ')
     .trim();
   if (compact.length <= maxLen) return compact;
@@ -94,8 +98,18 @@ export function buildElementSnapshotFromDom(
     undefined;
 
   const rawText = (el.textContent || '').replace(/\s+/g, ' ').trim();
-  const imgChild = tagName === 'img' ? (el as HTMLImageElement) : (el.querySelector('img') as HTMLImageElement | null);
-  const rawImgSrc = imgChild?.getAttribute('src') || undefined;
+  const mediaChild =
+    tagName === 'img' || tagName === 'video' ? el : (el.querySelector('img, video') as HTMLElement | null);
+  const rawImgSrc = mediaChild?.getAttribute('src') || undefined;
+  const rawPosterSrc =
+    mediaChild?.tagName?.toLowerCase() === 'video' ? mediaChild.getAttribute('poster') || undefined : undefined;
+  const explicitKind =
+    mediaChild?.getAttribute('data-cuzmify-media-kind') || el.getAttribute('data-cuzmify-media-kind');
+  const mediaKind: MediaKind | undefined = mediaChild
+    ? explicitKind === 'video' || mediaChild.tagName.toLowerCase() === 'video' || isVideoMediaUrl(rawImgSrc)
+      ? 'video'
+      : 'image'
+    : undefined;
   const href = el.getAttribute('href') || el.closest('a')?.getAttribute('href') || undefined;
   const classes = (el.getAttribute('class') || '')
     .split(/\s+/)
@@ -120,9 +134,13 @@ export function buildElementSnapshotFromDom(
     cuzmifyAssetId,
     cuzmifyImgRole,
     cuzmifySlot,
+    mediaKind,
     selector,
     text: rawText ? rawText.slice(0, 180) : undefined,
-    imageSrc: sanitizeImageRef(rawImgSrc, cuzmifyAssetId, cuzmifyImgRole) || undefined,
+    imageSrc: sanitizeImageRef(rawImgSrc, cuzmifyAssetId, cuzmifyImgRole, mediaKind || 'image') || undefined,
+    posterSrc: rawPosterSrc
+      ? sanitizeImageRef(rawPosterSrc, cuzmifyAssetId, cuzmifyImgRole, 'image') || undefined
+      : undefined,
     href: href && !href.startsWith('javascript:') ? href.slice(0, 200) : undefined,
     classes,
     htmlSnippet: htmlSnippet || undefined,
@@ -212,13 +230,15 @@ export function formatMcpElementReference(snap: CapturedElementSnapshot): string
     snap.cuzmifyField ? `field="${snap.cuzmifyField}"` : null,
     snap.cuzmifyTargetId ? `targetId="${snap.cuzmifyTargetId}"` : null,
     snap.cuzmifyImgRole ? `imgRole="${snap.cuzmifyImgRole}"` : null,
+    snap.mediaKind ? `mediaKind="${snap.mediaKind}"` : null,
     snap.cuzmifyAssetId ? `assetId="${snap.cuzmifyAssetId}"` : null,
     snap.cuzmifySlot ? `slot="${snap.cuzmifySlot}"` : null,
   ].filter(Boolean);
   if (bindingParts.length > 0) lines.push(`bindings: ${bindingParts.join(' | ')}`);
 
   if (snap.text) lines.push(`text: "${snap.text}"`);
-  if (snap.imageSrc) lines.push(`image: ${snap.imageSrc}`);
+  if (snap.imageSrc) lines.push(`${snap.mediaKind === 'video' ? 'video' : 'image'}: ${snap.imageSrc}`);
+  if (snap.posterSrc) lines.push(`poster: ${snap.posterSrc}`);
   if (snap.href) lines.push(`href: ${snap.href}`);
   lines.push(`mcpHint: ${inferSuggestedMcpTool(snap)}`);
 

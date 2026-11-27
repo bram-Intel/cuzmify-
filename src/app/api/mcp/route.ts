@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { createDefaultBlueprint, type BusinessBlueprint } from '@/core/blueprint-schema';
+import { getAssetPosterUrl, resolveAssetMediaKind } from '@/core/media-utils';
 import { renderTemplateEngine, TEMPLATE_ENGINES } from '@/core/template-engines';
 import {
   CUZMIFY_MCP_TOOLS,
@@ -380,11 +381,15 @@ export async function POST(req: Request) {
         },
       ];
 
-      // Expose uploaded image previews cleanly for multimodal MCP clients on inspect_rendered_page
+      // Expose uploaded image previews (or non-video video posters) cleanly for multimodal MCP clients on inspect_rendered_page
       if (toolName === 'inspect_rendered_page' && toolArgs.includeImages !== false) {
         for (const asset of (bp.mediaVault || []).slice(0, 3)) {
-          const src = asset.thumbnailUrl || asset.url || '';
-          const imgMatch = src.match(/^data:(image\/(?:webp|png|jpeg|jpg|gif));base64,(.+)$/i);
+          const kind = resolveAssetMediaKind(asset);
+          const previewSrc =
+            kind === 'video'
+              ? getAssetPosterUrl(asset) || ''
+              : asset.thumbnailUrl || asset.url || '';
+          const imgMatch = previewSrc.match(/^data:(image\/(?:webp|png|jpeg|jpg|gif));base64,(.+)$/i);
           if (imgMatch && imgMatch[2].length < 400_000) {
             contentBlocks.push({
               type: 'image',

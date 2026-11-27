@@ -19,6 +19,13 @@ import {
   type TemplateDesignOverrides,
 } from './blueprint-schema';
 import { resolveNicheBlueprint, type NicheBlueprint } from './niche-blueprints';
+import {
+  getAssetPosterUrl,
+  getAssetRenderSource,
+  isVideoMediaUrl,
+  renderSmartMediaHtml,
+  resolveAssetMediaKind,
+} from './media-utils';
 
 export type TemplateEngineId = 'editorial-atelier' | 'noir-showcase' | 'modern-studio';
 
@@ -101,8 +108,44 @@ export function formatServicePrice(srv: ServiceItem, currencySymbol: string): st
   return formatted;
 }
 
-function getMediaDisplayUrl(asset: MediaVaultAsset): string {
-  return asset.thumbnailUrl || asset.url;
+function renderVaultSlotMedia(
+  asset: MediaVaultAsset,
+  opts: {
+    role: 'hero' | 'gallery';
+    alt: string;
+    style: string;
+    heroBackground?: boolean;
+    controls?: boolean;
+    lazy?: boolean;
+  }
+): string {
+  const kind = resolveAssetMediaKind(asset);
+  return renderSmartMediaHtml({
+    src: getAssetRenderSource(asset),
+    mediaKind: kind,
+    poster: getAssetPosterUrl(asset),
+    alt: opts.alt,
+    role: opts.role,
+    assetId: asset.id,
+    style: opts.style,
+    heroBackground: opts.heroBackground,
+    controls: opts.controls,
+    lazy: opts.lazy,
+  });
+}
+
+function renderServiceSlotMedia(srv: ServiceItem, style: string): string {
+  if (!srv.imageUrl) return '';
+  return renderSmartMediaHtml({
+    src: srv.imageUrl,
+    mediaKind: isVideoMediaUrl(srv.imageUrl) ? 'video' : 'image',
+    alt: srv.name,
+    role: 'service',
+    targetId: srv.id,
+    style,
+    controls: true,
+    lazy: true,
+  });
 }
 
 function isSectionVisible(bp: BusinessBlueprint, section: string): boolean {
@@ -172,9 +215,9 @@ function compileDeviceDesignRules(dev?: DeviceDesignOverrides): string {
   if (heroMediaDecls.length > 0) rules.push(`.cz-hero-media{${heroMediaDecls.join('')}}`);
 
   if (dev.heroImageFit === 'contain') {
-    rules.push(`.cz-hero-media{padding:16px;box-sizing:border-box;}.cz-hero-media img{object-fit:contain !important;border-radius:16px;}`);
+    rules.push(`.cz-hero-media{padding:16px;box-sizing:border-box;}.cz-hero-media img,.cz-hero-media video{object-fit:contain !important;border-radius:16px;}`);
   } else if (dev.heroImageFit === 'cover') {
-    rules.push(`.cz-hero-media img{object-fit:cover !important;}`);
+    rules.push(`.cz-hero-media img,.cz-hero-media video{object-fit:cover !important;}`);
   }
 
   if (typeof dev.galleryColumns === 'number' && dev.galleryColumns >= 1 && dev.galleryColumns <= 4) {
@@ -574,7 +617,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
             <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
             ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
           </div>
-          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:32px;width:100%;max-width:620px;border-radius:22px;overflow:hidden;aspect-ratio:16/10;max-height:420px;border:1px solid ${border};background:${surface};"><img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:32px;width:100%;max-width:620px;border-radius:22px;overflow:hidden;aspect-ratio:16/10;max-height:420px;border:1px solid ${border};background:${surface};">${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profileName, style: 'width:100%;height:100%;object-fit:cover;display:block;' })}</div>` : ''}
         </div>
       </div>
     </section>`;
@@ -582,7 +625,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
 
   if (layout === 'full_bleed') {
     return `<section id="hero" data-cuzmify-type="hero" style="position:relative;${heroAsset ? 'min-height:460px;display:flex;align-items:flex-end;' : 'padding:64px 0;'}background:linear-gradient(135deg,#0F172A,#1E293B);overflow:hidden;">
-      ${heroAsset ? `<img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.48;"/><div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(9,9,11,0.88) 12%,rgba(9,9,11,0.45) 60%,rgba(9,9,11,0.28) 100%);"></div>` : ''}
+      ${heroAsset ? `${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profileName, style: 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.48;', heroBackground: true })}<div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(9,9,11,0.88) 12%,rgba(9,9,11,0.45) 60%,rgba(9,9,11,0.28) 100%);"></div>` : ''}
       <div class="${containerCls} cz-hero-text" style="position:relative;z-index:2;padding-top:72px;padding-bottom:52px;width:100%;">
         <span data-cuzmify-field="hero-badge" style="display:inline-block;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,0.14);color:#FAFAFA;font-size:11px;font-weight:700;margin-bottom:14px;">${escapeHtml(heroBadge)}</span>
         <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.6rem);font-weight:800;line-height:1.08;margin:0 0 14px;max-width:700px;color:#FAFAFA;">${escapeHtml(headline)}</h1>
@@ -605,7 +648,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
             <a data-cuzmify-field="primary-cta" href="#booking" style="padding:12px 22px;border-radius:12px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
           </div>
-          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:24px;border-radius:18px;overflow:hidden;aspect-ratio:16/9;max-height:360px;background:${surface};border:1px solid ${border};"><img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+          ${heroAsset ? `<div class="cz-hero-media" style="margin-top:24px;border-radius:18px;overflow:hidden;aspect-ratio:16/9;max-height:360px;background:${surface};border:1px solid ${border};">${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profileName, style: 'width:100%;height:100%;object-fit:cover;display:block;' })}</div>` : ''}
         </div>
       </div>
     </section>`;
@@ -623,7 +666,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
           ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
         </div>
       </div>
-      ${heroAsset ? `<div class="cz-hero-media" style="border-radius:24px;overflow:hidden;aspect-ratio:4/5;max-height:480px;width:100%;border:1px solid ${border};background:${surface};"><img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profileName)}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+      ${heroAsset ? `<div class="cz-hero-media" style="border-radius:24px;overflow:hidden;aspect-ratio:4/5;max-height:480px;width:100%;border:1px solid ${border};background:${surface};">${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profileName, style: 'width:100%;height:100%;object-fit:cover;display:block;' })}</div>` : ''}
     </div>
   </section>`;
 }
@@ -663,7 +706,7 @@ function renderCustomServicesLayout(
               const pText = formatServicePrice(srv, currencySymbol);
               return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:16px 18px;border-radius:14px;border:1px solid ${border};background:${surface};display:flex;align-items:center;justify-content:space-between;gap:12px;">
                 <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">
-                  ${srv.imageUrl ? `<img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;"/>` : ''}
+                  ${renderServiceSlotMedia(srv, 'width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;')}
                   <div style="min-width:0;">
                     <h3 data-cuzmify-field="service-name" style="margin:0;font-size:15px;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
                     ${srv.description ? `<p data-cuzmify-field="service-description" style="margin:4px 0 0;font-size:12px;color:${muted};line-height:1.45;">${escapeHtml(srv.description)}</p>` : ''}
@@ -691,7 +734,7 @@ function renderCustomServicesLayout(
               const pText = formatServicePrice(srv, currencySymbol);
               return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:${surface};border:1px solid ${border};border-radius:18px;padding:22px;display:flex;flex-direction:column;justify-content:space-between;gap:16px;">
                 <div>
-                  ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;aspect-ratio:16/10;margin-bottom:14px;background:rgba(128,128,128,0.08);"><img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+                  ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;aspect-ratio:16/10;margin-bottom:14px;background:rgba(128,128,128,0.08);">${renderServiceSlotMedia(srv, 'width:100%;height:100%;object-fit:cover;display:block;')}</div>` : ''}
                   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                     <h3 data-cuzmify-field="service-name" class="${headingCls}" style="margin:0;font-size:1.15rem;font-weight:700;color:${ink};">${escapeHtml(srv.name)}</h3>
                     <span data-cuzmify-field="service-price" style="font-weight:800;font-size:0.95rem;color:${accent};white-space:nowrap;">${escapeHtml(pText)}</span>
@@ -721,7 +764,7 @@ function renderCustomServicesLayout(
             return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:22px 0;border-bottom:1px solid ${border};display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;">
               <div style="display:flex;gap:14px;align-items:flex-start;flex:1 1 250px;">
                 <span style="font-size:1.1rem;color:${accent};font-weight:700;min-width:26px;">0${idx + 1}</span>
-                ${srv.imageUrl ? `<img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;"/>` : ''}
+                ${renderServiceSlotMedia(srv, 'width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;')}
                 <div>
                   <h3 data-cuzmify-field="service-name" class="${headingCls}" style="font-size:1.25rem;font-weight:700;margin:0;color:${ink};">${escapeHtml(srv.name)}</h3>
                   ${srv.description ? `<p data-cuzmify-field="service-description" style="font-size:13px;color:${muted};margin:5px 0 0;line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
@@ -800,7 +843,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
                   return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="padding:24px 0;border-bottom:1px solid var(--cz-border);display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;">
                     <div style="display:flex;gap:16px;align-items:flex-start;flex:1 1 260px;">
                       <span class="cz-ea-serif" style="font-size:1.25rem;color:var(--cz-accent);font-style:italic;min-width:28px;">0${idx + 1}</span>
-                      ${srv.imageUrl ? `<img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;"/>` : ''}
+                      ${renderServiceSlotMedia(srv, 'width:64px;height:64px;border-radius:12px;object-fit:cover;flex-shrink:0;')}
                       <div>
                         <h3 data-cuzmify-field="service-name" class="cz-ea-serif" style="font-size:1.45rem;font-weight:600;margin:0;color:var(--cz-ink);">${escapeHtml(srv.name)}</h3>
                         ${srv.description ? `<p data-cuzmify-field="service-description" style="font-size:13px;color:var(--cz-muted);margin:6px 0 0;line-height:1.6;max-width:540px;">${escapeHtml(srv.description)}</p>` : ''}
@@ -834,7 +877,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
                 .slice(0, 12)
                 .map(
                   (m) => `<div style="border-radius:16px;overflow:hidden;aspect-ratio:4/5;background:#EFEAE1;">
-                    <img data-cuzmify-img-role="gallery" data-cuzmify-asset-id="${escapeHtml(m.id)}" src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                    ${renderVaultSlotMedia(m, { role: 'gallery', alt: m.name, style: 'width:100%;height:100%;object-fit:cover;display:block;', lazy: true })}
                   </div>`
                 )
                 .join('')}
@@ -877,7 +920,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
         ${
           heroAsset
             ? `<div class="cz-hero-media" style="border-radius:220px 220px 24px 24px;overflow:hidden;aspect-ratio:4/5;max-height:520px;width:100%;box-shadow:0 24px 60px rgba(28,25,23,0.12);background:#EFEAE1;">
-                <img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                ${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profile.name, style: 'width:100%;height:100%;object-fit:cover;display:block;' })}
               </div>`
             : `<div class="cz-hero-media" style="border-radius:28px;padding:40px 28px;background:var(--cz-surface);border:1px solid var(--cz-border);text-align:center;">
                 <span class="cz-ea-serif" style="font-size:1.75rem;font-style:italic;color:var(--cz-accent);display:block;margin-bottom:8px;">${escapeHtml(profile.name)}</span>
@@ -982,7 +1025,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                 .slice(0, 12)
                 .map(
                   (m) => `<div style="border-radius:12px;overflow:hidden;aspect-ratio:3/4;background:#18181B;">
-                    <img data-cuzmify-img-role="gallery" data-cuzmify-asset-id="${escapeHtml(m.id)}" src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                    ${renderVaultSlotMedia(m, { role: 'gallery', alt: m.name, style: 'width:100%;height:100%;object-fit:cover;display:block;', lazy: true })}
                   </div>`
                 )
                 .join('')}
@@ -1014,7 +1057,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                   const pText = formatServicePrice(srv, currencySymbol);
                   return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:var(--cz-noir-card);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;display:flex;flex-direction:column;justify-content:space-between;gap:18px;">
                     <div>
-                      ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;height:180px;margin-bottom:16px;"><img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+                      ${srv.imageUrl ? `<div style="border-radius:12px;overflow:hidden;height:180px;margin-bottom:16px;">${renderServiceSlotMedia(srv, 'width:100%;height:100%;object-fit:cover;display:block;')}</div>` : ''}
                       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
                         <h3 data-cuzmify-field="service-name" class="cz-nr-display" style="font-size:1.15rem;font-weight:700;margin:0;color:var(--cz-noir-text);">${escapeHtml(srv.name)}</h3>
                         <span data-cuzmify-field="service-price" style="font-size:1rem;font-weight:700;color:var(--cz-noir-accent);white-space:nowrap;">${escapeHtml(pText)}</span>
@@ -1047,7 +1090,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
       : `<section id="hero" data-cuzmify-type="hero" style="position:relative;${heroAsset ? 'min-height:440px;display:flex;align-items:flex-end;' : ''}background:radial-gradient(ellipse at 50% 0%,#1E2430 0%,var(--cz-noir-bg) 72%);overflow:hidden;border-bottom:1px solid rgba(255,255,255,0.08);">
       ${
         heroAsset
-          ? `<img data-cuzmify-img-role="hero" data-cuzmify-asset-id="${escapeHtml(heroAsset.id)}" src="${escapeHtml(getMediaDisplayUrl(heroAsset))}" alt="${escapeHtml(profile.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.46;"/>
+          ? `${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profile.name, style: 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.46;', heroBackground: true })}
              <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,var(--cz-noir-bg) 14%,rgba(9,9,11,0.55) 60%,rgba(9,9,11,0.35) 100%);"></div>`
           : ''
       }
@@ -1156,7 +1199,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
           ${stripAssets
             .map(
               (a, idx) => `<div class="cz-hero-media" style="border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:#E2E8F0;">
-                <img data-cuzmify-img-role="${idx === 0 ? 'hero' : 'gallery'}" data-cuzmify-asset-id="${escapeHtml(a.id)}" src="${escapeHtml(getMediaDisplayUrl(a))}" alt="${escapeHtml(a.name)}" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                ${renderVaultSlotMedia(a, { role: idx === 0 ? 'hero' : 'gallery', alt: a.name, style: 'width:100%;height:100%;object-fit:cover;display:block;' })}
               </div>`
             )
             .join('')}
@@ -1186,7 +1229,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                   const pText = formatServicePrice(srv, currencySymbol);
                   return `<div data-cuzmify-target-id="${escapeHtml(srv.id)}" style="background:var(--cz-ms-card);border:1px solid var(--cz-ms-border);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 4px 16px rgba(15,23,42,0.04);">
                     <div>
-                      ${srv.imageUrl ? `<div style="aspect-ratio:16/10;background:#F1F5F9;overflow:hidden;"><img data-cuzmify-img-role="service" data-cuzmify-target-id="${escapeHtml(srv.id)}" src="${escapeHtml(srv.imageUrl)}" alt="${escapeHtml(srv.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : ''}
+                      ${srv.imageUrl ? `<div style="aspect-ratio:16/10;background:#F1F5F9;overflow:hidden;">${renderServiceSlotMedia(srv, 'width:100%;height:100%;object-fit:cover;display:block;')}</div>` : ''}
                       <div style="padding:20px 20px 12px;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                           <h3 data-cuzmify-field="service-name" class="cz-ms-heading" style="font-size:1.05rem;font-weight:700;margin:0;color:var(--cz-ms-ink);">${escapeHtml(srv.name)}</h3>
@@ -1219,7 +1262,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                 .slice(0, 12)
                 .map(
                   (m) => `<div style="border-radius:14px;overflow:hidden;aspect-ratio:1/1;background:#E2E8F0;">
-                    <img data-cuzmify-img-role="gallery" data-cuzmify-asset-id="${escapeHtml(m.id)}" src="${escapeHtml(getMediaDisplayUrl(m))}" alt="${escapeHtml(m.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+                    ${renderVaultSlotMedia(m, { role: 'gallery', alt: m.name, style: 'width:100%;height:100%;object-fit:cover;display:block;', lazy: true })}
                   </div>`
                 )
                 .join('')}

@@ -9,6 +9,11 @@ import {
   resolveTemplateEngineId,
   type TemplateEngineId,
 } from '@/core/template-engines';
+import {
+  getAssetPosterUrl,
+  getAssetRenderSource,
+  resolveAssetMediaKind,
+} from '@/core/media-utils';
 
 export interface SiteAccountMeta {
   id?: string;
@@ -182,7 +187,7 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
     });
   }
 
-  const vault = (bp.mediaVault || []).filter((item) => Boolean(item.thumbnailUrl || item.url));
+  const vault = (bp.mediaVault || []).filter((item) => Boolean(getAssetRenderSource(item)));
   const services = (bp.modules?.services?.items || []).filter((s) => s.enabled !== false);
   const products = (bp.modules?.products?.items || []).filter((p) => p.enabled !== false);
   const vis = bp.sectionVisibility || {};
@@ -220,18 +225,22 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
   if (vis.booking === false) skippedSections.push({ section: 'booking', reason: 'Hidden by sectionVisibility.booking = false' });
 
   const mediaInventory = vault.slice(0, 15).map((asset, idx) => {
-    const urlStr = asset.url || '';
+    const mediaKind = resolveAssetMediaKind(asset);
+    const urlStr = getAssetRenderSource(asset);
     const isDataUrl = urlStr.startsWith('data:');
     const approxKb = isDataUrl ? Math.round((urlStr.length * 0.75) / 1024) : null;
     const w = asset.width;
     const h = asset.height;
     const orientation =
       w && h ? (w === h ? 'square' : w > h ? 'landscape' : 'portrait') : 'unknown';
+    const hasPoster = mediaKind === 'video' ? Boolean(getAssetPosterUrl(asset)) : false;
     return {
       photoNumber: idx + 1,
       id: asset.id,
       name: asset.name,
       type: asset.type,
+      mediaKind,
+      hasPoster,
       source: asset.source,
       width: w ?? null,
       height: h ?? null,
@@ -241,6 +250,14 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
       assignedRole: idx === 0 ? 'hero_cover' : 'gallery_item',
     };
   });
+
+  const videoCount = vault.filter((asset) => resolveAssetMediaKind(asset) === 'video').length;
+  const mediaSummary = {
+    totalCount: vault.length,
+    imageCount: vault.length - videoCount,
+    videoCount,
+    heroMediaKind: vault[0] ? resolveAssetMediaKind(vault[0]) : null,
+  };
 
   const headline = bp.customCopy?.headline || bp.profile.tagline || '';
   const subheadline = bp.customCopy?.subheadline || bp.profile.bio || '';
@@ -294,6 +311,7 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
     });
   } else if (
     mediaInventory[0] &&
+    mediaInventory[0].mediaKind !== 'video' &&
     (mediaInventory[0].orientation === 'square' || /icon|logo|meta/i.test(mediaInventory[0].name || '')) &&
     effectiveDesign.mobile.heroImageFit !== 'contain'
   ) {
@@ -414,6 +432,7 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
       customCopyKeys: Object.keys(bp.customCopy || {}),
     },
     mediaInventory,
+    mediaSummary,
     seoAudit,
     activeInjections,
     availableSlots: [...BLUEPRINT_INJECTION_SLOTS],

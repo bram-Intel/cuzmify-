@@ -126,4 +126,63 @@ describe('Mobile Live Preview Quick-Edit Mutations', () => {
     expect(formatted).toContain('upsert_service_package(id="srv-9")');
     expect(formatted).toContain('[uploaded-image-data]');
   });
+
+  it('swaps video reels in mobile quick-edit while preserving mediaKind and formats video MCP targets', () => {
+    const bp = createDefaultBlueprint({
+      name: 'Motion Lab',
+      templateId: 'modern-studio',
+      mediaVault: [
+        { id: 'mv-img', url: 'https://example.com/cover.webp', name: 'Cover Still', type: 'hero', mediaKind: 'image', source: 'upload', addedAt: '' },
+        { id: 'mv-vid', url: '/api/media/ig?mediaId=555&kind=video', thumbnailUrl: '/api/media/ig?mediaId=555', name: 'Reel Clip', type: 'video', mediaKind: 'video', source: 'instagram', addedAt: '' },
+      ],
+    });
+    bp.modules.services.items = [
+      {
+        id: 'srv-vid',
+        name: 'Promo Reel Shoot',
+        price: 90000,
+        priceMode: 'fixed',
+        locationType: 'in_studio',
+        description: 'Short-form studio video',
+        enabled: true,
+      },
+    ];
+
+    const heroVidSwap = applyMobileImageReplacement(
+      bp,
+      { role: 'hero', assetId: 'mv-img', label: 'Hero Cover Photo', currentSrc: 'https://example.com/cover.webp', mediaKind: 'image' },
+      bp.mediaVault[1]
+    );
+    expect(heroVidSwap.summary).toBe('Updated hero cover video');
+    expect(heroVidSwap.blueprint.mediaVault[0].type).toBe('hero');
+    expect(heroVidSwap.blueprint.mediaVault[0].mediaKind).toBe('video');
+
+    const srvVidSwap = applyMobileImageReplacement(
+      bp,
+      { role: 'service', serviceId: 'srv-vid', label: 'Promo Reel Shoot Photo', currentSrc: '', mediaKind: 'image' },
+      bp.mediaVault[1]
+    );
+    expect(srvVidSwap.summary).toBe('Updated service video');
+    expect(srvVidSwap.blueprint.modules.services.items[0].imageUrl).toBe('/api/media/ig?mediaId=555&kind=video');
+
+    const vidSnippet = '<video src="data:video/mp4;base64,AAAAIGZ0eXBpc29t" autoplay muted loop></video>';
+    expect(sanitizeHtmlSnippetForMcp(vidSnippet)).toContain('[uploaded-video-data]');
+
+    const formattedVidTarget = formatMcpElementReference({
+      siteId: 'site_vid_1',
+      templateId: 'modern-studio',
+      viewport: 'mobile',
+      tagName: 'video',
+      sectionId: 'hero',
+      cuzmifyImgRole: 'hero',
+      mediaKind: 'video',
+      selector: '#hero video',
+      imageSrc: '[embedded-vault-video role=hero]',
+      posterSrc: '/api/media/ig?mediaId=555',
+      htmlSnippet: sanitizeHtmlSnippetForMcp(vidSnippet),
+    });
+    expect(formattedVidTarget).toContain('mediaKind="video"');
+    expect(formattedVidTarget).toContain('video: [embedded-vault-video role=hero]');
+    expect(formattedVidTarget).toContain('poster: /api/media/ig?mediaId=555');
+  });
 });

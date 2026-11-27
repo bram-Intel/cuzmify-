@@ -18,6 +18,13 @@ import {
   type StudioLocalSnapshot,
 } from './blueprint-persistence';
 import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
+import {
+  getAssetPosterUrl,
+  getAssetRenderSource,
+  isVideoMediaUrl,
+  renderSmartMediaHtml,
+  resolveAssetMediaKind,
+} from '@/core/media-utils';
 
 export class EditorService {
   private adapter: GrapesAdapter | HeadlessBlueprintAdapter;
@@ -277,32 +284,60 @@ export class EditorService {
       const aboutAsset = validMedia[1] || heroAsset;
       const galleryPool = validMedia.length > 2 ? validMedia.slice(2) : validMedia;
 
+      const applyAssetToComponent = (comp: any, asset: MediaVaultAsset, role?: 'hero' | 'gallery') => {
+        if (!comp || !asset) return;
+        const kind = resolveAssetMediaKind(asset);
+        const renderSrc = getAssetRenderSource(asset);
+        const poster = getAssetPosterUrl(asset);
+        const compTag = (comp.get?.('tagName') || '').toLowerCase();
+        if (kind === 'video' && compTag !== 'video' && typeof comp.replaceWith === 'function') {
+          const attrs = (comp.getAttributes?.() || {}) as Record<string, string>;
+          comp.replaceWith(
+            renderSmartMediaHtml({
+              mediaKind: 'video',
+              src: renderSrc,
+              poster,
+              alt: asset.name,
+              style: attrs.style || 'width:100%;height:100%;object-fit:cover;display:block;',
+              className: attrs.class,
+              role: (attrs['data-cuzmify-img-role'] as 'hero' | 'service' | 'gallery' | undefined) || role,
+              assetId: asset.id,
+            })
+          );
+          return;
+        }
+        const safeFallback = kind === 'video' ? poster || renderSrc : renderSrc;
+        comp.addAttributes?.({
+          src: safeFallback,
+          ...(asset.name ? { alt: asset.name } : {}),
+          'data-cuzmify-asset-id': asset.id,
+          'data-cuzmify-media-kind': kind,
+        });
+      };
+
       // 1. Update GrapesJS Component Tree (critical for editor.getHtml() and live site serialization)
       const editor = (this.adapter as any).editor;
       const wrapper = editor?.getWrapper?.();
       if (wrapper) {
         // Hero
-        const heroComps = wrapper.find('section#hero img, [data-cuzmify-type="hero"] img, header img');
+        const heroComps = wrapper.find('section#hero img, section#hero video, [data-cuzmify-type="hero"] img, [data-cuzmify-type="hero"] video, header img');
         if (heroComps.length > 0 && heroAsset) {
-          const u = heroAsset.thumbnailUrl || heroAsset.url;
-          heroComps[0].addAttributes({ src: u, ...(heroAsset.name ? { alt: heroAsset.name } : {}) });
+          applyAssetToComponent(heroComps[0], heroAsset, 'hero');
         }
 
         // About
-        const aboutComps = wrapper.find('section#about img, [data-cuzmify-type="about"] img');
+        const aboutComps = wrapper.find('section#about img, section#about video, [data-cuzmify-type="about"] img, [data-cuzmify-type="about"] video');
         if (aboutComps.length > 0 && aboutAsset) {
-          const u = aboutAsset.thumbnailUrl || aboutAsset.url;
-          aboutComps[0].addAttributes({ src: u, ...(aboutAsset.name ? { alt: aboutAsset.name } : {}) });
+          applyAssetToComponent(aboutComps[0], aboutAsset, 'gallery');
         }
 
         // Gallery Grid - replace all items with available pool
-        const galleryComps = wrapper.find('section#portfolio img, [data-cuzmify-type="gallery"] img, .gallery-grid img');
+        const galleryComps = wrapper.find('section#portfolio img, section#portfolio video, [data-cuzmify-type="gallery"] img, [data-cuzmify-type="gallery"] video, .gallery-grid img, .gallery-grid video');
         if (galleryComps.length > 0) {
           galleryComps.forEach((comp: any, idx: number) => {
             const item = galleryPool[idx % galleryPool.length];
-            const u = item?.thumbnailUrl || item?.url;
-            if (u) {
-              comp.addAttributes({ src: u, ...(item.name ? { alt: item.name } : {}) });
+            if (item && getAssetRenderSource(item)) {
+              applyAssetToComponent(comp, item, 'gallery');
             }
           });
         }
@@ -711,15 +746,57 @@ export class EditorService {
     if (!selected) return false;
     const type = (selected.get('type') || '').toLowerCase();
     const tagName = (selected.get('tagName') || '').toLowerCase();
+    const incomingIsVideo = isVideoMediaUrl(url);
 
-    if (type === 'image' || tagName === 'img') {
-      selected.addAttributes({ src: url, ...(alt ? { alt } : {}) });
-    } else {
+    if (type === 'image' || tagName === 'img' || type === 'video' || tagName === 'video') {
+      if ((incomingIsVideo && tagName === 'img') || (!incomingIsVideo && tagName === 'video')) {
+        const attrs = (selected.getAttributes?.() || {}) as Record<string, string>;
+        const styleToStr = (selected as unknown as { styleToString?: () => string }).styleToString;
+        const styleAttr =
+          attrs.style ||
+          (typeof styleToStr === 'function' ? styleToStr.call(selected) : '') ||
+          'width:100%;height:100%;object-fit:cover;display:block;';
+        const replacementHtml = renderSmartMediaHtml({
+          mediaKind: incomingIsVideo ? 'video' : 'image',
+          src: url,
+          alt: alt || attrs.alt || '',
+          style: styleAttr,
+          className: attrs.class,
+          role: attrs['data-cuzmify-img-role'] as 'hero' | 'service' | 'gallery' | undefined,
+          assetId: attrs['data-cuzmify-asset-id'],
+          targetId: attrs['data-cuzmify-target-id'],
+          controls: incomingIsVideo,
+        });
+        if (typeof selected.replaceWith === 'function') {
+          selected.replaceWith(replacementHtml);
+        } else {
+          selected.addAttributes({ src: url, ...(alt ? { alt } : {}) });
+        }
+      } else if (incomingIsVideo) {
+        selected.addAttributes({
+          src: url,
+          autoplay: '',
+          muted: '',
+          loop: '',
+          playsinline: '',
+          controls: '',
+          'data-cuzmify-media-kind': 'video',
+        });
+      } else {
+        selected.addAttributes({
+          src: url,
+          ...(alt ? { alt } : {}),
+          'data-cuzmify-media-kind': 'image',
+        });
+      }
+    } else if (!incomingIsVideo) {
       selected.addStyle({
         'background-image': `url("${url}")`,
         'background-size': 'cover',
         'background-position': 'center',
       });
+    } else {
+      return false;
     }
     this.recordSnapshot('Applied Media to Canvas', 'manual_edit');
     this.notifyChange();
@@ -882,7 +959,13 @@ export class EditorService {
         .map((srv) => {
           const waUrl = this.blueprintManager.generateWhatsAppLink({ type: 'booking', targetId: srv.id });
           const imgHtml = srv.imageUrl
-            ? `<div style="border-radius:14px;overflow:hidden;height:180px;margin-bottom:16px;"><img src="${srv.imageUrl}" alt="${srv.name}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>`
+            ? `<div style="border-radius:14px;overflow:hidden;height:180px;margin-bottom:16px;">${renderSmartMediaHtml({
+                src: srv.imageUrl,
+                alt: srv.name,
+                style: 'width:100%;height:100%;object-fit:cover;display:block;',
+                role: 'service',
+                targetId: srv.id,
+              })}</div>`
             : '';
           return `<div data-cuzmify-target-id="${srv.id}" style="padding:24px;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 4px 24px rgba(0,0,0,0.05);background:#fff;display:flex;flex-direction:column;justify-content:space-between;">
             <div>
@@ -906,7 +989,12 @@ export class EditorService {
         .map((prd) => {
           const waOrderUrl = this.blueprintManager.generateWhatsAppLink({ type: 'order', targetId: prd.id });
           const imgHtml = prd.imageUrl
-            ? `<div style="border-radius:14px;overflow:hidden;aspect-ratio:1/1;margin-bottom:14px;background:#F1F5F9;"><img src="${prd.imageUrl}" alt="${prd.name}" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>`
+            ? `<div style="border-radius:14px;overflow:hidden;aspect-ratio:1/1;margin-bottom:14px;background:#F1F5F9;">${renderSmartMediaHtml({
+                src: prd.imageUrl,
+                alt: prd.name,
+                style: 'width:100%;height:100%;object-fit:cover;display:block;',
+                targetId: prd.id,
+              })}</div>`
             : '';
           return `<div data-cuzmify-target-id="${prd.id}" style="padding:20px;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 4px 24px rgba(0,0,0,0.05);background:#fff;display:flex;flex-direction:column;justify-content:space-between;">
             <div>

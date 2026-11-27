@@ -38,6 +38,12 @@ import { DomainAndProPanel } from './DomainAndProPanel';
 import { ServiceImagePicker } from './ServiceImagePicker';
 import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
 import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
+import {
+  getAssetPosterUrl,
+  getAssetRenderSource,
+  isVideoMediaUrl,
+  resolveAssetMediaKind,
+} from '@/core/media-utils';
 
 export function StudioInfrastructureHub({
   onClose,
@@ -144,8 +150,10 @@ export function StudioInfrastructureHub({
         service.addMediaAsset({
           url: dataUrl,
           thumbnailUrl: isVideo ? undefined : dataUrl,
-          name: cleanName ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) : 'Uploaded Photo',
+          name: cleanName ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1) : isVideo ? 'Uploaded Video' : 'Uploaded Photo',
           type: isVideo ? 'video' : 'gallery',
+          mediaKind: isVideo ? 'video' : 'image',
+          mimeType: file.type || undefined,
           source: 'upload',
         });
         addedCount++;
@@ -253,7 +261,7 @@ export function StudioInfrastructureHub({
     const finalName = convertTitle.trim() || asset.name || 'Service Package';
     const numericPrice = convertPriceMode === 'quote' ? 0 : (parseFloat(convertPrice) || 0);
     const finalMode: ServicePriceMode = numericPrice <= 0 ? 'quote' : convertPriceMode;
-    const displayImg = asset.thumbnailUrl || asset.url;
+    const displayImg = getAssetRenderSource(asset);
     const cleanDesc = (asset.caption || '').replace(/#[a-zA-Z0-9_]+/g, '').trim().slice(0, 140);
 
     service.addServiceItem({
@@ -344,12 +352,19 @@ export function StudioInfrastructureHub({
     requestAnimationFrame(() => void handleSave(true));
   };
 
-  const handleAddServiceImageToVault = (dataUrl: string, name: string) => {
+  const handleAddServiceImageToVault = (
+    dataUrl: string,
+    name: string,
+    mediaKind: 'image' | 'video' = 'image',
+    mimeType?: string
+  ) => {
     service.addMediaAsset({
       url: dataUrl,
-      thumbnailUrl: dataUrl,
+      thumbnailUrl: mediaKind === 'video' ? undefined : dataUrl,
       name,
-      type: 'service',
+      type: mediaKind === 'video' ? 'video' : 'service',
+      mediaKind,
+      mimeType,
       source: 'upload',
     });
   };
@@ -376,10 +391,13 @@ export function StudioInfrastructureHub({
   const handleAddMedia = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMediaUrl.trim()) return;
+    const trimmedUrl = newMediaUrl.trim();
+    const isVideo = newMediaType === 'video' || isVideoMediaUrl(trimmedUrl);
     service.addMediaAsset({
-      url: newMediaUrl.trim(),
+      url: trimmedUrl,
       name: newMediaName.trim() || 'Visual Asset',
-      type: newMediaType,
+      type: isVideo && newMediaType !== 'hero' ? 'video' : newMediaType,
+      mediaKind: isVideo ? 'video' : 'image',
       source: newMediaSource,
       caption: newMediaCaption.trim(),
     });
@@ -1489,28 +1507,42 @@ export function StudioInfrastructureHub({
                     if (mediaFilter === 'all') return true;
                     if (mediaFilter === 'instagram') return m.source === 'instagram';
                     if (mediaFilter === 'upload') return m.source === 'upload';
-                    if (mediaFilter === 'video') return m.type === 'video';
+                    if (mediaFilter === 'video') return resolveAssetMediaKind(m) === 'video';
                     if (mediaFilter === 'service') return m.type === 'service' || m.type === 'product';
                     return true;
                   })
-                  .map((asset) => (
+                  .map((asset) => {
+                    const assetKind = resolveAssetMediaKind(asset);
+                    const assetSrc = getAssetRenderSource(asset);
+                    const assetPoster = getAssetPosterUrl(asset);
+                    return (
                     <div
                       key={asset.id}
                       className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs hover:shadow-md transition-all group flex flex-col"
                     >
                       {/* Media Preview */}
                       <div className="relative aspect-video bg-slate-100 overflow-hidden">
-                        {asset.type === 'video' ? (
+                        {assetKind === 'video' ? (
                           <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white relative group/vid">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={asset.thumbnailUrl || asset.url}
-                              alt={asset.name}
-                              className="w-full h-full object-cover opacity-80 group-hover/vid:opacity-60 transition-opacity"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
+                            {assetPoster ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={assetPoster}
+                                alt={asset.name}
+                                className="w-full h-full object-cover opacity-80 group-hover/vid:opacity-60 transition-opacity"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <video
+                                src={assetSrc}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-full object-cover opacity-85"
+                              />
+                            )}
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                               <div className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-xs flex items-center justify-center shadow-md group-hover/vid:scale-110 transition-transform">
                                 <Play className="w-4 h-4 text-white fill-white ml-0.5" />
@@ -1523,7 +1555,7 @@ export function StudioInfrastructureHub({
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={asset.thumbnailUrl || asset.url}
+                            src={assetSrc}
                             alt={asset.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             loading="lazy"
@@ -1637,11 +1669,11 @@ export function StudioInfrastructureHub({
                           <button
                             type="button"
                             onClick={() => {
-                              const applied = service.applyMediaToSelected(asset.type === 'video' ? (asset.thumbnailUrl || asset.url) : asset.url, asset.name);
+                              const applied = service.applyMediaToSelected(assetSrc, asset.name);
                               if (applied) {
                                 setSaveToast(`✦ Applied "${asset.name}" to selected element`);
                               } else {
-                                setSaveToast('Click an image on the Desktop canvas first, or tap ★ Set Hero.');
+                                setSaveToast('Click an image or video on the Desktop canvas first, or tap ★ Set Hero.');
                               }
                               setTimeout(() => setSaveToast(null), 2800);
                             }}
@@ -1682,7 +1714,8 @@ export function StudioInfrastructureHub({
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
               </div>
             </div>
           )}

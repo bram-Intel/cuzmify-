@@ -1,4 +1,5 @@
 import { CurrencyCode, MediaVaultAsset, ServiceItem } from '@/core/blueprint-schema';
+import { resolveAssetMediaKind } from '@/core/media-utils';
 
 export interface InstagramImportResult {
   handle: string;
@@ -45,9 +46,10 @@ export class InstagramImporter {
     if (!siteId || siteId === 'proj_default') return assets;
     return assets.map((asset) => {
       if (!asset.igMediaId) return asset;
-      const isVideo = asset.type === 'video';
+      const isVideo = resolveAssetMediaKind(asset) === 'video';
       return {
         ...asset,
+        mediaKind: isVideo ? 'video' : 'image',
         url: this.buildPermanentProxyUrl(asset.igMediaId, handle, siteId, isVideo ? 'video' : 'image'),
         thumbnailUrl: this.buildPermanentProxyUrl(asset.igMediaId, handle, siteId, 'image'),
       };
@@ -86,6 +88,7 @@ export class InstagramImporter {
                 ? `${m.caption.slice(0, 30)} (Slide ${cIdx + 1}/${m.children.data.length})`
                 : `Slide ${cIdx + 1}`,
               type: childIsVideo ? 'video' : 'gallery',
+              mediaKind: childIsVideo ? 'video' : 'image',
               source: 'instagram',
               caption: m.caption || '',
               instagramPostUrl: m.permalink || `https://instagram.com/${cleanHandle}`,
@@ -110,6 +113,7 @@ export class InstagramImporter {
               ? m.caption.slice(0, 40)
               : (isTopLevelVideo ? `Reel #${assets.length + 1}` : `Post #${assets.length + 1}`),
             type: isTopLevelVideo ? 'video' : (assets.length === 0 ? 'hero' : 'gallery'),
+            mediaKind: isTopLevelVideo ? 'video' : 'image',
             source: 'instagram',
             caption: m.caption || '',
             instagramPostUrl: m.permalink || `https://instagram.com/${cleanHandle}`,

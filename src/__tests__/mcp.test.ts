@@ -15,6 +15,13 @@ import {
   verifyUserMcpToken,
 } from '@/lib/mcp/mcp-auth';
 import { buildPublicSiteJsonLd, buildPublicSiteMetadata } from '@/lib/seo-metadata';
+import {
+  getAssetPosterUrl,
+  getAssetRenderSource,
+  isVideoMediaUrl,
+  resolveAssetMediaKind,
+} from '@/core/media-utils';
+import { BlueprintManager } from '@/studio/engine/BlueprintManager';
 
 describe('Cuzmify MCP Tool Registry & Execution', () => {
   it('exposes full autonomous MCP schemas and Gemini function declarations including publish & enquiries', () => {
@@ -532,5 +539,117 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     const extracted = extractExplicitMcpToken(badAuthReq);
     expect(extracted.present).toBe(true);
     expect(verifyUserMcpToken(extracted.token)).toBeNull();
+  });
+
+  it('distinguishes video vs image assets across template engines, BlueprintManager hero promotion, and MCP tools', () => {
+    expect(isVideoMediaUrl('/api/media/ig?mediaId=777&kind=video')).toBe(true);
+    expect(isVideoMediaUrl('data:video/mp4;base64,AAAA')).toBe(true);
+    expect(isVideoMediaUrl('https://cdn.example.com/reel.mp4?token=1')).toBe(true);
+    expect(isVideoMediaUrl('https://cdn.example.com/photo.webp')).toBe(false);
+
+    let bp = createDefaultBlueprint({
+      name: 'Velvet Frame Studio',
+      templateId: 'editorial-atelier',
+      mediaVault: [
+        {
+          id: 'mv-img-1',
+          url: 'https://cdn.example.com/hero-photo.jpg',
+          name: 'Hero Still',
+          type: 'hero',
+          mediaKind: 'image',
+          source: 'upload',
+          addedAt: '',
+        },
+        {
+          id: 'mv-vid-ig',
+          url: '/api/media/ig?mediaId=888&kind=video',
+          thumbnailUrl: '/api/media/ig?mediaId=888',
+          name: 'Runway Reel',
+          type: 'video',
+          mediaKind: 'video',
+          source: 'instagram',
+          addedAt: '',
+        },
+        {
+          id: 'mv-vid-mp4',
+          url: 'data:video/mp4;base64,AAAAIGZ0eXBpc29t',
+          name: 'Uploaded Clip',
+          type: 'video',
+          mediaKind: 'video',
+          mimeType: 'video/mp4',
+          source: 'upload',
+          addedAt: '',
+        },
+      ],
+    });
+
+    // Helper resolves playable source vs poster properly
+    expect(resolveAssetMediaKind(bp.mediaVault[1])).toBe('video');
+    expect(getAssetRenderSource(bp.mediaVault[1])).toBe('/api/media/ig?mediaId=888&kind=video');
+    expect(getAssetPosterUrl(bp.mediaVault[1])).toBe('/api/media/ig?mediaId=888');
+
+    // Attach video reel from Media Vault to service via MCP (stores playable video URL, not thumbnail image)
+    const srvRes = executeBlueprintMcpTool(
+      'upsert_service_package',
+      { name: 'Backstage Film Coverage', price: 250000, mediaAssetId: 'mv-vid-ig' },
+      bp
+    );
+    expect(srvRes.ok).toBe(true);
+    expect(srvRes.changeSummary).toContain('(with video)');
+    expect(srvRes.blueprint.modules.services.items[0].imageUrl).toBe('/api/media/ig?mediaId=888&kind=video');
+    bp = srvRes.blueprint;
+
+    // Also allow direct data:video/ URLs and /api/media/ig proxy paths on upsert_service_package
+    const srvDirectVid = executeBlueprintMcpTool(
+      'upsert_service_package',
+      { name: 'Highlight Reel Edit', price: 120000, imageUrl: 'https://cdn.example.com/demo.mp4' },
+      bp
+    );
+    expect(srvDirectVid.ok).toBe(true);
+    expect(srvDirectVid.blueprint.modules.services.items[1].imageUrl).toBe('https://cdn.example.com/demo.mp4');
+    bp = srvDirectVid.blueprint;
+
+    // Promote video asset to hero via MCP and preserve mediaKind: 'video'
+    const promo = executeBlueprintMcpTool('promote_media_to_hero', { assetId: 'mv-vid-ig' }, bp);
+    expect(promo.ok).toBe(true);
+    expect(promo.data?.heroMediaKind).toBe('video');
+    expect(promo.data?.hasPoster).toBe(true);
+    expect(promo.blueprint.mediaVault[0].type).toBe('hero');
+    expect(promo.blueprint.mediaVault[0].mediaKind).toBe('video');
+    expect(promo.blueprint.mediaVault[1].type).toBe('gallery');
+    bp = promo.blueprint;
+
+    // Inspect reports mediaKind, hasPoster, and mediaSummary accurately
+    const inspected = executeBlueprintMcpTool('inspect_rendered_page', { includeHtml: false }, bp);
+    expect(inspected.ok).toBe(true);
+    expect((inspected.data as any).mediaSummary).toEqual({
+      totalCount: 3,
+      imageCount: 1,
+      videoCount: 2,
+      heroMediaKind: 'video',
+    });
+    expect((inspected.data as any).mediaInventory[0].mediaKind).toBe('video');
+    expect((inspected.data as any).mediaInventory[0].hasPoster).toBe(true);
+
+    const bpInfo = executeBlueprintMcpTool('get_site_blueprint', {}, bp);
+    expect(bpInfo.ok).toBe(true);
+    expect((bpInfo.data as any).services[0].mediaKind).toBe('video');
+    expect((bpInfo.data as any).mediaSummary.videoCount).toBe(2);
+
+    // All three template engines render <video> for video hero/gallery/service slots
+    for (const tplId of ['editorial-atelier', 'noir-showcase', 'modern-studio'] as const) {
+      const rendered = renderTemplateEngine(tplId, bp);
+      expect(rendered.fullHtml).toContain('<video ');
+      expect(rendered.fullHtml).toContain('data-cuzmify-media-kind="video"');
+      expect(rendered.fullHtml).toContain('/api/media/ig?mediaId=888&amp;kind=video');
+      expect(rendered.fullHtml).toContain('https://cdn.example.com/demo.mp4');
+    }
+
+    // BlueprintManager.promoteMediaToHero preserves mediaKind for videos as well
+    const mgr = new BlueprintManager(bp.profile.name, bp);
+    const promotedMp4 = mgr.promoteMediaToHero('mv-vid-mp4');
+    expect(promotedMp4?.type).toBe('hero');
+    expect(promotedMp4?.mediaKind).toBe('video');
+    expect(mgr.getMediaVault()[1].type).toBe('video');
   });
 });

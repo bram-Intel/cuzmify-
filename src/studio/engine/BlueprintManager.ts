@@ -11,6 +11,7 @@ import {
   SUPPORTED_CURRENCIES,
   createDefaultBlueprint,
 } from '@/core/blueprint-schema';
+import { resolveAssetMediaKind } from '@/core/media-utils';
 
 export type BlueprintChangeListener = (blueprint: BusinessBlueprint) => void;
 
@@ -201,10 +202,16 @@ export class BlueprintManager {
   public promoteMediaToHero(id: string): MediaVaultAsset | null {
     const idx = this.blueprint.mediaVault.findIndex((m) => m.id === id);
     if (idx === -1) return null;
-    const picked = { ...this.blueprint.mediaVault[idx], type: 'hero' as const };
+    const current = this.blueprint.mediaVault[idx];
+    const mediaKind = resolveAssetMediaKind(current);
+    const picked: MediaVaultAsset = { ...current, type: 'hero', mediaKind };
     const rest = this.blueprint.mediaVault
       .filter((m) => m.id !== id)
-      .map((m, i) => (i === 0 && m.type === 'hero' ? { ...m, type: 'gallery' as const } : m));
+      .map((m, i) =>
+        i === 0 && m.type === 'hero'
+          ? { ...m, type: (resolveAssetMediaKind(m) === 'video' ? 'video' : 'gallery') as MediaVaultAsset['type'] }
+          : m
+      );
     this.blueprint.mediaVault = [picked, ...rest];
     this.touch();
     return picked;
