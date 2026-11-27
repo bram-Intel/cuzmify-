@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ShieldCheck, ChevronUp, Sliders, Layers, Rocket } from 'lucide-react';
 import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
+import { isPlatformHost } from '@/lib/host-routing';
 
 export const Footer: React.FC = () => {
   const pathname = usePathname();
@@ -30,19 +31,15 @@ export const Footer: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const isSubdomain =
-    typeof window !== 'undefined' &&
-    ((window.location.hostname.includes('.localhost') && !window.location.hostname.startsWith('localhost')) ||
-      (window.location.hostname.includes('.cuzmify.') &&
-        !window.location.hostname.startsWith('www.') &&
-        !window.location.hostname.startsWith('app.')));
+  const isCreatorLiveDomain =
+    typeof window !== 'undefined' && !isPlatformHost(window.location.hostname);
 
   if (
     pathname === '/studio' ||
     pathname === '/editor' ||
     pathname?.startsWith('/s/') ||
     pathname?.startsWith('/site/') ||
-    isSubdomain
+    isCreatorLiveDomain
   ) {
     return null;
   }

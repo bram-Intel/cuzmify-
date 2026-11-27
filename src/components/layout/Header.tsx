@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { Layers, Rocket, Sliders, ArrowRight, LogOut, User, ChevronDown, Palette } from 'lucide-react';
 import { CuzmifyLogo } from '@/components/ui/CuzmifyLogo';
+import { isPlatformHost } from '@/lib/host-routing';
 
 export const Header: React.FC = () => {
   const pathname = usePathname();
@@ -23,19 +24,15 @@ export const Header: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const isSubdomain =
-    typeof window !== 'undefined' &&
-    ((window.location.hostname.includes('.localhost') && !window.location.hostname.startsWith('localhost')) ||
-      (window.location.hostname.includes('.cuzmify.') &&
-        !window.location.hostname.startsWith('www.') &&
-        !window.location.hostname.startsWith('app.')));
+  const isCreatorLiveDomain =
+    typeof window !== 'undefined' && !isPlatformHost(window.location.hostname);
 
   if (
     pathname === '/studio' ||
     pathname === '/editor' ||
     pathname?.startsWith('/s/') ||
     pathname?.startsWith('/site/') ||
-    isSubdomain
+    isCreatorLiveDomain
   ) {
     return null;
   }

@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import './globals.css';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Providers } from '@/components/auth/Providers';
+import { isPlatformHost } from '@/lib/host-routing';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -26,11 +28,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const reqHeaders = await headers();
+  const host = reqHeaders.get('x-forwarded-host') || reqHeaders.get('host');
+  const showPlatformChrome = isPlatformHost(host);
+
   return (
     <html lang="en" className="light scroll-smooth" suppressHydrationWarning>
       <head>
@@ -43,9 +49,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col bg-[#FFFFFF] text-[#0F172A] antialiased selection:bg-[#0D5771] selection:text-white font-sans" suppressHydrationWarning>
         <Providers>
-          <Header />
+          {showPlatformChrome && <Header />}
           <main className="flex-1">{children}</main>
-          <Footer />
+          {showPlatformChrome && <Footer />}
         </Providers>
       </body>
     </html>
