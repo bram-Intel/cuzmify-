@@ -278,12 +278,12 @@ function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBluepr
     ? `.cz-ea-root a[href="#booking"],.cz-ea-root a[href="#services"],.cz-nr-root a[href="#booking"],.cz-nr-root a[href="#portfolio"],.cz-ms-root a[href="#booking"],.cz-submit-btn{border-radius:${radius} !important;}`
     : '';
 
-  const varsCss = varLines.length > 0 ? `:root,[data-cuzmify-template]{${varLines.join('')}}` : '';
+  const varsCss = varLines.length > 0 ? `[data-cuzmify-template="${templateId}"]{${varLines.join('')}}` : '';
   const baseDeviceCss = compileDeviceDesignRules(ov);
   const mobileCss = compileDeviceDesignRules(ov.responsive?.mobile);
   const tabletCss = compileDeviceDesignRules(ov.responsive?.tablet);
   const desktopCss = compileDeviceDesignRules(ov.responsive?.desktop);
-  const safeCustomCss =
+  const sanitizedCustomCss =
     typeof ov.customCss === 'string' && ov.customCss.trim()
       ? ov.customCss
           .trim()
@@ -291,6 +291,9 @@ function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBluepr
           .replace(/[<>]/g, '')
           .replace(/javascript:|expression\s*\(|@import|behavior\s*:|-moz-binding/gi, '')
       : '';
+  const safeCustomCss = sanitizedCustomCss
+    ? scopeCssToTemplate(sanitizedCustomCss, `[data-cuzmify-template="${templateId}"]`)
+    : '';
 
   return [
     varsCss,
@@ -304,6 +307,117 @@ function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBluepr
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * Scopes arbitrary AI/user CSS strictly inside `[data-cuzmify-template="<id>"]` so global
+ * selectors (`button`, `h1`, `body`, `*`, `:root`, etc.) can never leak into Studio UI or chrome.
+ */
+export function scopeCssToTemplate(rawCss: string, scopeSelector: string): string {
+  const clean = rawCss.replace(/\/\*[\s\S]*?\*\//g, '').trim();
+  if (!clean) return '';
+
+  const splitTopLevelSelectors = (selText: string): string[] => {
+    const out: string[] = [];
+    let cur = '';
+    let paren = 0;
+    let bracket = 0;
+    for (let i = 0; i < selText.length; i++) {
+      const ch = selText[i];
+      if (ch === '(') paren++;
+      else if (ch === ')') paren = Math.max(0, paren - 1);
+      else if (ch === '[') bracket++;
+      else if (ch === ']') bracket = Math.max(0, bracket - 1);
+      if (ch === ',' && paren === 0 && bracket === 0) {
+        if (cur.trim()) out.push(cur.trim());
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  };
+
+  const scopeSingleSelector = (sel: string): string => {
+    const trimmed = sel.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith(scopeSelector) || trimmed.startsWith('[data-cuzmify-template')) {
+      return trimmed;
+    }
+    // Rewrite global root/body/html references to the template container itself
+    let rewritten = trimmed.replace(/(^|\s|,)(?:html|body|:root)(?=$|\s|::|:|\.|\[)/gi, `$1${scopeSelector}`);
+    if (rewritten.startsWith(scopeSelector)) {
+      return rewritten;
+    }
+    if (rewritten === '*') {
+      return `${scopeSelector}, ${scopeSelector} *`;
+    }
+    if (rewritten.startsWith('::') || rewritten.startsWith(':')) {
+      return `${scopeSelector} ${rewritten}`;
+    }
+    return `${scopeSelector} ${rewritten}`;
+  };
+
+  const scopeBlock = (cssChunk: string): string => {
+    let out = '';
+    let i = 0;
+    const len = cssChunk.length;
+
+    while (i < len) {
+      while (i < len && /\s/.test(cssChunk[i])) i++;
+      if (i >= len) break;
+
+      const openIdx = cssChunk.indexOf('{', i);
+      if (openIdx === -1) break;
+
+      const header = cssChunk.slice(i, openIdx).trim();
+      let depth = 1;
+      let j = openIdx + 1;
+      let inStr: string | null = null;
+      while (j < len && depth > 0) {
+        const ch = cssChunk[j];
+        if (inStr) {
+          if (ch === '\\') {
+            j += 2;
+            continue;
+          }
+          if (ch === inStr) inStr = null;
+        } else {
+          if (ch === '"' || ch === "'") inStr = ch;
+          else if (ch === '{') depth++;
+          else if (ch === '}') depth--;
+        }
+        j++;
+      }
+
+      const inner = cssChunk.slice(openIdx + 1, depth === 0 ? j - 1 : len);
+      i = j;
+
+      if (!header) continue;
+      const lowerHeader = header.toLowerCase();
+
+      if (lowerHeader.startsWith('@media') || lowerHeader.startsWith('@supports') || lowerHeader.startsWith('@container')) {
+        const scopedInner = scopeBlock(inner);
+        if (scopedInner) out += `${header}{${scopedInner}}`;
+      } else if (lowerHeader.startsWith('@')) {
+        // Keep @keyframes / @font-face / @property intact
+        out += `${header}{${inner}}`;
+      } else {
+        const scopedSelectors = splitTopLevelSelectors(header)
+          .map(scopeSingleSelector)
+          .filter(Boolean)
+          .join(', ');
+        if (scopedSelectors) {
+          out += `${scopedSelectors}{${inner}}`;
+        }
+      }
+    }
+
+    return out;
+  };
+
+  return scopeBlock(clean);
 }
 
 function sanitizeInjectableHtml(raw: string, maxLen = 12000): string {

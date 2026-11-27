@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createDefaultBlueprint } from '@/core/blueprint-schema';
 import { NICHE_LIST, resolveNicheBlueprint } from '@/core/niche-blueprints';
-import { renderTemplateEngine, TEMPLATE_ENGINE_LIST } from '@/core/template-engines';
+import { renderTemplateEngine, scopeCssToTemplate, TEMPLATE_ENGINE_LIST } from '@/core/template-engines';
 
 describe('Niche Blueprints & Lossless Multi-Template Engine', () => {
   it('resolves all service vendor niches without inventing fake prices', () => {
@@ -84,5 +84,31 @@ describe('Niche Blueprints & Lossless Multi-Template Engine', () => {
       expect(out.fullHtml).not.toContain('Royal Bridal Suite');
       expect(out.fullHtml).not.toContain('Los Angeles');
     }
+  });
+
+  it('scopes customCss strictly inside [data-cuzmify-template] so AI/MCP styles never leak into Studio UI', () => {
+    const bp = createDefaultBlueprint({ name: 'How', templateId: 'noir-showcase' });
+    bp.templateDesignOverrides = {
+      'noir-showcase': {
+        customCss: `
+          body::after { content: ""; position: fixed; inset: 0; }
+          button, a { box-shadow: 0 0 18px cyan; text-transform: uppercase; }
+          @media (min-width: 768px) { h2 { letter-spacing: 0.1em; } }
+          * { font-family: monospace; }
+        `,
+      },
+    };
+
+    const rendered = renderTemplateEngine('noir-showcase', bp);
+    expect(rendered.css).toContain('[data-cuzmify-template="noir-showcase"]::after');
+    expect(rendered.css).toContain('[data-cuzmify-template="noir-showcase"] button');
+    expect(rendered.css).toContain('[data-cuzmify-template="noir-showcase"] a');
+    expect(rendered.css).toContain('@media (min-width: 768px){[data-cuzmify-template="noir-showcase"] h2');
+    expect(rendered.css).toContain('[data-cuzmify-template="noir-showcase"], [data-cuzmify-template="noir-showcase"] *');
+    expect(rendered.css).not.toMatch(/(^|[}\n])\s*body::after/);
+    expect(rendered.css).not.toMatch(/(^|[}\n])\s*button\b/);
+
+    const scoped = scopeCssToTemplate('h1, .card { color: cyan; }', '[data-cuzmify-template="noir-showcase"]');
+    expect(scoped).toBe('[data-cuzmify-template="noir-showcase"] h1, [data-cuzmify-template="noir-showcase"] .card{ color: cyan; }');
   });
 });

@@ -166,16 +166,16 @@ function EditorShellInner() {
           </div>
         )}
 
-        {/* Mobile Touch-Safe 60fps Owner Studio (<1024px) */}
-        <MobilePreviewPane />
-
-        {/* Viewport-Gated Runtime: 0ms Headless Blueprint Runtime on Mobile (<1024px), Full GrapesJS Canvas on Desktop (>=1024px) */}
+        {/* Viewport-Gated Runtime: Mobile Touch-Safe 60fps Owner Studio (<1024px) vs Full GrapesJS Canvas on Desktop (>=1024px) */}
         {isDesktopViewport ? (
           <div className="hidden lg:flex lg:flex-1 lg:min-w-0 h-full">
             <Canvas />
           </div>
         ) : (
-          <MobileStudioRuntime />
+          <>
+            <MobilePreviewPane />
+            <MobileStudioRuntime />
+          </>
         )}
 
         {/* Desktop Right Design Inspector (>=1024px — always ready for element styling & theme presets) */}
