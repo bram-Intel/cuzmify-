@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { FunctionCallingMode, type Part } from '@google/generative-ai';
+import { FunctionCallingMode, type Content, type Part } from '@google/generative-ai';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { getGeminiClient } from '@/lib/gemini';
@@ -7,6 +7,7 @@ import type { ThemeName } from '@/core/project-schema';
 import { createDefaultBlueprint, type BusinessBlueprint } from '@/core/blueprint-schema';
 import {
   TEMPLATE_ENGINES,
+  getActiveSlotInjections,
   resolveTemplateEngineId,
   renderTemplateEngine,
 } from '@/core/template-engines';
@@ -336,6 +337,12 @@ STRICT AUTONOMY & SAFETY RULES:
         plan: resolvedPlan,
       } : undefined);
 
+      const activeSlotMap = getActiveSlotInjections(activeTemplateId, workingBlueprint) || {};
+      const activeCustomCss =
+        (workingBlueprint.templateDesignOverrides?.[activeTemplateId]?.customCss ||
+          workingBlueprint.designOverrides?.customCss ||
+          '').slice(0, 1200);
+
       const mcpUserPrompt = `ACTIVE WEBSITE CONTEXT (ZERO-BROWSER VISUAL & STRUCTURAL SNAPSHOT):
 - Account Site Connected: ${dbSite ? `YES (siteId="${dbSite.id}", status="${dbSite.status}", liveUrl="${dbSite.liveUrl || ''}")` : 'Guest session (browser storage only unless signed in)'}
 - Active Template: "${activeTemplateMeta.name}" (id="${activeTemplateId}", default swatches=${activeTemplateMeta.swatches.join('/')})
@@ -349,6 +356,8 @@ STRICT AUTONOMY & SAFETY RULES:
 - Auto Visual & Launch QA Findings: ${JSON.stringify(siteInspection.qaFindings)}
 - SEO Audit: ${JSON.stringify(siteInspection.seoAudit)}
 - Active Injection Slots: ${JSON.stringify(siteInspection.activeInjections)} (available: ${siteInspection.availableSlots.join(', ')})
+${Object.keys(activeSlotMap).length > 0 ? `- Current Active Slot HTML: ${JSON.stringify(activeSlotMap).slice(0, 2400)}` : ''}
+${activeCustomCss ? `- Active Custom CSS: ${activeCustomCss}` : ''}
 - Active Niche: "${workingBlueprint.nicheId}"
 - Profile Name: "${workingBlueprint.profile.name}"
 - Headline: "${workingBlueprint.customCopy?.headline || workingBlueprint.profile.tagline || ''}"
@@ -360,7 +369,7 @@ ${serviceSummary.join('\n') || '  (none yet)'}
 - Products (${workingBlueprint.modules?.products?.items?.length || 0} items):
 ${productSummary.join('\n') || '  (none yet)'}
 - Custom Sections: ${workingBlueprint.customSections?.length || 0}, Testimonials: ${workingBlueprint.testimonials?.length || 0}, FAQs: ${workingBlueprint.faqs?.length || 0}
-- Media Inventory (${workingBlueprint.mediaVault?.length || 0} photos):
+- Media Inventory (${workingBlueprint.mediaVault?.length || 0} items):
 ${JSON.stringify(siteInspection.mediaInventory)}
 
 VENDOR REQUEST: "${message}"`;
@@ -382,7 +391,9 @@ VENDOR REQUEST: "${message}"`;
               systemInstruction: mcpSystemInstruction,
             });
 
-            const chat = mcpModel.startChat({});
+            // Use explicit Content[] with role='user' for functionResponse turns
+            // (ChatSession.sendMessage wraps them in role='function', which Gemini v1beta rejects with 400).
+            const contents: Content[] = [{ role: 'user', parts: [{ text: mcpUserPrompt }] }];
             let bpCursor = workingBlueprint;
             const toolCalls: Array<{
               name: string;
@@ -396,7 +407,6 @@ VENDOR REQUEST: "${message}"`;
             let mutatedBlueprint = false;
             let shouldPublish = false;
             let shouldUnpublish = false;
-            let nextInput: string | Part[] = mcpUserPrompt;
             let finalTextReply = '';
 
             for (let round = 0; round < 4; round++) {
@@ -405,10 +415,11 @@ VENDOR REQUEST: "${message}"`;
               );
 
               const result: any = await Promise.race([
-                chat.sendMessage(nextInput),
+                mcpModel.generateContent({ contents }),
                 timeoutPromise,
               ]);
 
+              const candidateContent = result?.response?.candidates?.[0]?.content as Content | undefined;
               const fnCalls =
                 typeof result?.response?.functionCalls === 'function'
                   ? result.response.functionCalls() || []
@@ -422,6 +433,17 @@ VENDOR REQUEST: "${message}"`;
                 }
                 break;
               }
+
+              contents.push(
+                candidateContent && Array.isArray(candidateContent.parts)
+                  ? candidateContent
+                  : {
+                      role: 'model',
+                      parts: fnCalls.map((fc: any) => ({
+                        functionCall: { name: fc.name, args: fc.args || {} },
+                      })),
+                    }
+              );
 
               const responseParts: Part[] = [];
 
@@ -555,7 +577,7 @@ VENDOR REQUEST: "${message}"`;
                 });
               }
 
-              nextInput = responseParts;
+              contents.push({ role: 'user', parts: responseParts });
             }
 
             let savedToAccount = false;
