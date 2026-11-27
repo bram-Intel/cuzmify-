@@ -286,6 +286,7 @@ export interface BusinessBlueprint {
   templateDesignOverrides?: Record<string, TemplateDesignOverrides>;
   customSections?: BlueprintCustomSection[];
   injections?: Partial<Record<BlueprintSlotId, string>>;
+  templateInjections?: Record<string, Partial<Record<BlueprintSlotId, string>>>;
   seo?: BlueprintSeoConfig;
   testimonials?: BlueprintTestimonialItem[];
   faqs?: BlueprintFaqItem[];

@@ -765,7 +765,7 @@ export class EditorService {
           role: attrs['data-cuzmify-img-role'] as 'hero' | 'service' | 'gallery' | undefined,
           assetId: attrs['data-cuzmify-asset-id'],
           targetId: attrs['data-cuzmify-target-id'],
-          controls: incomingIsVideo,
+          controls: false,
         });
         if (typeof selected.replaceWith === 'function') {
           selected.replaceWith(replacementHtml);
@@ -833,7 +833,15 @@ export class EditorService {
     // even if the iframe hasn't completed initial load or is rendered behind a full-screen Studio modal.
     if (!this.hasCustomCanvasBlocks && bp?.templateId) {
       const tplId = resolveTemplateEngineId(bp.templateId);
-      const syncKey = `${tplId}:${bp.updatedAt || ''}:${this.activeSiteId || ''}:${bp.modules?.services?.items?.length || 0}`;
+      const visKey = Object.entries(bp.sectionVisibility || {})
+        .filter(([, v]) => v === false)
+        .map(([k]) => k)
+        .sort()
+        .join(',');
+      const injKey = Object.keys((bp.templateInjections?.[tplId] || bp.injections) || {})
+        .sort()
+        .join(',');
+      const syncKey = `${tplId}:${bp.updatedAt || ''}:${this.activeSiteId || ''}:${bp.modules?.services?.items?.length || 0}:${visKey}:${injKey}`;
       if (this.lastSyncedCanvasKey === syncKey) {
         return;
       }
@@ -1593,7 +1601,11 @@ export class EditorService {
     const knownIds = new Set(['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking']);
     const order: string[] = [];
     for (const sec of sections) {
-      const normalized = sec.id === 'gallery' ? 'portfolio' : sec.id;
+      const rawKey =
+        sec.domId ||
+        (sec.cuzmifyType === 'custom-section' ? 'custom' : sec.cuzmifyType) ||
+        sec.id;
+      const normalized = rawKey === 'gallery' ? 'portfolio' : rawKey;
       if (knownIds.has(normalized) && !order.includes(normalized)) {
         order.push(normalized);
       }
@@ -1611,7 +1623,16 @@ export class EditorService {
   }
 
   // ── Section Re-ordering APIs ──────────────────────────────────────────────
-  getSectionsList(): { id: string; type: string; name: string; index: number }[] {
+  getSectionsList(): {
+    id: string;
+    domId?: string;
+    cuzmifyType?: string;
+    slotId?: string;
+    tagName?: string;
+    type: string;
+    name: string;
+    index: number;
+  }[] {
     return this.adapter.getSectionsList();
   }
 
@@ -1640,12 +1661,47 @@ export class EditorService {
     const target = this.adapter.getSectionsList()[index];
     this.adapter.removeSection(index);
     if (target) {
-      const normalized = target.id === 'gallery' ? 'portfolio' : target.id;
-      if (['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking'].includes(normalized)) {
-        const bp = this.blueprintManager.getBlueprint();
+      const bp = this.blueprintManager.getBlueprint();
+      const activeTpl = resolveTemplateEngineId(bp.templateId);
+      const semanticId = target.domId || target.cuzmifyType || target.tagName || target.id;
+      const normalized =
+        semanticId === 'gallery'
+          ? 'portfolio'
+          : semanticId === 'nav'
+            ? 'navbar'
+            : semanticId;
+
+      if (['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking', 'navbar'].includes(normalized)) {
         bp.sectionVisibility = { ...(bp.sectionVisibility || {}), [normalized]: false };
-        bp.updatedAt = new Date().toISOString();
       }
+
+      if (target.cuzmifyType === 'custom-section' || (target.domId && (bp.customSections || []).some((s) => s.id === target.domId))) {
+        bp.customSections = (bp.customSections || []).filter((s) => s.id !== target.domId);
+        if (bp.customSections.length === 0) {
+          bp.sectionVisibility = { ...(bp.sectionVisibility || {}), custom: false };
+        }
+      }
+
+      const slotToClear =
+        target.slotId ||
+        (target.cuzmifyType === 'footer' || target.tagName === 'footer' ? 'footer' : undefined);
+      if (slotToClear) {
+        if (bp.injections && slotToClear in bp.injections) {
+          const nextInj = { ...bp.injections };
+          delete (nextInj as Record<string, string | undefined>)[slotToClear];
+          bp.injections = nextInj;
+        }
+        if (bp.templateInjections?.[activeTpl] && slotToClear in bp.templateInjections[activeTpl]) {
+          const nextTplInj = { ...bp.templateInjections[activeTpl] };
+          delete (nextTplInj as Record<string, string | undefined>)[slotToClear];
+          bp.templateInjections = {
+            ...bp.templateInjections,
+            [activeTpl]: nextTplInj,
+          };
+        }
+      }
+
+      bp.updatedAt = new Date().toISOString();
     }
     this.recordSnapshot('Removed section', 'section_reorder');
     this.notifyChange();

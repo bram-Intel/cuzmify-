@@ -652,4 +652,51 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(promotedMp4?.mediaKind).toBe('video');
     expect(mgr.getMediaVault()[1].type).toBe('video');
   });
+
+  it('scopes inject_slot HTML and CSS per template so AI footers never leak unstyled across templates', () => {
+    let bp = createDefaultBlueprint({ name: 'Brammy Care', templateId: 'editorial-atelier' });
+
+    const injRes = executeBlueprintMcpTool(
+      'inject_slot',
+      {
+        slot: 'footer',
+        html: '<div class="custom-ea-footer">Custom Ivory Footer</div>',
+        css: '.custom-ea-footer { background: #FAF7F2; padding: 32px; border-top: 1px solid #E7E0D6; }',
+      },
+      bp
+    );
+    expect(injRes.ok).toBe(true);
+    bp = injRes.blueprint;
+
+    // Editorial renders BOTH the footer HTML and its companion CSS
+    const editorialRender = renderTemplateEngine('editorial-atelier', bp);
+    expect(editorialRender.fullHtml).toContain('Custom Ivory Footer');
+    expect(editorialRender.css).toContain('.custom-ea-footer');
+
+    // Noir and Modern must NOT receive Editorial's bespoke footer HTML or unstyled markup
+    expect(renderTemplateEngine('noir-showcase', bp).fullHtml).not.toContain('Custom Ivory Footer');
+    expect(renderTemplateEngine('modern-studio', bp).fullHtml).not.toContain('Custom Ivory Footer');
+
+    // Switching to Noir via MCP clears active slot cleanly and switching back restores Editorial footer + CSS
+    const switchedNoir = executeBlueprintMcpTool('switch_template_style', { templateId: 'noir-showcase' }, bp);
+    expect(switchedNoir.ok).toBe(true);
+    expect(switchedNoir.blueprint.injections).toEqual({});
+    expect(renderTemplateEngine('noir-showcase', switchedNoir.blueprint).fullHtml).not.toContain('Custom Ivory Footer');
+
+    const switchedBack = executeBlueprintMcpTool(
+      'switch_template_style',
+      { templateId: 'editorial-atelier' },
+      switchedNoir.blueprint
+    );
+    expect(switchedBack.ok).toBe(true);
+    const restoredEditorial = renderTemplateEngine('editorial-atelier', switchedBack.blueprint);
+    expect(restoredEditorial.fullHtml).toContain('Custom Ivory Footer');
+    expect(restoredEditorial.css).toContain('.custom-ea-footer');
+
+    // Legacy blueprints (bp.injections set without bp.templateInjections) also stay isolated to their authored template
+    const legacyBp = createDefaultBlueprint({ name: 'Legacy Studio', templateId: 'editorial-atelier' });
+    legacyBp.injections = { footer: '<div>Legacy Ivory Footer</div>' };
+    expect(renderTemplateEngine('editorial-atelier', legacyBp).fullHtml).toContain('Legacy Ivory Footer');
+    expect(renderTemplateEngine('noir-showcase', legacyBp).fullHtml).not.toContain('Legacy Ivory Footer');
+  });
 });

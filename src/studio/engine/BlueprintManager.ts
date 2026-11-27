@@ -64,6 +64,13 @@ export class BlueprintManager {
       }
       this.blueprint.templateDesignOverrides = scoped;
       this.blueprint.designOverrides = scoped[templateId] ? { ...scoped[templateId] } : {};
+
+      const scopedInj = { ...(this.blueprint.templateInjections || {}) };
+      if (this.blueprint.injections && Object.keys(this.blueprint.injections).length > 0) {
+        scopedInj[prevTpl] = { ...this.blueprint.injections };
+      }
+      this.blueprint.templateInjections = scopedInj;
+      this.blueprint.injections = scopedInj[templateId] ? { ...scopedInj[templateId] } : {};
     }
     this.blueprint.templateId = templateId;
     this.touch();

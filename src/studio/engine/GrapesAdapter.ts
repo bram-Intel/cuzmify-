@@ -578,14 +578,25 @@ export class GrapesAdapter implements EditorAdapter {
     return sections.length > 0 ? sections : candidateChildren;
   }
 
-  getSectionsList(): { id: string; type: string; name: string; index: number }[] {
+  getSectionsList(): {
+    id: string;
+    domId?: string;
+    cuzmifyType?: string;
+    slotId?: string;
+    tagName?: string;
+    type: string;
+    name: string;
+    index: number;
+  }[] {
     const sectionComps = this.getSectionComponents();
     return sectionComps.map((comp: any, index: number) => {
       const type = comp.get?.('type') || comp.get?.('tagName') || 'section';
+      const tagName = (comp.get?.('tagName') || '').toLowerCase() || undefined;
       const attrs = comp.get?.('attributes') || {};
-      const cuzType = attrs['data-cuzmify-type'];
+      const cuzType = attrs['data-cuzmify-type'] || undefined;
+      const slotId = attrs['data-cuzmify-slot'] || undefined;
       const id = attrs['id'] || '';
-      
+
       const rawName = cuzType || id || comp.get?.('name') || type;
       let cleanName = rawName.replace(/^cuzmify-/, '').replace(/[-_]/g, ' ').toLowerCase();
       const text = (comp.getEl?.()?.textContent || comp.get?.('content') || '').toLowerCase();
@@ -613,6 +624,10 @@ export class GrapesAdapter implements EditorAdapter {
 
       return {
         id: comp.cid || `comp-${index}`,
+        domId: id || undefined,
+        cuzmifyType: cuzType,
+        slotId,
+        tagName,
         type,
         name: cleanName.length > 2 ? cleanName : `Section ${index + 1}`,
         index,

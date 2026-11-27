@@ -68,7 +68,18 @@ export class HeadlessBlueprintAdapter implements EditorAdapter {
   traverseComponents(_cb: (comp: any) => void): void {}
   highlightSectionGlow(_sectionType: string): void {}
   updateSectionField(_sectionType: string, _field: string, _value: string): void {}
-  getSectionsList(): { id: string; type: string; name: string; index: number }[] { return []; }
+  getSectionsList(): {
+    id: string;
+    domId?: string;
+    cuzmifyType?: string;
+    slotId?: string;
+    tagName?: string;
+    type: string;
+    name: string;
+    index: number;
+  }[] {
+    return [];
+  }
   moveSectionUp(_index: number): void {}
   moveSectionDown(_index: number): void {}
   moveSectionTo(_fromIndex: number, _toIndex: number): void {}

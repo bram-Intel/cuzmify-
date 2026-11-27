@@ -349,4 +349,43 @@ describe('Persistence & Serialization Engine', () => {
     const reSynced = mergeInstagramMediaIntoVault(olderVault, igAssets, 30);
     expect(reSynced.map((m) => m.id)).toEqual(['mv-up-1', 'mv-up-2', 'ig-1', 'ig-2']);
   });
+
+  it('persists section layer deletions (built-in, custom sections, and injected footer) into blueprintData across reloads', () => {
+    const bp = createDefaultBlueprint({ name: 'Brammy Care', templateId: 'editorial-atelier' });
+    bp.customSections = [
+      { id: 'sec-hours-1', title: 'Studio Hours', layout: 'hours_info', items: [{ label: 'Mon-Fri', detail: '9am-6pm' }] },
+    ];
+    bp.injections = { footer: '<div class="f-wrap">Copyright Brammy</div>' };
+    bp.templateInjections = {
+      'editorial-atelier': { footer: '<div class="f-wrap">Copyright Brammy</div>' },
+    };
+
+    const service = new EditorService(null, 'Brammy Care');
+    service.applyExternalBlueprint(bp, 'site_del_test');
+
+    // Mock headless adapter's getSectionsList to mirror Desktop GrapesAdapter semantic metadata
+    (service as any).adapter.getSectionsList = () => [
+      { id: 'c1', domId: 'hero', cuzmifyType: 'hero', tagName: 'section', type: 'cuzmify-hero', name: 'Hero Suite', index: 0 },
+      { id: 'c2', domId: 'sec-hours-1', cuzmifyType: 'custom-section', tagName: 'section', type: 'section', name: 'Custom section', index: 1 },
+      { id: 'c3', domId: 'booking', cuzmifyType: 'booking', tagName: 'section', type: 'cuzmify-booking', name: 'WhatsApp Booking', index: 2 },
+      { id: 'c4', cuzmifyType: 'footer', slotId: 'footer', tagName: 'footer', type: 'default', name: 'Footer', index: 3 },
+    ];
+
+    service.removeSection(3); // Delete injected Footer
+    service.removeSection(2); // Delete Booking
+    service.removeSection(1); // Delete Custom Section
+
+    const updatedBp = service.getBlueprint();
+    expect(updatedBp.sectionVisibility?.booking).toBe(false);
+    expect(updatedBp.customSections).toEqual([]);
+    expect(updatedBp.injections?.footer).toBeUndefined();
+    expect(updatedBp.templateInjections?.['editorial-atelier']?.footer).toBeUndefined();
+
+    // Simulate reload: re-render from persisted blueprintData
+    const reRendered = renderTemplateEngine('editorial-atelier', updatedBp);
+    expect(reRendered.fullHtml).not.toContain('Copyright Brammy');
+    expect(reRendered.fullHtml).not.toContain('id="booking"');
+    expect(reRendered.fullHtml).not.toContain('Studio Hours');
+    service.destroy();
+  });
 });

@@ -143,7 +143,6 @@ function renderServiceSlotMedia(srv: ServiceItem, style: string): string {
     role: 'service',
     targetId: srv.id,
     style,
-    controls: true,
     lazy: true,
   });
 }
@@ -317,8 +316,27 @@ function sanitizeInjectableHtml(raw: string, maxLen = 12000): string {
     .replace(/(?:javascript|vbscript):/gi, '');
 }
 
-function renderSlotHtml(bp: BusinessBlueprint, slot: BlueprintSlotId, maxLen = 6000): string {
-  const raw = bp.injections?.[slot];
+export function getActiveSlotInjections(
+  templateId: TemplateEngineId,
+  bp: BusinessBlueprint
+): Partial<Record<BlueprintSlotId, string>> | undefined {
+  if (bp.templateInjections) {
+    return bp.templateInjections[templateId];
+  }
+  // Legacy blueprints without templateInjections: only render injections on the template
+  // they were authored for so bespoke HTML + templateDesignOverrides CSS never leak unstyled.
+  return templateId === resolveTemplateEngineId(bp.templateId) ? bp.injections : undefined;
+}
+
+function renderSlotHtml(
+  bp: BusinessBlueprint,
+  slot: BlueprintSlotId,
+  maxLen = 6000,
+  templateId?: TemplateEngineId
+): string {
+  const activeTpl = templateId || resolveTemplateEngineId(bp.templateId);
+  const inj = getActiveSlotInjections(activeTpl, bp);
+  const raw = inj?.[slot];
   if (typeof raw !== 'string' || !raw.trim()) return '';
   return sanitizeInjectableHtml(raw, maxLen);
 }
@@ -496,10 +514,11 @@ function renderSharedEnquiryForm(
   isDark = false
 ): string {
   const waPhone = (bp.modules?.whatsapp?.phoneNumber || bp.profile?.whatsapp || '').replace(/[^\d]/g, '');
-  const activeOv = getActiveDesignOverrides(resolveTemplateEngineId(bp.templateId), bp);
+  const activeTpl = resolveTemplateEngineId(bp.templateId);
+  const activeOv = getActiveDesignOverrides(activeTpl, bp);
   const submitColor = getSafeHexColor(activeOv?.submitButtonColor) || '#25D366';
-  const injectedPrefix = renderSlotHtml(bp, 'submit_button_prefix', 3000);
-  const injectedSuffix = renderSlotHtml(bp, 'submit_button_suffix', 3000);
+  const injectedPrefix = renderSlotHtml(bp, 'submit_button_prefix', 3000, activeTpl);
+  const injectedSuffix = renderSlotHtml(bp, 'submit_button_suffix', 3000, activeTpl);
   const submitIconHtml = injectedPrefix || renderSubmitButtonIconHtml(activeOv?.submitButtonIcon, Boolean(waPhone));
   const submitLabel =
     bp.customCopy?.submitButtonText ||
@@ -960,13 +979,17 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
     ['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking']
   );
 
-  const html = `<div class="cz-ea-root" data-cuzmify-template="editorial-atelier">
-    <nav data-cuzmify-type="navbar" style="border-bottom:1px solid var(--cz-border);background:var(--cz-bg);backdrop-filter:blur(10px);position:sticky;top:0;z-index:30;">
+  const navbarHtml = isSectionVisible(bp, 'navbar')
+    ? `<nav data-cuzmify-type="navbar" style="border-bottom:1px solid var(--cz-border);background:var(--cz-bg);backdrop-filter:blur(10px);position:sticky;top:0;z-index:30;">
       <div class="cz-ea-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <span data-cuzmify-field="business-name" class="brand-name cz-ea-serif" style="font-size:1.3rem;font-weight:700;letter-spacing:0.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(profile.name)}</span>
         <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
       </div>
-    </nav>
+    </nav>`
+    : '';
+
+  const html = `<div class="cz-ea-root" data-cuzmify-template="editorial-atelier">
+    ${navbarHtml}
 
     ${bodySections}
   </div>`;
@@ -1141,13 +1164,17 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
     ['hero', 'portfolio', 'services', 'custom', 'testimonials', 'faq', 'booking']
   );
 
-  const html = `<div class="cz-nr-root" data-cuzmify-template="noir-showcase">
-    <nav data-cuzmify-type="navbar" style="position:sticky;top:0;z-index:30;background:var(--cz-noir-bg);color:var(--cz-noir-text);border-bottom:1px solid rgba(255,255,255,0.1);">
+  const navbarHtml = isSectionVisible(bp, 'navbar')
+    ? `<nav data-cuzmify-type="navbar" style="position:sticky;top:0;z-index:30;background:var(--cz-noir-bg);color:var(--cz-noir-text);border-bottom:1px solid rgba(255,255,255,0.1);">
       <div class="cz-nr-container" style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <span data-cuzmify-field="business-name" class="brand-name cz-nr-display" style="font-size:1.05rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--cz-noir-text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(profile.name)}</span>
         <a data-cuzmify-field="primary-cta" href="#booking" style="padding:9px 18px;border-radius:10px;background:var(--cz-noir-accent);color:#09090B;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0;">${escapeHtml(primaryCta)}</a>
       </div>
-    </nav>
+    </nav>`
+    : '';
+
+  const html = `<div class="cz-nr-root" data-cuzmify-template="noir-showcase">
+    ${navbarHtml}
 
     ${bodySections}
   </div>`;
@@ -1336,8 +1363,8 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
     ['hero', 'services', 'portfolio', 'custom', 'testimonials', 'faq', 'booking']
   );
 
-  const html = `<div class="cz-ms-root" data-cuzmify-template="modern-studio">
-    <nav data-cuzmify-type="navbar" style="background:var(--cz-ms-card);border-bottom:1px solid var(--cz-ms-border);position:sticky;top:0;z-index:30;">
+  const navbarHtml = isSectionVisible(bp, 'navbar')
+    ? `<nav data-cuzmify-type="navbar" style="background:var(--cz-ms-card);border-bottom:1px solid var(--cz-ms-border);position:sticky;top:0;z-index:30;">
       <div class="cz-ms-container" style="height:60px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <div style="display:flex;align-items:center;gap:8px;min-width:0;">
           <span style="width:8px;height:8px;border-radius:999px;background:#10B981;flex-shrink:0;"></span>
@@ -1345,7 +1372,11 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
         </div>
         <a data-cuzmify-field="primary-cta" href="#booking" style="padding:8px 16px;border-radius:10px;background:var(--cz-ms-primary);color:#FFFFFF;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(primaryCta)}</a>
       </div>
-    </nav>
+    </nav>`
+    : '';
+
+  const html = `<div class="cz-ms-root" data-cuzmify-template="modern-studio">
+    ${navbarHtml}
 
     ${bodySections}
   </div>`;
@@ -1362,13 +1393,17 @@ export interface RenderedTemplateOutput {
   googleFontsUrl: string;
 }
 
-function applyTemplateSlotInjections(rootHtml: string, bp: BusinessBlueprint): string {
-  const inj = bp.injections;
+function applyTemplateSlotInjections(
+  rootHtml: string,
+  bp: BusinessBlueprint,
+  templateId: TemplateEngineId
+): string {
+  const inj = getActiveSlotInjections(templateId, bp);
   if (!inj) return rootHtml;
 
   let out = rootHtml;
 
-  const topBar = renderSlotHtml(bp, 'top_bar', 4000);
+  const topBar = renderSlotHtml(bp, 'top_bar', 4000, templateId);
   if (topBar) {
     out = out.replace(
       /(<div\b[^>]*data-cuzmify-template="[^"]*"[^>]*>)/i,
@@ -1376,7 +1411,7 @@ function applyTemplateSlotInjections(rootHtml: string, bp: BusinessBlueprint): s
     );
   }
 
-  const navActions = renderSlotHtml(bp, 'nav_actions', 3000);
+  const navActions = renderSlotHtml(bp, 'nav_actions', 3000, templateId);
   if (navActions) {
     out = out.replace(
       /(<nav\b[^>]*data-cuzmify-type="navbar"[\s\S]*?)(<\/div>\s*<\/nav>)/i,
@@ -1384,7 +1419,7 @@ function applyTemplateSlotInjections(rootHtml: string, bp: BusinessBlueprint): s
     );
   }
 
-  const heroCtaAfter = renderSlotHtml(bp, 'hero_cta_after', 3000);
+  const heroCtaAfter = renderSlotHtml(bp, 'hero_cta_after', 3000, templateId);
   if (heroCtaAfter) {
     out = out.replace(
       /(<div\b[^>]*class="[^"]*cz-hero-actions[^"]*"[^>]*>[\s\S]*?)(<\/div>)/i,
@@ -1393,8 +1428,8 @@ function applyTemplateSlotInjections(rootHtml: string, bp: BusinessBlueprint): s
   }
 
   const wrapSection = (secId: string, aboveSlot: BlueprintSlotId, belowSlot: BlueprintSlotId) => {
-    const above = renderSlotHtml(bp, aboveSlot, 4000);
-    const below = renderSlotHtml(bp, belowSlot, 4000);
+    const above = renderSlotHtml(bp, aboveSlot, 4000, templateId);
+    const below = renderSlotHtml(bp, belowSlot, 4000, templateId);
     if (!above && !below) return;
     const re = new RegExp(`(<section\\b[^>]*\\bid="${secId}"[^>]*>[\\s\\S]*?<\\/section>)`, 'i');
     out = out.replace(
@@ -1407,7 +1442,7 @@ function applyTemplateSlotInjections(rootHtml: string, bp: BusinessBlueprint): s
   wrapSection('services', 'services_above', 'services_below');
   wrapSection('booking', 'booking_above', 'booking_below');
 
-  const footer = renderSlotHtml(bp, 'footer', 6000);
+  const footer = renderSlotHtml(bp, 'footer', 6000, templateId);
   if (footer) {
     const lastDivIdx = out.lastIndexOf('</div>');
     if (lastDivIdx !== -1) {
@@ -1439,7 +1474,7 @@ export function renderTemplateEngine(
 
   const overrideCss = buildDesignOverrideCss(templateId, blueprint);
   const combinedCss = [rendered.css, overrideCss].filter(Boolean).join('\n');
-  const injectedHtml = applyTemplateSlotInjections(rendered.html, blueprint);
+  const injectedHtml = applyTemplateSlotInjections(rendered.html, blueprint, templateId);
 
   return {
     templateId,

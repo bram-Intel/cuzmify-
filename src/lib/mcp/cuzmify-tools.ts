@@ -1305,17 +1305,26 @@ export function executeBlueprintMcpTool(
         };
       }
       const typedSlot = slot as BlueprintSlotId;
-      const nextInjections: Partial<Record<BlueprintSlotId, string>> = { ...(bp.injections || {}) };
+      const activeTpl = resolveTemplateEngineId(bp.templateId);
+      const scopedInjMap: Record<string, Partial<Record<BlueprintSlotId, string>>> = {
+        ...(bp.templateInjections || {}),
+      };
+      const baseActiveInj =
+        scopedInjMap[activeTpl] ||
+        (bp.templateInjections ? {} : { ...(bp.injections || {}) });
+      const nextInjections: Partial<Record<BlueprintSlotId, string>> = { ...baseActiveInj };
 
       if (args.clear === true) {
         delete nextInjections[typedSlot];
+        scopedInjMap[activeTpl] = nextInjections;
+        bp.templateInjections = scopedInjMap;
         bp.injections = nextInjections;
         bp.updatedAt = new Date().toISOString();
         return {
           ok: true,
           blueprint: bp,
-          changeSummary: `Cleared injection slot "${typedSlot}"`,
-          data: { slot: typedSlot, activeInjections: Object.keys(nextInjections) },
+          changeSummary: `Cleared injection slot "${typedSlot}" for ${TEMPLATE_ENGINES[activeTpl].name}`,
+          data: { templateId: activeTpl, slot: typedSlot, activeInjections: Object.keys(nextInjections) },
         };
       }
 
@@ -1331,30 +1340,30 @@ export function executeBlueprintMcpTool(
 
       if (rawHtml) {
         nextInjections[typedSlot] = rawHtml;
+        scopedInjMap[activeTpl] = nextInjections;
+        bp.templateInjections = scopedInjMap;
         bp.injections = nextInjections;
       }
 
       if (rawCss) {
-        const activeTpl = bp.templateId || 'editorial-atelier';
-        const prevGlobalCss = bp.designOverrides?.customCss || '';
-        const nextGlobalCss = [prevGlobalCss, rawCss].filter(Boolean).join('\n').slice(0, 6000);
-        bp.designOverrides = { ...(bp.designOverrides || {}), customCss: nextGlobalCss };
-
         const prevTplOverrides = bp.templateDesignOverrides?.[activeTpl] || {};
         const prevTplCss = prevTplOverrides.customCss || '';
         const nextTplCss = [prevTplCss, rawCss].filter(Boolean).join('\n').slice(0, 6000);
+        const nextOv = { ...prevTplOverrides, customCss: nextTplCss };
         bp.templateDesignOverrides = {
           ...(bp.templateDesignOverrides || {}),
-          [activeTpl]: { ...prevTplOverrides, customCss: nextTplCss },
+          [activeTpl]: nextOv,
         };
+        bp.designOverrides = nextOv;
       }
 
       bp.updatedAt = new Date().toISOString();
       return {
         ok: true,
         blueprint: bp,
-        changeSummary: `Injected content into immutable slot "${typedSlot}"`,
+        changeSummary: `Injected content into "${typedSlot}" for ${TEMPLATE_ENGINES[activeTpl].name}`,
         data: {
+          templateId: activeTpl,
           slot: typedSlot,
           activeInjections: Object.keys(nextInjections),
           cssApplied: Boolean(rawCss),
@@ -1703,12 +1712,21 @@ export function executeBlueprintMcpTool(
       const prevTpl = resolveTemplateEngineId(bp.templateId);
       const resolved = resolveTemplateEngineId(String(args.templateId || 'editorial-atelier'));
       const scopedMap: Record<string, TemplateDesignOverrides> = { ...(bp.templateDesignOverrides || {}) };
+      const scopedInjMap: Record<string, Partial<Record<BlueprintSlotId, string>>> = {
+        ...(bp.templateInjections || {}),
+      };
       if (prevTpl !== resolved) {
         if (bp.designOverrides && Object.keys(bp.designOverrides).length > 0 && !scopedMap[prevTpl]) {
           scopedMap[prevTpl] = { ...bp.designOverrides };
         }
         bp.templateDesignOverrides = scopedMap;
         bp.designOverrides = scopedMap[resolved] ? { ...scopedMap[resolved] } : {};
+
+        if (bp.injections && Object.keys(bp.injections).length > 0 && !scopedInjMap[prevTpl]) {
+          scopedInjMap[prevTpl] = { ...bp.injections };
+        }
+        bp.templateInjections = scopedInjMap;
+        bp.injections = scopedInjMap[resolved] ? { ...scopedInjMap[resolved] } : {};
       }
       bp.templateId = resolved;
       bp.updatedAt = new Date().toISOString();

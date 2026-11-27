@@ -65,9 +65,42 @@ const MemoizedMobileSiteHtml = React.memo(function MemoizedMobileSiteHtml({
   onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }) {
+  const internalRef = useRef<HTMLDivElement | null>(null);
+
+  const assignRef = (node: HTMLDivElement | null) => {
+    internalRef.current = node;
+    if (rootRef) {
+      rootRef.current = node;
+    }
+  };
+
+  // Ensure mobile browsers / iOS Safari auto-start muted inline video loops after dangerouslySetInnerHTML
+  React.useEffect(() => {
+    const container = internalRef.current;
+    if (!container) return;
+    const videos = Array.from(container.querySelectorAll('video'));
+    const cleanups: Array<() => void> = [];
+    for (const v of videos) {
+      v.muted = true;
+      v.defaultMuted = true;
+      v.playsInline = true;
+      v.loop = true;
+      v.autoplay = true;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      const tryPlay = () => {
+        if (v.paused) void v.play().catch(() => {});
+      };
+      tryPlay();
+      v.addEventListener('loadeddata', tryPlay);
+      cleanups.push(() => v.removeEventListener('loadeddata', tryPlay));
+    }
+    return () => cleanups.forEach((fn) => fn());
+  }, [html]);
+
   return (
     <div
-      ref={rootRef}
+      ref={assignRef}
       className={className}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -234,9 +267,10 @@ export function MobilePreviewPane() {
 
     if (rawTarget.closest('input, select, textarea')) return;
 
-    // 1. Single-tap on an image opens the Vault image swap sheet immediately
+    // 1. Single-tap on an image or video opens the Vault media swap sheet immediately
     const imgEl = findClickedImage(rawTarget);
     if (imgEl) {
+      e.preventDefault();
       e.stopPropagation();
       const target = resolveMobileImageTarget(imgEl, activeBp);
       setActiveTextTarget(null);
@@ -758,6 +792,7 @@ export function MobilePreviewPane() {
                         loop
                         autoPlay
                         playsInline
+                        controls
                         className="w-full h-full object-cover"
                       />
                     ) : (

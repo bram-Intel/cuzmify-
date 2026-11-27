@@ -102,8 +102,8 @@ export function renderSmartMediaHtml(opts: SmartMediaRenderOptions): string {
       opts.poster && !isVideoMediaUrl(opts.poster)
         ? ` poster="${escapeAttr(opts.poster)}"`
         : '';
-    const showControls = opts.controls !== false && !opts.heroBackground;
-    const playbackAttrs = `autoplay muted loop playsinline preload="metadata"${showControls ? ' controls' : ''}`;
+    const showControls = opts.controls === true && !opts.heroBackground;
+    const playbackAttrs = `autoplay muted loop playsinline preload="auto"${showControls ? ' controls' : ''}`;
     const ariaAttr = opts.alt ? ` aria-label="${escapeAttr(opts.alt)}"` : '';
     const styleAttr = opts.style ? ` style="${escapeAttr(opts.style)}"` : '';
     return `<video ${commonAttrs} src="${escapeAttr(src)}"${posterAttr} ${playbackAttrs}${ariaAttr}${styleAttr}></video>`;

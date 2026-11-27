@@ -5,6 +5,7 @@ import {
 } from '@/core/blueprint-schema';
 import {
   TEMPLATE_ENGINES,
+  getActiveSlotInjections,
   renderTemplateEngine,
   resolveTemplateEngineId,
   type TemplateEngineId,
@@ -395,7 +396,8 @@ export function inspectRenderedSite(bp: BusinessBlueprint, siteMeta?: SiteAccoun
     areaServed: seoCfg.areaServed || bp.profile.city || null,
   };
 
-  const activeInjections = Object.entries(bp.injections || {})
+  const activeInjMap = getActiveSlotInjections(templateId, bp) || {};
+  const activeInjections = Object.entries(activeInjMap)
     .filter(([, val]) => typeof val === 'string' && val.trim().length > 0)
     .map(([slot, val]) => ({ slot, chars: String(val).length }));
 
