@@ -148,6 +148,12 @@ export async function POST(req: Request) {
       return unauthorizedResponse(rpcId, 'invalid_token', origin);
     }
 
+    // Require valid OAuth 2.1 / Bearer authentication on ALL MCP methods (including initialize)
+    // so Claude, ChatGPT, and MCP Inspector immediately receive 401 + WWW-Authenticate resource_metadata.
+    if (authRes.status !== 'authenticated') {
+      return unauthorizedResponse(rpcId, 'unauthenticated', origin);
+    }
+
     if (method === 'initialize') {
       return NextResponse.json(
         {
@@ -169,11 +175,6 @@ export async function POST(req: Request) {
 
     if (method === 'notifications/initialized' || method === 'ping') {
       return NextResponse.json({ jsonrpc: '2.0', id: rpcId, result: {} }, { headers: MCP_CORS_HEADERS });
-    }
-
-    // Require valid authentication before listing or calling tools
-    if (authRes.status !== 'authenticated') {
-      return unauthorizedResponse(rpcId, 'unauthenticated', origin);
     }
     const userId = authRes.userId;
 
