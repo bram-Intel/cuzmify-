@@ -14,6 +14,7 @@ import {
   isAllowedMcpOrigin,
   verifyUserMcpToken,
 } from '@/lib/mcp/mcp-auth';
+import { MCP_CORS_HEADERS } from '@/lib/mcp/mcp-oauth';
 
 type McpAuthResult =
   | { status: 'authenticated'; userId: string }
@@ -58,7 +59,12 @@ function forbiddenOriginResponse(rpcId: string | number | null = null) {
   );
 }
 
-function unauthorizedResponse(rpcId: string | number | null, reason: 'invalid_token' | 'unauthenticated') {
+function unauthorizedResponse(
+  rpcId: string | number | null,
+  reason: 'invalid_token' | 'unauthenticated',
+  origin?: string
+) {
+  const resourceMetadataUrl = `${origin || 'https://cuzmify.com'}/.well-known/oauth-protected-resource`;
   return NextResponse.json(
     {
       jsonrpc: '2.0',
@@ -67,55 +73,55 @@ function unauthorizedResponse(rpcId: string | number | null, reason: 'invalid_to
         code: -32001,
         message:
           reason === 'invalid_token'
-            ? 'Unauthorized: Invalid or malformed Bearer token.'
-            : 'Unauthorized: Provide a valid Authorization: Bearer czm_... token from /api/mcp/token.',
+            ? 'Unauthorized: Invalid or expired Bearer token.'
+            : 'Unauthorized: Sign in with Cuzmify OAuth 2.1 or provide a Bearer token from /api/mcp/token.',
       },
     },
     {
       status: 401,
       headers: {
-        'WWW-Authenticate': 'Bearer realm="cuzmify-mcp"',
+        ...MCP_CORS_HEADERS,
+        'WWW-Authenticate': `Bearer realm="cuzmify-mcp", resource_metadata="${resourceMetadataUrl}"`,
       },
     }
   );
 }
 
-/** Public MCP server discovery endpoint (requires auth for full tool definitions) */
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: MCP_CORS_HEADERS });
+}
+
+/** Public MCP server discovery endpoint (returns 401 + resource_metadata when unauthenticated for OAuth 2.1 clients) */
 export async function GET(req: Request) {
   if (!isAllowedMcpOrigin(req.headers.get('origin'), req.url)) {
     return forbiddenOriginResponse(null);
   }
 
+  const origin = new URL(req.url).origin;
   const authRes = await authenticateMcpRequest(req);
   if (authRes.status === 'invalid_token') {
-    return unauthorizedResponse(null, 'invalid_token');
+    return unauthorizedResponse(null, 'invalid_token', origin);
   }
 
-  const origin = new URL(req.url).origin;
   if (authRes.status === 'unauthenticated') {
-    return NextResponse.json({
+    return unauthorizedResponse(null, 'unauthenticated', origin);
+  }
+
+  return NextResponse.json(
+    {
       name: 'cuzmify-mcp',
+      title: 'Cuzmify Website Studio',
       version: '1.0.0',
       protocolVersion: '2025-03-26',
       transport: 'streamable-http-jsonrpc',
       endpoint: `${origin}/api/mcp`,
       tokenEndpoint: `${origin}/api/mcp/token`,
+      oauthMetadata: `${origin}/.well-known/oauth-protected-resource`,
       authRequired: true,
-      auth: 'Bearer token (generate via GET /api/mcp/token while signed in) or active same-origin Cuzmify session cookie',
-      toolsCount: CUZMIFY_MCP_TOOLS.length,
-    });
-  }
-
-  return NextResponse.json({
-    name: 'cuzmify-mcp',
-    version: '1.0.0',
-    protocolVersion: '2025-03-26',
-    transport: 'streamable-http-jsonrpc',
-    endpoint: `${origin}/api/mcp`,
-    tokenEndpoint: `${origin}/api/mcp/token`,
-    authRequired: true,
-    tools: CUZMIFY_MCP_TOOLS,
-  });
+      tools: CUZMIFY_MCP_TOOLS,
+    },
+    { headers: MCP_CORS_HEADERS }
+  );
 }
 
 /**
@@ -136,33 +142,38 @@ export async function POST(req: Request) {
     const method = String(body?.method || '');
     const params = body?.params || {};
 
+    const origin = new URL(req.url).origin;
     const authRes = await authenticateMcpRequest(req);
     if (authRes.status === 'invalid_token') {
-      return unauthorizedResponse(rpcId, 'invalid_token');
+      return unauthorizedResponse(rpcId, 'invalid_token', origin);
     }
 
     if (method === 'initialize') {
-      return NextResponse.json({
-        jsonrpc: '2.0',
-        id: rpcId,
-        result: {
-          protocolVersion: '2025-03-26',
-          capabilities: { tools: {} },
-          serverInfo: {
-            name: 'cuzmify-mcp',
-            version: '1.0.0',
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: rpcId,
+          result: {
+            protocolVersion: '2025-03-26',
+            capabilities: { tools: {} },
+            serverInfo: {
+              name: 'cuzmify-mcp',
+              title: 'Cuzmify Website Studio',
+              version: '1.0.0',
+            },
           },
         },
-      });
+        { headers: MCP_CORS_HEADERS }
+      );
     }
 
     if (method === 'notifications/initialized' || method === 'ping') {
-      return NextResponse.json({ jsonrpc: '2.0', id: rpcId, result: {} });
+      return NextResponse.json({ jsonrpc: '2.0', id: rpcId, result: {} }, { headers: MCP_CORS_HEADERS });
     }
 
     // Require valid authentication before listing or calling tools
     if (authRes.status !== 'authenticated') {
-      return unauthorizedResponse(rpcId, 'unauthenticated');
+      return unauthorizedResponse(rpcId, 'unauthenticated', origin);
     }
     const userId = authRes.userId;
 

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
+import { verifyMcpOAuthAccessToken } from './mcp-oauth';
 
 function getMcpSigningSecret(): string {
   return process.env.FOUNDER_ADMIN_SECRET || process.env.NEXTAUTH_SECRET || 'cuzmify-mcp-signing-secret';
@@ -29,6 +30,9 @@ export function generateUserMcpToken(userId: string): string {
 
 export function verifyUserMcpToken(token: string): string | null {
   const clean = token.trim();
+  if (clean.startsWith('czo_')) {
+    return verifyMcpOAuthAccessToken(clean)?.userId || null;
+  }
   if (!clean.startsWith('czm_') || !clean.includes('.')) return null;
   const body = clean.slice(4);
   const dotIdx = body.lastIndexOf('.');
@@ -62,6 +66,16 @@ export function isAllowedMcpOrigin(originHeader: string | null, requestUrl: stri
     if (trimmed === reqOrigin) return true;
     if (TRUSTED_MCP_ORIGINS.has(trimmed)) return true;
     const parsedOrigin = new URL(trimmed);
+    if (
+      parsedOrigin.protocol === 'https:' &&
+      (parsedOrigin.hostname.endsWith('.openai.com') ||
+        parsedOrigin.hostname.endsWith('.chatgpt.com') ||
+        parsedOrigin.hostname.endsWith('.claude.ai') ||
+        parsedOrigin.hostname.endsWith('.anthropic.com') ||
+        parsedOrigin.hostname.endsWith('.cuzmify.com'))
+    ) {
+      return true;
+    }
     if (
       (parsedOrigin.hostname === 'localhost' || parsedOrigin.hostname === '127.0.0.1') &&
       (parsedOrigin.protocol === 'http:' || parsedOrigin.protocol === 'https:')

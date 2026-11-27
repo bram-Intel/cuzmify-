@@ -14,6 +14,17 @@ import {
   isAllowedMcpOrigin,
   verifyUserMcpToken,
 } from '@/lib/mcp/mcp-auth';
+import {
+  issueMcpOAuthAccessToken,
+  issueMcpOAuthCode,
+  issueMcpOAuthRefreshToken,
+  registerDynamicMcpClient,
+  verifyAndConsumeMcpOAuthCode,
+  verifyMcpOAuthRefreshToken,
+  verifyPkceS256,
+  verifyRegisteredMcpClient,
+} from '@/lib/mcp/mcp-oauth';
+import { createHash } from 'crypto';
 import { buildPublicSiteJsonLd, buildPublicSiteMetadata } from '@/lib/seo-metadata';
 import {
   getAssetPosterUrl,
@@ -698,5 +709,63 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     legacyBp.injections = { footer: '<div>Legacy Ivory Footer</div>' };
     expect(renderTemplateEngine('editorial-atelier', legacyBp).fullHtml).toContain('Legacy Ivory Footer');
     expect(renderTemplateEngine('noir-showcase', legacyBp).fullHtml).not.toContain('Legacy Ivory Footer');
+  });
+
+  it('supports MCP OAuth 2.1 Dynamic Client Registration, PKCE S256, code exchange, refresh tokens, and ChatGPT/Claude origins', () => {
+    const dcr = registerDynamicMcpClient({
+      client_name: 'ChatGPT Connector',
+      redirect_uris: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    });
+    expect(dcr.ok).toBe(true);
+    if (!dcr.ok) return;
+
+    const meta = verifyRegisteredMcpClient(dcr.clientId);
+    expect(meta?.clientName).toBe('ChatGPT Connector');
+    expect(meta?.redirectUris).toContain('https://chatgpt.com/connector_platform_oauth_redirect');
+
+    const verifier = 'cuzmify_pkce_verifier_secret_value_1234567890';
+    const challenge = createHash('sha256')
+      .update(verifier)
+      .digest('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+
+    expect(verifyPkceS256(verifier, challenge)).toBe(true);
+    expect(verifyPkceS256('wrong_verifier', challenge)).toBe(false);
+
+    const code = issueMcpOAuthCode({
+      userId: 'user_oauth_99',
+      clientId: dcr.clientId,
+      redirectUri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      codeChallenge: challenge,
+      scope: 'mcp:read mcp:write',
+    });
+
+    const badExchange = verifyAndConsumeMcpOAuthCode({
+      code,
+      clientId: dcr.clientId,
+      redirectUri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      codeVerifier: 'wrong_verifier',
+    });
+    expect(badExchange).toBeNull();
+
+    const okExchange = verifyAndConsumeMcpOAuthCode({
+      code,
+      clientId: dcr.clientId,
+      redirectUri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      codeVerifier: verifier,
+    });
+    expect(okExchange?.userId).toBe('user_oauth_99');
+
+    const oauthAccess = issueMcpOAuthAccessToken(okExchange!.userId, okExchange!.scope, okExchange!.clientId);
+    expect(verifyUserMcpToken(oauthAccess)).toBe('user_oauth_99');
+
+    const oauthRefresh = issueMcpOAuthRefreshToken(okExchange!.userId, okExchange!.scope, okExchange!.clientId);
+    expect(verifyMcpOAuthRefreshToken(oauthRefresh)?.userId).toBe('user_oauth_99');
+
+    expect(isAllowedMcpOrigin('https://claude.ai', 'https://cuzmify.com/api/mcp')).toBe(true);
+    expect(isAllowedMcpOrigin('https://platform.openai.com', 'https://cuzmify.com/api/mcp')).toBe(true);
+    expect(isAllowedMcpOrigin('https://cuzmify.com', 'https://cuzmify.com/api/mcp')).toBe(true);
   });
 });
