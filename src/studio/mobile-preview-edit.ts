@@ -2,6 +2,7 @@ import type { BlueprintSlotId, BusinessBlueprint, MediaVaultAsset } from '@/core
 import {
   getActiveSlotInjections,
   resolveTemplateEngineId,
+  type TemplateEngineId,
 } from '@/core/template-engines';
 import {
   getAssetRenderSource,
@@ -54,6 +55,7 @@ export type MobileTextTarget =
   | {
       kind: 'slot_text';
       slot: BlueprintSlotId;
+      templateId?: TemplateEngineId;
       originalText: string;
       occurrenceIndex: number;
       label: string;
@@ -67,6 +69,24 @@ export type MobileTextTarget =
       itemIndex?: number;
       originalText?: string;
       occurrenceIndex?: number;
+      label: string;
+      value: string;
+      multiline: boolean;
+    }
+  | {
+      kind: 'faq';
+      faqId?: string;
+      itemIndex: number;
+      part: 'question' | 'answer';
+      label: string;
+      value: string;
+      multiline: boolean;
+    }
+  | {
+      kind: 'testimonial';
+      testimonialId?: string;
+      itemIndex: number;
+      part: 'quote' | 'clientName';
       label: string;
       value: string;
       multiline: boolean;
@@ -347,31 +367,82 @@ export function replaceTextInHtmlFragment(
 
 /**
  * Finds the nearest inline-editable text element on Mobile Studio, supporting standard
- * `[data-cuzmify-field]` elements as well as AI-injected slots (`[data-cuzmify-slot="footer"]`, etc.)
- * and `custom-section` blocks.
+ * `[data-cuzmify-field]` elements, FAQs, Testimonials, Custom Sections, and AI-injected slots
+ * (`[data-cuzmify-slot="footer"]`, etc.), including slight thumb-padding misses on wrapper cards.
  */
-export function findEditableMobileTextElement(el: HTMLElement | null): HTMLElement | null {
+export function findEditableMobileTextElement(
+  el: HTMLElement | null,
+  point?: { clientX: number; clientY: number }
+): HTMLElement | null {
   if (!el) return null;
   const fieldEl = el.closest('[data-cuzmify-field]') as HTMLElement | null;
   if (fieldEl) return fieldEl;
 
-  const container = el.closest('[data-cuzmify-slot], section[data-cuzmify-type="custom-section"]') as HTMLElement | null;
+  // If thumb landed on card/row padding right next to `[data-cuzmify-field]` children, snap to nearest child
+  const childFields = Array.from(el.querySelectorAll('[data-cuzmify-field]')) as HTMLElement[];
+  if (childFields.length > 0 && childFields.length <= 4) {
+    if (childFields.length === 1) return childFields[0];
+    if (point && typeof childFields[0].getBoundingClientRect === 'function') {
+      let best: HTMLElement | null = null;
+      let bestDist = Infinity;
+      for (const cand of childFields) {
+        const rect = cand.getBoundingClientRect();
+        const dy = point.clientY < rect.top ? rect.top - point.clientY : point.clientY > rect.bottom ? point.clientY - rect.bottom : 0;
+        const dx = point.clientX < rect.left ? rect.left - point.clientX : point.clientX > rect.right ? point.clientX - rect.right : 0;
+        const dist = Math.hypot(dx, dy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = cand;
+        }
+      }
+      if (best && bestDist <= 40) return best;
+    }
+  }
+
+  const container = el.closest(
+    '[data-cuzmify-slot], section[data-cuzmify-type="custom-section"], section[data-cuzmify-type="faq"], section[data-cuzmify-type="testimonials"]'
+  ) as HTMLElement | null;
   if (!container) return null;
+
+  const isLeafEditableNode = (node: HTMLElement): boolean => {
+    const tag = node.tagName?.toUpperCase() || '';
+    if (NON_TEXT_TAGS.has(tag)) return false;
+    const text = normalizeInlineText(node.textContent || '');
+    if (text.length === 0 || text.length > 420) return false;
+    const hasBlockDescendants = Boolean(
+      node.querySelector('div, section, ul, ol, table, form, header, nav, footer, h1, h2, h3, h4, p')
+    );
+    return node.children.length === 0 || (INLINE_PHRASING_TAGS.has(tag) && !hasBlockDescendants);
+  };
 
   let curr: HTMLElement | null = el;
   while (curr && container.contains(curr)) {
     const tag = curr.tagName?.toUpperCase() || '';
     if (NON_TEXT_TAGS.has(tag)) return null;
+    if (isLeafEditableNode(curr)) return curr;
 
-    const text = normalizeInlineText(curr.textContent || '');
-    if (text.length > 0 && text.length <= 360) {
-      const hasBlockDescendants = Boolean(
-        curr.querySelector('div, section, ul, ol, table, form, header, nav, footer, h1, h2, h3, h4, p')
-      );
-      if (curr.children.length === 0 || (INLINE_PHRASING_TAGS.has(tag) && !hasBlockDescendants)) {
-        return curr;
-      }
+    // If user tapped a compact wrapper div (e.g. `.cz-ea-footer-cta-wrap`, `.cz-ea-footer-bottom`, or card wrapper),
+    // pick its single editable child or closest editable child within 36px of the tap coordinate.
+    const leafDescendants = (Array.from(curr.querySelectorAll('*')) as HTMLElement[]).filter(isLeafEditableNode);
+    if (leafDescendants.length === 1) {
+      return leafDescendants[0];
     }
+    if (leafDescendants.length > 1 && leafDescendants.length <= 6 && point) {
+      let nearest: HTMLElement | null = null;
+      let nearestDist = Infinity;
+      for (const cand of leafDescendants) {
+        const rect = cand.getBoundingClientRect();
+        const dy = point.clientY < rect.top ? rect.top - point.clientY : point.clientY > rect.bottom ? point.clientY - rect.bottom : 0;
+        const dx = point.clientX < rect.left ? rect.left - point.clientX : point.clientX > rect.right ? point.clientX - rect.right : 0;
+        const dist = Math.hypot(dx, dy);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = cand;
+        }
+      }
+      if (nearest && nearestDist <= 36) return nearest;
+    }
+
     if (curr === container) break;
     curr = curr.parentElement;
   }
@@ -384,12 +455,54 @@ function formatSlotLabel(slot: string): string {
   return clean ? `${clean.charAt(0).toUpperCase() + clean.slice(1)} Text` : 'Section Text';
 }
 
+function resolveRenderedSlotHtml(
+  bp: BusinessBlueprint,
+  slot: BlueprintSlotId,
+  domTemplateAttr?: string | null,
+  activeTemplateHint?: string | null
+): { html: string; resolvedTemplateId: TemplateEngineId } | null {
+  const candidates: TemplateEngineId[] = [];
+  if (domTemplateAttr) candidates.push(resolveTemplateEngineId(domTemplateAttr));
+  if (activeTemplateHint) candidates.push(resolveTemplateEngineId(activeTemplateHint));
+  if (bp.templateId) candidates.push(resolveTemplateEngineId(bp.templateId));
+  for (const k of Object.keys(bp.templateInjections || {})) {
+    candidates.push(resolveTemplateEngineId(k));
+  }
+
+  const seen = new Set<TemplateEngineId>();
+  for (const tpl of candidates) {
+    if (seen.has(tpl)) continue;
+    seen.add(tpl);
+    const scoped = bp.templateInjections?.[tpl]?.[slot];
+    if (typeof scoped === 'string' && scoped.trim()) {
+      return { html: scoped, resolvedTemplateId: tpl };
+    }
+    const activeInj = getActiveSlotInjections(tpl, bp)?.[slot];
+    if (typeof activeInj === 'string' && activeInj.trim()) {
+      return { html: activeInj, resolvedTemplateId: tpl };
+    }
+  }
+
+  if (typeof bp.injections?.[slot] === 'string' && bp.injections[slot]!.trim()) {
+    const fallbackTpl = candidates[0] || resolveTemplateEngineId(bp.templateId);
+    return { html: bp.injections[slot]!, resolvedTemplateId: fallbackTpl };
+  }
+
+  return null;
+}
+
 /**
  * Resolves a double-tapped text element inside the mobile preview to a blueprint field,
- * AI-injected slot text node, or custom section field.
+ * FAQ, Testimonial, Custom Section, or AI-injected slot text node.
  */
-export function resolveMobileTextTarget(el: HTMLElement, bp: BusinessBlueprint): MobileTextTarget | null {
-  const fieldEl = el.closest('[data-cuzmify-field]') as HTMLElement | null;
+export function resolveMobileTextTarget(
+  el: HTMLElement,
+  bp: BusinessBlueprint,
+  activeTemplateId?: string,
+  point?: { clientX: number; clientY: number }
+): MobileTextTarget | null {
+  const resolvedCandidate = findEditableMobileTextElement(el, point) || el;
+  const fieldEl = resolvedCandidate.closest('[data-cuzmify-field]') as HTMLElement | null;
   if (fieldEl) {
     const field = fieldEl.getAttribute('data-cuzmify-field') || '';
     const rawText = (fieldEl.textContent || '').trim();
@@ -402,6 +515,135 @@ export function resolveMobileTextTarget(el: HTMLElement, bp: BusinessBlueprint):
         value: bp.profile.name || rawText,
         multiline: false,
       };
+    }
+
+    // Custom Section explicit `[data-cuzmify-field="custom-*"]` hooks
+    if (field.startsWith('custom-')) {
+      const secEl = fieldEl.closest('section[data-cuzmify-type="custom-section"]') as HTMLElement | null;
+      const sectionId =
+        secEl?.getAttribute('data-cuzmify-section-id') || secEl?.getAttribute('id') || '';
+      const sec = (bp.customSections || []).find((s) => s.id === sectionId);
+      if (sec) {
+        const idxAttr =
+          fieldEl.getAttribute('data-cuzmify-item-index') ??
+          fieldEl.closest('[data-cuzmify-item-index]')?.getAttribute('data-cuzmify-item-index');
+        const itemIdx = idxAttr !== null && idxAttr !== undefined ? parseInt(idxAttr, 10) : -1;
+
+        if (field === 'custom-title') {
+          return {
+            kind: 'custom_section',
+            sectionId,
+            part: 'title',
+            label: 'Section Heading',
+            value: sec.title || rawText,
+            multiline: false,
+          };
+        }
+        if (field === 'custom-eyebrow') {
+          return {
+            kind: 'custom_section',
+            sectionId,
+            part: 'eyebrow',
+            label: 'Section Eyebrow',
+            value: sec.eyebrow || rawText,
+            multiline: false,
+          };
+        }
+        if (field === 'custom-subtitle') {
+          return {
+            kind: 'custom_section',
+            sectionId,
+            part: 'subtitle',
+            label: 'Section Subtitle',
+            value: sec.subtitle || rawText,
+            multiline: true,
+          };
+        }
+        if (field === 'custom-cta') {
+          return {
+            kind: 'custom_section',
+            sectionId,
+            part: 'ctaText',
+            label: 'Button Label',
+            value: sec.ctaText || rawText.replace(/\s*→\s*$/, '').trim(),
+            multiline: false,
+          };
+        }
+        if (field === 'custom-item-label' && itemIdx >= 0 && sec.items?.[itemIdx]) {
+          return {
+            kind: 'custom_section',
+            sectionId,
+            part: 'item_label',
+            itemIndex: itemIdx,
+            label: 'Item Title',
+            value: sec.items[itemIdx].label || rawText.replace(/^✓\s*/, '').trim(),
+            multiline: false,
+          };
+        }
+        if (field === 'custom-item-detail' && itemIdx >= 0 && sec.items?.[itemIdx]) {
+          return {
+            kind: 'custom_section',
+            sectionId,
+            part: 'item_detail',
+            itemIndex: itemIdx,
+            label: 'Item Description',
+            value: sec.items[itemIdx].detail || rawText,
+            multiline: true,
+          };
+        }
+      }
+    }
+
+    // FAQ explicit `[data-cuzmify-field="faq-question" | "faq-answer"]` hooks
+    if (field === 'faq-question' || field === 'faq-answer') {
+      const idxAttr =
+        fieldEl.getAttribute('data-cuzmify-item-index') ??
+        fieldEl.closest('[data-cuzmify-item-index]')?.getAttribute('data-cuzmify-item-index');
+      const targetId =
+        fieldEl.closest('[data-cuzmify-target-id]')?.getAttribute('data-cuzmify-target-id') || undefined;
+      const faqs = bp.faqs || [];
+      let itemIndex = idxAttr !== null && idxAttr !== undefined ? parseInt(idxAttr, 10) : -1;
+      if ((Number.isNaN(itemIndex) || itemIndex < 0) && targetId) {
+        itemIndex = faqs.findIndex((f) => f.id === targetId);
+      }
+      if (itemIndex >= 0 && faqs[itemIndex]) {
+        const faqItem = faqs[itemIndex];
+        return {
+          kind: 'faq',
+          faqId: faqItem.id || targetId,
+          itemIndex,
+          part: field === 'faq-question' ? 'question' : 'answer',
+          label: field === 'faq-question' ? 'FAQ Question' : 'FAQ Answer',
+          value: field === 'faq-question' ? faqItem.question : faqItem.answer,
+          multiline: field === 'faq-answer',
+        };
+      }
+    }
+
+    // Testimonial explicit `[data-cuzmify-field="testimonial-quote" | "testimonial-client"]` hooks
+    if (field === 'testimonial-quote' || field === 'testimonial-client') {
+      const idxAttr =
+        fieldEl.getAttribute('data-cuzmify-item-index') ??
+        fieldEl.closest('[data-cuzmify-item-index]')?.getAttribute('data-cuzmify-item-index');
+      const targetId =
+        fieldEl.closest('[data-cuzmify-target-id]')?.getAttribute('data-cuzmify-target-id') || undefined;
+      const list = bp.testimonials || [];
+      let itemIndex = idxAttr !== null && idxAttr !== undefined ? parseInt(idxAttr, 10) : -1;
+      if ((Number.isNaN(itemIndex) || itemIndex < 0) && targetId) {
+        itemIndex = list.findIndex((t) => t.id === targetId);
+      }
+      if (itemIndex >= 0 && list[itemIndex]) {
+        const tItem = list[itemIndex];
+        return {
+          kind: 'testimonial',
+          testimonialId: tItem.id || targetId,
+          itemIndex,
+          part: field === 'testimonial-quote' ? 'quote' : 'clientName',
+          label: field === 'testimonial-quote' ? 'Testimonial Quote' : 'Client Name',
+          value: field === 'testimonial-quote' ? tItem.quote : tItem.clientName,
+          multiline: field === 'testimonial-quote',
+        };
+      }
     }
 
     const serviceContainer = fieldEl.closest('[data-cuzmify-target-id]') as HTMLElement | null;
@@ -456,7 +698,7 @@ export function resolveMobileTextTarget(el: HTMLElement, bp: BusinessBlueprint):
     }
   }
 
-  const editableEl = findEditableMobileTextElement(el);
+  const editableEl = findEditableMobileTextElement(el, point);
   if (!editableEl) return null;
   const tappedText = normalizeInlineText(editableEl.textContent || '');
   if (!tappedText) return null;
@@ -465,10 +707,9 @@ export function resolveMobileTextTarget(el: HTMLElement, bp: BusinessBlueprint):
   const slotContainer = editableEl.closest('[data-cuzmify-slot]') as HTMLElement | null;
   if (slotContainer) {
     const slot = (slotContainer.getAttribute('data-cuzmify-slot') || 'footer') as BlueprintSlotId;
-    const activeTpl = resolveTemplateEngineId(bp.templateId);
-    const activeInj = getActiveSlotInjections(activeTpl, bp);
-    if (activeInj?.[slot]) {
-      // Count earlier leaf elements inside this slot sharing the exact same text
+    const domTpl = slotContainer.closest('[data-cuzmify-template]')?.getAttribute('data-cuzmify-template');
+    const resolvedSlot = resolveRenderedSlotHtml(bp, slot, domTpl, activeTemplateId);
+    if (resolvedSlot) {
       let occurrenceIndex = 0;
       const allDescendants = Array.from(slotContainer.querySelectorAll('*')) as HTMLElement[];
       for (const node of allDescendants) {
@@ -480,12 +721,42 @@ export function resolveMobileTextTarget(el: HTMLElement, bp: BusinessBlueprint):
       return {
         kind: 'slot_text',
         slot,
+        templateId: resolvedSlot.resolvedTemplateId,
         originalText: tappedText,
         occurrenceIndex,
         label: formatSlotLabel(slot),
         value: tappedText,
         multiline: tappedText.length > 60 || editableEl.tagName === 'P',
       };
+    }
+  }
+
+  // 3. Fallback text matching for legacy FAQ / Testimonial / Custom-HTML sections
+  const faqSecEl = editableEl.closest('section[data-cuzmify-type="faq"]') as HTMLElement | null;
+  if (faqSecEl && Array.isArray(bp.faqs)) {
+    for (let i = 0; i < bp.faqs.length; i++) {
+      if (normalizeInlineText(bp.faqs[i].question || '') === tappedText) {
+        return {
+          kind: 'faq',
+          faqId: bp.faqs[i].id,
+          itemIndex: i,
+          part: 'question',
+          label: 'FAQ Question',
+          value: bp.faqs[i].question,
+          multiline: false,
+        };
+      }
+      if (normalizeInlineText(bp.faqs[i].answer || '') === tappedText) {
+        return {
+          kind: 'faq',
+          faqId: bp.faqs[i].id,
+          itemIndex: i,
+          part: 'answer',
+          label: 'FAQ Answer',
+          value: bp.faqs[i].answer,
+          multiline: true,
+        };
+      }
     }
   }
 
@@ -625,8 +896,13 @@ export function applyMobileTextEdit(
   }
 
   if (target.kind === 'slot_text') {
-    const activeTpl = resolveTemplateEngineId(bp.templateId);
-    const currentHtml = bp.templateInjections?.[activeTpl]?.[target.slot] ?? bp.injections?.[target.slot] ?? '';
+    const resolvedSlot = resolveRenderedSlotHtml(bp, target.slot, target.templateId, bp.templateId);
+    const activeTpl = target.templateId || resolvedSlot?.resolvedTemplateId || resolveTemplateEngineId(bp.templateId);
+    const currentHtml =
+      bp.templateInjections?.[activeTpl]?.[target.slot] ??
+      resolvedSlot?.html ??
+      bp.injections?.[target.slot] ??
+      '';
     if (currentHtml && trimmed) {
       const { html: updatedHtml, replaced } = replaceTextInHtmlFragment(
         currentHtml,
@@ -635,7 +911,7 @@ export function applyMobileTextEdit(
         target.occurrenceIndex
       );
       if (replaced) {
-        const prevTplInj = bp.templateInjections?.[activeTpl] || (bp.injections ? { ...bp.injections } : {});
+        const prevTplInj = bp.templateInjections?.[activeTpl] || {};
         bp.templateInjections = {
           ...(bp.templateInjections || {}),
           [activeTpl]: {
@@ -643,7 +919,7 @@ export function applyMobileTextEdit(
             [target.slot]: updatedHtml,
           },
         };
-        if (bp.injections?.[target.slot] !== undefined) {
+        if (bp.injections?.[target.slot] !== undefined && (!bp.templateInjections || activeTpl === resolveTemplateEngineId(bp.templateId))) {
           bp.injections = {
             ...bp.injections,
             [target.slot]: updatedHtml,
@@ -651,6 +927,38 @@ export function applyMobileTextEdit(
         }
       }
     }
+    bp.updatedAt = new Date().toISOString();
+    return { blueprint: bp, summary: `Updated ${target.label}` };
+  }
+
+  if (target.kind === 'faq') {
+    bp.faqs = (bp.faqs || []).map((item, idx) => {
+      const isMatch = target.faqId ? item.id === target.faqId || idx === target.itemIndex : idx === target.itemIndex;
+      if (!isMatch) return item;
+      return {
+        ...item,
+        [target.part]: trimmed.slice(0, target.part === 'question' ? 180 : 600),
+      };
+    });
+    bp.updatedAt = new Date().toISOString();
+    return { blueprint: bp, summary: `Updated ${target.label}` };
+  }
+
+  if (target.kind === 'testimonial') {
+    bp.testimonials = (bp.testimonials || []).map((item, idx) => {
+      const isMatch = target.testimonialId
+        ? item.id === target.testimonialId || idx === target.itemIndex
+        : idx === target.itemIndex;
+      if (!isMatch) return item;
+      const cleanVal =
+        target.part === 'quote'
+          ? trimmed.replace(/^[“"]+|[”"]+$/g, '').slice(0, 420)
+          : trimmed.replace(/^—\s*/, '').slice(0, 90);
+      return {
+        ...item,
+        [target.part]: cleanVal,
+      };
+    });
     bp.updatedAt = new Date().toISOString();
     return { blueprint: bp, summary: `Updated ${target.label}` };
   }

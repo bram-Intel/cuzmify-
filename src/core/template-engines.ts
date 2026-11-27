@@ -356,7 +356,9 @@ function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateE
   return list
     .slice(0, 6)
     .map((sec) => {
-      const items = (sec.items || []).filter((i) => i.label?.trim() || i.detail?.trim());
+      const indexedItems = (sec.items || [])
+        .map((item, rawIdx) => ({ item, rawIdx }))
+        .filter(({ item }) => Boolean(item.label?.trim() || item.detail?.trim()));
       let bodyHtml = '';
 
       if (sec.layout === 'custom_html' && sec.html?.trim()) {
@@ -364,23 +366,23 @@ function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateE
       } else if (sec.layout === 'banner_cta') {
         bodyHtml = `<div style="padding:28px 24px;border-radius:20px;border:1px solid ${border};background:${surface};display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;">
           <div style="max-width:620px;">
-            ${sec.eyebrow ? `<span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
-            <h2 class="${headingCls}" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0;">${escapeHtml(sec.title)}</h2>
-            ${sec.subtitle ? `<p style="font-size:14px;color:${muted};line-height:1.6;margin:8px 0 0;">${escapeHtml(sec.subtitle)}</p>` : ''}
+            ${sec.eyebrow ? `<span data-cuzmify-field="custom-eyebrow" style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
+            <h2 data-cuzmify-field="custom-title" class="${headingCls}" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0;">${escapeHtml(sec.title)}</h2>
+            ${sec.subtitle ? `<p data-cuzmify-field="custom-subtitle" style="font-size:14px;color:${muted};line-height:1.6;margin:8px 0 0;">${escapeHtml(sec.subtitle)}</p>` : ''}
           </div>
-          ${sec.ctaText ? `<a href="${escapeHtml(sec.ctaHref || '#booking')}" style="padding:12px 22px;border-radius:999px;background:${accent};color:#FFFFFF;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(sec.ctaText)} →</a>` : ''}
+          ${sec.ctaText ? `<a data-cuzmify-field="custom-cta" href="${escapeHtml(sec.ctaHref || '#booking')}" style="padding:12px 22px;border-radius:999px;background:${accent};color:#FFFFFF;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(sec.ctaText)} →</a>` : ''}
         </div>`;
       } else if (sec.layout === 'checklist' || sec.layout === 'hours_info') {
         bodyHtml = `<div style="max-width:780px;margin:0 auto;">
-          ${sec.eyebrow ? `<span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
-          <h2 class="${headingCls}" style="font-size:clamp(1.5rem,3vw,2.1rem);font-weight:700;margin:0 0 8px;">${escapeHtml(sec.title)}</h2>
-          ${sec.subtitle ? `<p style="font-size:14px;color:${muted};line-height:1.6;margin:0 0 22px;">${escapeHtml(sec.subtitle)}</p>` : '<div style="height:14px;"></div>'}
+          ${sec.eyebrow ? `<span data-cuzmify-field="custom-eyebrow" style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
+          <h2 data-cuzmify-field="custom-title" class="${headingCls}" style="font-size:clamp(1.5rem,3vw,2.1rem);font-weight:700;margin:0 0 8px;">${escapeHtml(sec.title)}</h2>
+          ${sec.subtitle ? `<p data-cuzmify-field="custom-subtitle" style="font-size:14px;color:${muted};line-height:1.6;margin:0 0 22px;">${escapeHtml(sec.subtitle)}</p>` : '<div style="height:14px;"></div>'}
           <div style="display:flex;flex-direction:column;gap:10px;">
-            ${items
+            ${indexedItems
               .map(
-                (it) => `<div style="padding:14px 18px;border-radius:14px;border:1px solid ${border};background:${surface};display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between;">
-                  <strong style="font-size:14px;">${sec.layout === 'checklist' ? '✓ ' : ''}${escapeHtml(it.label)}</strong>
-                  ${it.detail ? `<span style="font-size:13px;color:${muted};">${escapeHtml(it.detail)}</span>` : ''}
+                ({ item: it, rawIdx }) => `<div data-cuzmify-item-index="${rawIdx}" style="padding:14px 18px;border-radius:14px;border:1px solid ${border};background:${surface};display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between;">
+                  <strong data-cuzmify-field="custom-item-label" data-cuzmify-item-index="${rawIdx}" style="font-size:14px;">${sec.layout === 'checklist' ? '✓ ' : ''}${escapeHtml(it.label)}</strong>
+                  ${it.detail ? `<span data-cuzmify-field="custom-item-detail" data-cuzmify-item-index="${rawIdx}" style="font-size:13px;color:${muted};">${escapeHtml(it.detail)}</span>` : ''}
                 </div>`
               )
               .join('')}
@@ -388,15 +390,15 @@ function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateE
         </div>`;
       } else {
         bodyHtml = `<div>
-          ${sec.eyebrow ? `<span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
-          <h2 class="${headingCls}" style="font-size:clamp(1.5rem,3vw,2.1rem);font-weight:700;margin:0 0 8px;">${escapeHtml(sec.title)}</h2>
-          ${sec.subtitle ? `<p style="font-size:14px;color:${muted};line-height:1.6;margin:0 0 24px;max-width:620px;">${escapeHtml(sec.subtitle)}</p>` : '<div style="height:16px;"></div>'}
+          ${sec.eyebrow ? `<span data-cuzmify-field="custom-eyebrow" style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${accent};font-weight:700;display:block;margin-bottom:6px;">${escapeHtml(sec.eyebrow)}</span>` : ''}
+          <h2 data-cuzmify-field="custom-title" class="${headingCls}" style="font-size:clamp(1.5rem,3vw,2.1rem);font-weight:700;margin:0 0 8px;">${escapeHtml(sec.title)}</h2>
+          ${sec.subtitle ? `<p data-cuzmify-field="custom-subtitle" style="font-size:14px;color:${muted};line-height:1.6;margin:0 0 24px;max-width:620px;">${escapeHtml(sec.subtitle)}</p>` : '<div style="height:16px;"></div>'}
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
-            ${items
+            ${indexedItems
               .map(
-                (it) => `<div style="padding:20px;border-radius:16px;border:1px solid ${border};background:${surface};">
-                  <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:${accent};">${escapeHtml(it.label)}</h3>
-                  ${it.detail ? `<p style="margin:0;font-size:13px;line-height:1.6;color:${muted};">${escapeHtml(it.detail)}</p>` : ''}
+                ({ item: it, rawIdx }) => `<div data-cuzmify-item-index="${rawIdx}" style="padding:20px;border-radius:16px;border:1px solid ${border};background:${surface};">
+                  <h3 data-cuzmify-field="custom-item-label" data-cuzmify-item-index="${rawIdx}" style="margin:0 0 6px;font-size:15px;font-weight:700;color:${accent};">${escapeHtml(it.label)}</h3>
+                  ${it.detail ? `<p data-cuzmify-field="custom-item-detail" data-cuzmify-item-index="${rawIdx}" style="margin:0;font-size:13px;line-height:1.6;color:${muted};">${escapeHtml(it.detail)}</p>` : ''}
                 </div>`
               )
               .join('')}
@@ -404,7 +406,7 @@ function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateE
         </div>`;
       }
 
-      return `<section id="${escapeHtml(sec.id)}" data-cuzmify-type="custom-section" style="padding:48px 0;border-top:1px solid ${border};">
+      return `<section id="${escapeHtml(sec.id)}" data-cuzmify-type="custom-section" data-cuzmify-section-id="${escapeHtml(sec.id)}" style="padding:48px 0;border-top:1px solid ${border};">
         <div class="${containerCls}">
           ${bodyHtml}
         </div>
@@ -432,8 +434,10 @@ function assembleOrderedSections(
 }
 
 function renderSharedTestimonialsSection(bp: BusinessBlueprint, isDark: boolean): string {
-  const items = (bp.testimonials || []).filter((t) => Boolean(t.quote?.trim() && t.clientName?.trim()));
-  if (items.length === 0 || !isSectionVisible(bp, 'testimonials')) return '';
+  const indexed = (bp.testimonials || [])
+    .map((item, rawIdx) => ({ item, rawIdx }))
+    .filter(({ item }) => Boolean(item.quote?.trim() && item.clientName?.trim()));
+  if (indexed.length === 0 || !isSectionVisible(bp, 'testimonials')) return '';
   const heading = bp.customCopy?.testimonialsHeading || 'Client Love';
   const border = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.1)';
   const cardBg = isDark ? 'var(--cz-noir-card, #141418)' : 'var(--cz-surface, #FFFFFF)';
@@ -442,12 +446,12 @@ function renderSharedTestimonialsSection(bp: BusinessBlueprint, isDark: boolean)
     <div style="max-width:1080px;margin:0 auto;padding:0 20px;box-sizing:border-box;">
       <h2 data-cuzmify-field="testimonials-heading" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0 0 24px;">${escapeHtml(heading)}</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
-        ${items
+        ${indexed
           .slice(0, 6)
           .map(
-            (t) => `<blockquote style="margin:0;padding:22px;border-radius:18px;border:1px solid ${border};background:${cardBg};display:flex;flex-direction:column;justify-content:space-between;gap:14px;">
-              <p style="margin:0;font-size:14px;line-height:1.65;">“${escapeHtml(t.quote)}”</p>
-              <footer style="font-size:12px;font-weight:700;color:${muted};">— ${escapeHtml(t.clientName)}${t.roleOrEvent ? ` • ${escapeHtml(t.roleOrEvent)}` : ''}</footer>
+            ({ item: t, rawIdx }) => `<blockquote data-cuzmify-target-id="${escapeHtml(t.id || '')}" data-cuzmify-item-index="${rawIdx}" style="margin:0;padding:22px;border-radius:18px;border:1px solid ${border};background:${cardBg};display:flex;flex-direction:column;justify-content:space-between;gap:14px;">
+              <p data-cuzmify-field="testimonial-quote" data-cuzmify-item-index="${rawIdx}" style="margin:0;font-size:14px;line-height:1.65;">“${escapeHtml(t.quote)}”</p>
+              <footer data-cuzmify-field="testimonial-client" data-cuzmify-item-index="${rawIdx}" style="font-size:12px;font-weight:700;color:${muted};">— ${escapeHtml(t.clientName)}${t.roleOrEvent ? ` • ${escapeHtml(t.roleOrEvent)}` : ''}</footer>
             </blockquote>`
           )
           .join('')}
@@ -457,8 +461,10 @@ function renderSharedTestimonialsSection(bp: BusinessBlueprint, isDark: boolean)
 }
 
 function renderSharedFaqSection(bp: BusinessBlueprint, isDark: boolean): string {
-  const items = (bp.faqs || []).filter((f) => Boolean(f.question?.trim() && f.answer?.trim()));
-  if (items.length === 0 || !isSectionVisible(bp, 'faq')) return '';
+  const indexed = (bp.faqs || [])
+    .map((item, rawIdx) => ({ item, rawIdx }))
+    .filter(({ item }) => Boolean(item.question?.trim() && item.answer?.trim()));
+  if (indexed.length === 0 || !isSectionVisible(bp, 'faq')) return '';
   const heading = bp.customCopy?.faqHeading || 'Frequently Asked Questions';
   const border = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.1)';
   const cardBg = isDark ? 'var(--cz-noir-card, #141418)' : 'var(--cz-surface, #FFFFFF)';
@@ -467,12 +473,12 @@ function renderSharedFaqSection(bp: BusinessBlueprint, isDark: boolean): string 
     <div style="max-width:820px;margin:0 auto;padding:0 20px;box-sizing:border-box;">
       <h2 data-cuzmify-field="faq-heading" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0 0 22px;">${escapeHtml(heading)}</h2>
       <div style="display:flex;flex-direction:column;gap:12px;">
-        ${items
+        ${indexed
           .slice(0, 10)
           .map(
-            (f) => `<div style="padding:18px 20px;border-radius:16px;border:1px solid ${border};background:${cardBg};">
-              <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;">${escapeHtml(f.question)}</h3>
-              <p style="margin:0;font-size:13px;line-height:1.6;color:${muted};">${escapeHtml(f.answer)}</p>
+            ({ item: f, rawIdx }) => `<div data-cuzmify-target-id="${escapeHtml(f.id || '')}" data-cuzmify-item-index="${rawIdx}" style="padding:18px 20px;border-radius:16px;border:1px solid ${border};background:${cardBg};">
+              <h3 data-cuzmify-field="faq-question" data-cuzmify-item-index="${rawIdx}" style="margin:0 0 6px;font-size:15px;font-weight:700;">${escapeHtml(f.question)}</h3>
+              <p data-cuzmify-field="faq-answer" data-cuzmify-item-index="${rawIdx}" style="margin:0;font-size:13px;line-height:1.6;color:${muted};">${escapeHtml(f.answer)}</p>
             </div>`
           )
           .join('')}

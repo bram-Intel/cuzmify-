@@ -320,4 +320,129 @@ describe('Mobile Live Preview Quick-Edit Mutations', () => {
     expect(rendered.html).toContain('data-cuzmify-template="noir-showcase"');
     expect(rendered.html).toContain('background-color:var(--cz-noir-bg, #09090B)');
   });
+
+  it('emits semantic data-cuzmify-field hooks and edits FAQs, Testimonials, Custom Checklists/Cards, and cross-template Footers', () => {
+    const bp = createDefaultBlueprint({ name: 'Leba', templateId: 'noir-showcase' });
+    bp.customSections = [
+      {
+        id: 'sec-exp',
+        title: 'The Brandy Queen Experience',
+        layout: 'checklist',
+        items: [
+          {
+            label: 'Consultation',
+            detail: 'We begin with a detailed consultation to understand your vision and skin needs.',
+          },
+        ],
+      },
+      {
+        id: 'sec-process',
+        title: 'How Booking Works',
+        eyebrow: 'THE PROCESS',
+        subtitle: 'A clear, personal three-step booking experience.',
+        layout: 'cards',
+        items: [
+          {
+            label: '01 · Submit Enquiry',
+            detail: 'Share your preferred date, service, and location through the enquiry form below.',
+          },
+        ],
+      },
+    ];
+    bp.faqs = [
+      {
+        id: 'faq-1',
+        question: 'How far in advance should I book my appointment?',
+        answer: 'Submit an enquiry using the booking form with your preferred date.',
+      },
+    ];
+    bp.testimonials = [
+      {
+        id: 'test-1',
+        quote: 'Flawless glam that lasted 14 hours!',
+        clientName: 'Amaka O.',
+        roleOrEvent: 'Bride',
+      },
+    ];
+    bp.templateInjections = {
+      'editorial-atelier': {
+        footer:
+          '<div class="cz-ea-footer"><div><span>MAKEUP, HAIR &amp; BEAUTY</span><div class="cz-ea-serif">Leba</div><a class="cz-ea-footer-cta" href="#booking">Book Appointment →</a><span>© 2026 Leba. All rights reserved.</span></div></div>',
+      },
+    };
+
+    const renderedEditorial = renderTemplateEngine('editorial-atelier', bp);
+    expect(renderedEditorial.html).toContain('data-cuzmify-field="custom-title"');
+    expect(renderedEditorial.html).toContain('data-cuzmify-field="custom-item-label"');
+    expect(renderedEditorial.html).toContain('data-cuzmify-field="custom-item-detail"');
+    expect(renderedEditorial.html).toContain('data-cuzmify-field="faq-question"');
+    expect(renderedEditorial.html).toContain('data-cuzmify-field="faq-answer"');
+    expect(renderedEditorial.html).toContain('data-cuzmify-field="testimonial-quote"');
+
+    // 1. Edit FAQ Question & Answer
+    const faqQ = applyMobileTextEdit(
+      bp,
+      {
+        kind: 'faq',
+        faqId: 'faq-1',
+        itemIndex: 0,
+        part: 'question',
+        label: 'FAQ Question',
+        value: bp.faqs[0].question,
+        multiline: false,
+      },
+      'How early should brides book?'
+    );
+    expect(faqQ.blueprint.faqs?.[0].question).toBe('How early should brides book?');
+
+    const faqA = applyMobileTextEdit(
+      faqQ.blueprint,
+      {
+        kind: 'faq',
+        faqId: 'faq-1',
+        itemIndex: 0,
+        part: 'answer',
+        label: 'FAQ Answer',
+        value: bp.faqs[0].answer,
+        multiline: true,
+      },
+      'Book 4–8 weeks ahead for bridal dates.'
+    );
+    expect(faqA.blueprint.faqs?.[0].answer).toBe('Book 4–8 weeks ahead for bridal dates.');
+
+    // 2. Edit Testimonial Quote
+    const testEdit = applyMobileTextEdit(
+      faqA.blueprint,
+      {
+        kind: 'testimonial',
+        testimonialId: 'test-1',
+        itemIndex: 0,
+        part: 'quote',
+        label: 'Testimonial Quote',
+        value: 'Flawless glam that lasted 14 hours!',
+        multiline: true,
+      },
+      'Best bridal artist in Lagos!'
+    );
+    expect(testEdit.blueprint.testimonials?.[0].quote).toBe('Best bridal artist in Lagos!');
+
+    // 3. Edit Editorial Footer slot even when bp.templateId was 'noir-showcase'
+    const slotEdit = applyMobileTextEdit(
+      testEdit.blueprint,
+      {
+        kind: 'slot_text',
+        slot: 'footer',
+        templateId: 'editorial-atelier',
+        originalText: '© 2026 Leba. All rights reserved.',
+        occurrenceIndex: 0,
+        label: 'Footer Text',
+        value: '© 2026 Leba. All rights reserved.',
+        multiline: false,
+      },
+      '© 2026 Leba Luxury Studio. All rights reserved.'
+    );
+    expect(slotEdit.blueprint.templateInjections?.['editorial-atelier']?.footer).toContain(
+      '© 2026 Leba Luxury Studio. All rights reserved.'
+    );
+  });
 });

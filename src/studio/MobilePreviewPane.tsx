@@ -59,12 +59,16 @@ const MemoizedMobileSiteHtml = React.memo(function MemoizedMobileSiteHtml({
   rootRef,
   onClick,
   onDoubleClick,
+  onTouchStart,
+  onTouchEnd,
 }: {
   html: string;
   className: string;
   rootRef?: React.RefObject<HTMLDivElement | null>;
   onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   onDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onTouchStart?: (e: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchEnd?: (e: React.TouchEvent<HTMLDivElement>) => void;
 }) {
   const internalRef = useRef<HTMLDivElement | null>(null);
 
@@ -105,6 +109,8 @@ const MemoizedMobileSiteHtml = React.memo(function MemoizedMobileSiteHtml({
       className={className}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
       onSubmit={(e) => e.preventDefault()}
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: html }}
@@ -156,6 +162,14 @@ export function MobilePreviewPane() {
   const previewRootRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTapRef = useRef<{ el: HTMLElement | null; time: number }>({ el: null, time: 0 });
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const lastTouchTapRef = useRef<{ el: HTMLElement | null; x: number; y: number; time: number }>({
+    el: null,
+    x: 0,
+    y: 0,
+    time: 0,
+  });
+  const lastTouchEditOpenedAtRef = useRef<number>(0);
 
   const activeBp = useMemo(() => {
     if (blueprint) return blueprint;
@@ -224,18 +238,20 @@ export function MobilePreviewPane() {
 
   const commitBlueprintUpdate = (nextBp: typeof activeBp, toastMsg: string) => {
     if (!service) return;
-    service.applyExternalBlueprint(nextBp, projectId);
+    const syncedBp = { ...nextBp, templateId };
+    service.applyExternalBlueprint(syncedBp, projectId);
     void handleSave(true);
     setSaveToast(`✦ ${toastMsg}`);
     setTimeout(() => setSaveToast(null), 2400);
   };
 
-  const openTextEditorForElement = (rawEl: HTMLElement) => {
-    const resolved = resolveMobileTextTarget(rawEl, activeBp);
+  const openTextEditorForElement = (rawEl: HTMLElement, point?: { clientX: number; clientY: number }) => {
+    const resolved = resolveMobileTextTarget(rawEl, activeBp, templateId, point);
     if (!resolved) return;
+    lastTouchEditOpenedAtRef.current = Date.now();
     setActiveImageTarget(null);
     setActiveImageEl(null);
-    setActiveTextEl(findEditableMobileTextElement(rawEl) || rawEl);
+    setActiveTextEl(findEditableMobileTextElement(rawEl, point) || rawEl);
     setActiveTextTarget(resolved);
     setTextDraft(resolved.value);
   };
@@ -251,12 +267,65 @@ export function MobilePreviewPane() {
     return null;
   };
 
+  const handlePreviewTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) {
+      touchStartRef.current = null;
+      return;
+    }
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+  };
+
+  const handlePreviewTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start || pickToCopyMode || e.changedTouches.length !== 1) return;
+
+    const t = e.changedTouches[0];
+    const moved = Math.hypot(t.clientX - start.x, t.clientY - start.y);
+    const heldMs = Date.now() - start.time;
+    // Ignore scroll pans or long-presses
+    if (moved > 14 || heldMs > 400) return;
+
+    const hitEl =
+      (typeof document !== 'undefined'
+        ? (document.elementFromPoint(t.clientX, t.clientY) as HTMLElement | null)
+        : null) || (e.target as HTMLElement | null);
+    if (!hitEl || !previewRootRef.current?.contains(hitEl)) return;
+    if (hitEl.closest('input, select, textarea')) return;
+    if (findClickedImage(hitEl)) return;
+
+    const point = { clientX: t.clientX, clientY: t.clientY };
+    const fieldEl = findEditableMobileTextElement(hitEl, point);
+    if (!fieldEl) return;
+
+    const now = Date.now();
+    const prev = lastTouchTapRef.current;
+    const dt = now - prev.time;
+    const tapDist = Math.hypot(t.clientX - prev.x, t.clientY - prev.y);
+
+    if (dt >= 35 && dt <= 550 && (prev.el === fieldEl || tapDist <= 28)) {
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      lastTouchTapRef.current = { el: null, x: 0, y: 0, time: 0 };
+      lastTapRef.current = { el: null, time: 0 };
+      lastTouchEditOpenedAtRef.current = now;
+      openTextEditorForElement(fieldEl, point);
+    } else {
+      lastTouchTapRef.current = { el: fieldEl, x: t.clientX, y: t.clientY, time: now };
+    }
+  };
+
   const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rawTarget = e.target as HTMLElement | null;
     if (!rawTarget) return;
 
     if (rawTarget.closest('a, button, form')) {
       e.preventDefault();
+    }
+
+    if (Date.now() - lastTouchEditOpenedAtRef.current < 600) {
+      return;
     }
 
     // Pick-to-Copy mode: tapping ANY element (div, section, img, button, h1, span) selects it to copy for MCP
@@ -283,8 +352,9 @@ export function MobilePreviewPane() {
       return;
     }
 
-    // 2. Touch/click double-tap detection (<500ms on same editable element) for inline text edit
-    const fieldEl = findEditableMobileTextElement(rawTarget);
+    // 2. Click double-tap detection (<500ms on same editable element) for desktop/mouse/stylus
+    const point = { clientX: e.clientX, clientY: e.clientY };
+    const fieldEl = findEditableMobileTextElement(rawTarget, point);
     if (!fieldEl) return;
 
     const now = Date.now();
@@ -294,7 +364,7 @@ export function MobilePreviewPane() {
     if (isSameField && withinWindow) {
       lastTapRef.current = { el: null, time: 0 };
       e.stopPropagation();
-      openTextEditorForElement(fieldEl);
+      openTextEditorForElement(fieldEl, point);
     } else {
       lastTapRef.current = { el: fieldEl, time: now };
     }
@@ -305,10 +375,11 @@ export function MobilePreviewPane() {
     const rawTarget = e.target as HTMLElement | null;
     if (!rawTarget || rawTarget.tagName === 'IMG' || rawTarget.tagName === 'VIDEO') return;
     if (rawTarget.closest('a, button')) e.preventDefault();
-    const fieldEl = findEditableMobileTextElement(rawTarget);
+    const point = { clientX: e.clientX, clientY: e.clientY };
+    const fieldEl = findEditableMobileTextElement(rawTarget, point);
     if (!fieldEl) return;
     lastTapRef.current = { el: null, time: 0 };
-    openTextEditorForElement(fieldEl);
+    openTextEditorForElement(fieldEl, point);
   };
 
   const handleStepToParent = () => {
@@ -389,7 +460,7 @@ export function MobilePreviewPane() {
   };
 
   const pickedImgChild = pickedDomEl ? findClickedImage(pickedDomEl) : null;
-  const pickedEditableField = pickedDomEl ? resolveMobileTextTarget(pickedDomEl, activeBp) : null;
+  const pickedEditableField = pickedDomEl ? resolveMobileTextTarget(pickedDomEl, activeBp, templateId) : null;
 
   // Full-screen interactive Live Preview on Mobile when bottom "Preview" button is tapped
   if (isPreviewMode) {
@@ -644,6 +715,9 @@ export function MobilePreviewPane() {
                   touch-action: pan-y;
                   overflow-x: hidden;
                   max-width: 100%;
+                  -webkit-user-select: none;
+                  user-select: none;
+                  -webkit-touch-callout: none;
                 }
                 .cz-mobile-editable-preview * {
                   touch-action: manipulation;
@@ -659,7 +733,9 @@ export function MobilePreviewPane() {
                 }
                 .cz-mobile-editable-preview [data-cuzmify-field],
                 .cz-mobile-editable-preview [data-cuzmify-slot],
-                .cz-mobile-editable-preview [data-cuzmify-type="custom-section"] {
+                .cz-mobile-editable-preview [data-cuzmify-type="custom-section"],
+                .cz-mobile-editable-preview [data-cuzmify-type="faq"],
+                .cz-mobile-editable-preview [data-cuzmify-type="testimonials"] {
                   cursor: text;
                 }
                 .cz-mobile-editable-preview [data-cz-mobile-picked="true"] {
@@ -674,6 +750,8 @@ export function MobilePreviewPane() {
                 className="cz-mobile-editable-preview"
                 onClick={handlePreviewClick}
                 onDoubleClick={handlePreviewDoubleClick}
+                onTouchStart={handlePreviewTouchStart}
+                onTouchEnd={handlePreviewTouchEnd}
               />
             </>
           )}
@@ -946,6 +1024,7 @@ export function MobilePreviewPane() {
         <div
           className="fixed inset-0 z-[100001] bg-slate-950/60 backdrop-blur-[2px] flex items-end justify-center animate-in fade-in duration-150"
           onClick={() => {
+            if (Date.now() - lastTouchEditOpenedAtRef.current < 400) return;
             setActiveTextTarget(null);
             setActiveTextEl(null);
           }}
