@@ -37,6 +37,7 @@ import { compressImageFileToWebP } from '@/lib/image-compress';
 import { DomainAndProPanel } from './DomainAndProPanel';
 import { ServiceImagePicker } from './ServiceImagePicker';
 import { FREE_PLAN_SERVICE_LIMIT } from '@/lib/billing-constants';
+import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
 
 export function StudioInfrastructureHub({
   onClose,
@@ -405,14 +406,16 @@ export function StudioInfrastructureHub({
       });
       const data = await res.json();
       if (data.success && data.mediaVault) {
-        service.setMediaVault(data.mediaVault);
+        const mergedVault = mergeInstagramMediaIntoVault(service.getMediaVault(), data.mediaVault, 30);
+        service.setMediaVault(mergedVault);
         if (data.handle) {
           service.updateProfile({ instagram: data.handle, instagramHandle: data.handle });
           setIgHandleInput(data.handle);
         }
         setShowIgConnect(false);
-        setSaveToast(`✨ Synced ${data.syncedCount} Instagram assets!`);
-        setTimeout(() => setSaveToast(null), 3000);
+        setSaveToast(`✨ Synced ${data.syncedCount} Instagram posts (your uploaded photos stayed safe)!`);
+        setTimeout(() => setSaveToast(null), 3200);
+        requestAnimationFrame(() => void handleSave(true));
       } else {
         alert(data.error || 'Failed to sync Instagram assets');
       }
@@ -423,9 +426,12 @@ export function StudioInfrastructureHub({
     }
   };
 
-  const handleAuthorizeInstagramOAuth = () => {
+  const handleAuthorizeInstagramOAuth = async () => {
     const handle = (igHandleInput || profile.instagram || '').trim().replace(/^@/, '');
-    window.location.href = `/api/auth/instagram?siteId=${encodeURIComponent(projectId)}&handle=${encodeURIComponent(handle)}`;
+    // Persist current manual uploads & edits before leaving for Meta OAuth so callback merges cleanly
+    await handleSave(true);
+    const activeSiteId = service.getActiveSiteId() || projectId;
+    window.location.href = `/api/auth/instagram?siteId=${encodeURIComponent(activeSiteId)}&handle=${encodeURIComponent(handle)}`;
   };
 
   const testWhatsAppUrl = service.generateWhatsAppLink({ type: 'booking' });

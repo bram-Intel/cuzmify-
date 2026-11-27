@@ -61,7 +61,7 @@ export function ProjectManagerSection({ sites: initialSites }: ProjectManagerSec
       if (data.success) {
         setSyncToast(`✨ Synced ${data.syncedCount} assets for @${data.handle}!`);
         setTimeout(() => setSyncToast(null), 3000);
-      } else if (data.requiresAuth) {
+      } else if (data.requiresOAuth || data.requiresAuth) {
         window.location.href = `/api/auth/instagram?siteId=${siteId}&handle=${encodeURIComponent(handle || '')}`;
       }
     } catch (err) {

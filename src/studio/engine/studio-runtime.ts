@@ -7,6 +7,7 @@ import {
   loadOnboardingDraftMedia,
   mergeOnboardingMediaVault,
 } from '@/lib/onboarding-media-draft';
+import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
 import { reconcileLocalAndCloudBlueprints } from './blueprint-persistence';
 
 export interface StudioHydrationCallbacks {
@@ -190,7 +191,8 @@ export function attachStudioRuntime(
     } catch {}
 
     if (cookieMedia && cookieMedia.length > 0) {
-      const mergedCookie = mergeOnboardingMediaVault(draftOnboardingMedia, cookieMedia, 20);
+      const existingBeforeIg = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 24);
+      const mergedCookie = mergeInstagramMediaIntoVault(existingBeforeIg, cookieMedia, 30);
       service.setMediaVault(mergedCookie);
       if (!isHeadless) {
         service.injectInstagramMediaToCanvas(mergedCookie);
@@ -210,7 +212,8 @@ export function attachStudioRuntime(
           .then((res) => res.json())
           .then((data) => {
             if (!destroyed && data?.mediaVault && data.mediaVault.length > 0) {
-              const mergedSync = mergeOnboardingMediaVault(draftOnboardingMedia, data.mediaVault, 20);
+              const existingBeforeIg = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 24);
+              const mergedSync = mergeInstagramMediaIntoVault(existingBeforeIg, data.mediaVault, 30);
               service.setMediaVault(mergedSync);
               if (!isHeadless) {
                 service.injectInstagramMediaToCanvas(mergedSync);
@@ -262,8 +265,18 @@ export function attachStudioRuntime(
             businessNameRef.current = cloudRes.name;
           }
           if (draftOnboardingMedia.length > 0) {
-            const mergedCloud = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 20);
+            const mergedCloud = mergeOnboardingMediaVault(draftOnboardingMedia, service.getMediaVault(), 24);
             service.setMediaVault(mergedCloud);
+          } else if (localRes.snapshot?.blueprint?.mediaVault?.length) {
+            // Preserve any manual local uploads that aren't yet in cloud mediaVault when OAuth callback returns
+            const cloudVault = service.getMediaVault();
+            const customLocal = localRes.snapshot.blueprint.mediaVault.filter(
+              (m) => m && m.source !== 'instagram' && m.source !== 'template' && !cloudVault.some((c) => c.id === m.id)
+            );
+            if (customLocal.length > 0) {
+              const preserved = mergeInstagramMediaIntoVault([...customLocal, ...cloudVault], [], 30);
+              service.setMediaVault(preserved);
+            }
           }
           if (!isHeadless) {
             service.sanitizeCanvas();
@@ -305,6 +318,13 @@ export function attachStudioRuntime(
         if (saved) {
           clearOnboardingDraftMedia();
         }
+      }
+
+      if (urlParams?.get('synced') === 'instagram' && typeof document !== 'undefined') {
+        try {
+          document.cookie = 'cuzmify_ig_media=; path=/; max-age=0';
+          document.cookie = 'cuzmify_ig_handle=; path=/; max-age=0';
+        } catch {}
       }
 
       if (!hasWarmState) {

@@ -17,6 +17,7 @@ import {
   writeStudioLocalSnapshot,
   type StudioLocalSnapshot,
 } from './blueprint-persistence';
+import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
 
 export class EditorService {
   private adapter: GrapesAdapter | HeadlessBlueprintAdapter;
@@ -259,7 +260,13 @@ export class EditorService {
 
   // ── Instagram Media Ingestion Auto-Injector ────────────────────────────────
   public injectInstagramMediaToCanvas(mediaVault?: MediaVaultAsset[]): void {
-    const assets = (mediaVault && mediaVault.length > 0) ? mediaVault : this.blueprintManager.getMediaVault();
+    const existingVault = this.blueprintManager.getMediaVault();
+    const assets =
+      mediaVault && mediaVault.length > 0
+        ? mediaVault.some((m) => m.source === 'instagram') && existingVault.some((m) => m.source !== 'instagram' && m.source !== 'template')
+          ? mergeInstagramMediaIntoVault(existingVault, mediaVault, 30)
+          : mediaVault
+        : existingVault;
     // Filter to valid assets with image URLs or video poster thumbnails
     const validMedia = assets.filter((m) => Boolean(m.thumbnailUrl || m.url));
 
@@ -332,8 +339,8 @@ export class EditorService {
 
       // Update blueprint's media vault ONLY if caller passed new assets that differ from stored vault
       if (mediaVault && mediaVault.length > 0) {
-        const prevIds = this.blueprintManager.getMediaVault().map((m) => m.id).join(',');
-        const nextIds = mediaVault.map((m) => m.id).join(',');
+        const prevIds = existingVault.map((m) => m.id).join(',');
+        const nextIds = assets.map((m) => m.id).join(',');
         if (prevIds !== nextIds) {
           this.blueprintManager.setMediaVault(assets);
           this.notifyChange();

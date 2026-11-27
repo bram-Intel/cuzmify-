@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { InstagramImporter } from '@/services/importer/instagram-importer';
 import { CurrencyCode, type MediaVaultAsset } from '@/core/blueprint-schema';
+import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -194,12 +195,14 @@ export async function GET(req: Request) {
               bp = JSON.parse(targetSite.blueprintData);
             } catch {}
           }
-          bp.mediaVault = realMediaVault;
+          // Preserve all manually uploaded / custom assets while merging fresh Instagram posts
+          bp.mediaVault = mergeInstagramMediaIntoVault(bp.mediaVault, realMediaVault, 30);
           if (!bp.profile) bp.profile = {};
           if (handle) {
             bp.profile.instagram = handle;
             bp.profile.instagramHandle = handle;
           }
+          bp.updatedAt = new Date().toISOString();
 
           await prisma.site.update({
             where: { id: targetSite.id },

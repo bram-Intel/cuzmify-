@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { InstagramImporter } from '@/services/importer/instagram-importer';
 import type { MediaVaultAsset } from '@/core/blueprint-schema';
+import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
 
 export async function POST(req: Request) {
   try {
@@ -76,15 +77,13 @@ export async function POST(req: Request) {
       } catch {}
     }
 
-    const existingUploads = (currentBlueprint.mediaVault || []).filter(
-      (m: MediaVaultAsset) => m.source !== 'instagram' && m.source !== 'template'
-    );
-    const mergedVault = [...freshAssets, ...existingUploads];
+    const mergedVault = mergeInstagramMediaIntoVault(currentBlueprint.mediaVault, freshAssets, 30);
 
     currentBlueprint.mediaVault = mergedVault;
     if (!currentBlueprint.profile) currentBlueprint.profile = {};
     currentBlueprint.profile.instagram = targetHandle;
     currentBlueprint.profile.instagramHandle = targetHandle;
+    currentBlueprint.updatedAt = new Date().toISOString();
 
     await prisma.site.update({
       where: { id: site.id },

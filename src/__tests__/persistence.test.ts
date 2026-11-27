@@ -1,6 +1,7 @@
 ﻿import { describe, it, expect } from 'vitest';
 import { createDefaultBlueprint, type MediaVaultAsset } from '@/core/blueprint-schema';
 import { mergeOnboardingMediaVault } from '@/lib/onboarding-media-draft';
+import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
 import { renderTemplateEngine } from '@/core/template-engines';
 import { GrapesAdapter } from '@/studio/engine/GrapesAdapter';
 import { EditorService } from '@/studio/engine/EditorService';
@@ -322,5 +323,30 @@ describe('Persistence & Serialization Engine', () => {
     // Renders valid template HTML on demand without a GrapesJS iframe
     expect(mobileService.getHtml()).toContain('Express Bridal Trial');
     mobileService.destroy();
+  });
+
+  it('preserves all manually uploaded photos when running Instagram sync later', () => {
+    const manualUploads: MediaVaultAsset[] = [
+      { id: 'mv-up-1', url: 'data:image/webp;base64,upload1', name: 'Bridal Look Hero', type: 'hero', source: 'upload', addedAt: '2026-11-26T10:00:00.000Z' },
+      { id: 'mv-up-2', url: 'data:image/webp;base64,upload2', name: 'Makeup Kit', type: 'gallery', source: 'upload', addedAt: '2026-11-26T10:01:00.000Z' },
+    ];
+    const igAssets: MediaVaultAsset[] = [
+      { id: 'ig-1', igMediaId: '101', url: '/api/media/ig?mediaId=101', name: 'IG Shot 1', type: 'hero', source: 'instagram', addedAt: '2026-11-27T11:00:00.000Z' },
+      { id: 'ig-2', igMediaId: '102', url: '/api/media/ig?mediaId=102', name: 'IG Shot 2', type: 'gallery', source: 'instagram', addedAt: '2026-11-27T11:01:00.000Z' },
+    ];
+
+    const merged = mergeInstagramMediaIntoVault(manualUploads, igAssets, 30);
+    expect(merged.map((m) => m.id)).toEqual(['mv-up-1', 'mv-up-2', 'ig-1', 'ig-2']);
+    // Preserved custom hero stays hero while incoming IG item demotes cleanly to gallery
+    expect(merged[0].type).toBe('hero');
+    expect(merged[2].type).toBe('gallery');
+
+    // Re-syncing Instagram refreshes old IG items without losing any manual uploads
+    const olderVault: MediaVaultAsset[] = [
+      ...manualUploads,
+      { id: 'ig-old', igMediaId: '99', url: '/api/media/ig?mediaId=99', name: 'Old IG', type: 'gallery', source: 'instagram', addedAt: '2026-11-25T10:00:00.000Z' },
+    ];
+    const reSynced = mergeInstagramMediaIntoVault(olderVault, igAssets, 30);
+    expect(reSynced.map((m) => m.id)).toEqual(['mv-up-1', 'mv-up-2', 'ig-1', 'ig-2']);
   });
 });

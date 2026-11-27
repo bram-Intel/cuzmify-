@@ -28,6 +28,7 @@ import {
 import { useEditor } from '../engine/EditorContext';
 import { SUPPORTED_CURRENCIES, type CurrencyCode, type ServiceItem, type ProductItem, type MediaVaultAsset } from '@/core/blueprint-schema';
 import { ServiceImagePicker } from './ServiceImagePicker';
+import { mergeInstagramMediaIntoVault } from '@/lib/media-vault-merge';
 
 export function ModuleConfigModal() {
   const { activeModuleModal, setActiveModuleModal, service, blueprint, setSaveToast, handleSave } = useEditor();
@@ -406,8 +407,11 @@ export function ModuleConfigModal() {
                             if (res.ok) {
                               const data = await res.json();
                               if (data.mediaVault && data.mediaVault.length > 0) {
-                                service.injectInstagramMediaToCanvas(data.mediaVault);
-                                setSaveToast(`✓ Synced ${data.mediaCount} Instagram posts!`);
+                                const merged = mergeInstagramMediaIntoVault(service.getMediaVault(), data.mediaVault, 30);
+                                service.setMediaVault(merged);
+                                service.injectInstagramMediaToCanvas(merged);
+                                requestAnimationFrame(() => void handleSave(true));
+                                setSaveToast(`✓ Synced ${data.mediaCount} Instagram posts (uploads preserved)!`);
                               } else {
                                 setSaveToast('✓ Instagram feed is up to date.');
                               }
