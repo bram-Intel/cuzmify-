@@ -16,11 +16,73 @@ async function resolveUserId() {
   return null;
 }
 
-export async function GET() {
+const STUDIO_SITE_SELECT = {
+  id: true,
+  userId: true,
+  name: true,
+  subdomain: true,
+  customDomain: true,
+  domain: true,
+  domainVerified: true,
+  nicheId: true,
+  templateId: true,
+  template: true,
+  category: true,
+  plan: true,
+  status: true,
+  liveUrl: true,
+  theme: true,
+  instagramHandle: true,
+  whatsappPhone: true,
+  currency: true,
+  blueprintData: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export async function GET(req: Request) {
   try {
     const userId = await resolveUserId();
     if (!userId) {
       return NextResponse.json({ sites: [] }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const mode = searchParams.get('mode');
+    const siteId = searchParams.get('siteId');
+
+    // Fast path for Studio hydration: fetch only the active site without heavy htmlContent/grapesData blobs
+    if (mode === 'studio') {
+      const targetId = siteId && siteId !== 'proj_default' ? siteId : undefined;
+      let site: any = targetId
+        ? await prisma.site.findFirst({
+            where: { id: targetId, userId },
+            select: STUDIO_SITE_SELECT,
+          })
+        : null;
+
+      if (!site) {
+        site = await prisma.site.findFirst({
+          where: { userId },
+          orderBy: { updatedAt: 'desc' },
+          select: STUDIO_SITE_SELECT,
+        });
+      }
+
+      if (site && !site.blueprintData) {
+        const legacy = await prisma.site.findUnique({
+          where: { id: site.id },
+          select: { htmlContent: true, grapesData: true },
+        });
+        if (legacy) {
+          site = { ...site, ...legacy };
+        }
+      }
+
+      return NextResponse.json(
+        { sites: site ? [site] : [] },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
     }
 
     const sites = await prisma.site.findMany({

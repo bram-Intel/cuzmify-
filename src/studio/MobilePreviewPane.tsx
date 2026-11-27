@@ -43,6 +43,35 @@ import {
 import { AIPanel } from './ai/AIPanel';
 
 /**
+ * Memoized HTML container so local modal/drawer/input state updates never re-parse or flash preview DOM nodes.
+ */
+const MemoizedMobileSiteHtml = React.memo(function MemoizedMobileSiteHtml({
+  html,
+  className,
+  rootRef,
+  onClick,
+  onDoubleClick,
+}: {
+  html: string;
+  className: string;
+  rootRef?: React.RefObject<HTMLDivElement | null>;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <div
+      ref={rootRef}
+      className={className}
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      onSubmit={(e) => e.preventDefault()}
+      suppressHydrationWarning
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+});
+
+/**
  * Touch-safe, 60fps Mobile Owner Studio (<1024px).
  * Supports direct 1-tap image swapping from the Media Vault (or phone upload),
  * double-tap inline text editing, AND 1-tap "Copy Element for MCP" for any div/img/text/section.
@@ -56,6 +85,7 @@ export function MobilePreviewPane() {
     nicheId,
     isPreviewMode,
     isHydratingSite,
+    activeModuleModal,
     service,
     handleTemplateSwitch,
     handleSave,
@@ -89,10 +119,19 @@ export function MobilePreviewPane() {
     return createDefaultBlueprint({ name: businessName, templateId, nicheId });
   }, [blueprint, businessName, templateId, nicheId]);
 
-  const rendered = useMemo(
-    () => renderTemplateEngine(templateId, activeBp, { siteId: projectId }),
-    [templateId, activeBp, projectId]
-  );
+  const lastRenderedRef = useRef<ReturnType<typeof renderTemplateEngine> | null>(null);
+  const isCoveredByModal = Boolean(activeModuleModal);
+
+  const rendered = useMemo(() => {
+    // When full-screen modal (e.g. Services / Photos / Brand) covers the mobile preview,
+    // defer template HTML string regeneration until the user returns to the preview.
+    if (isCoveredByModal && lastRenderedRef.current) {
+      return lastRenderedRef.current;
+    }
+    const next = renderTemplateEngine(templateId, activeBp, { siteId: projectId });
+    lastRenderedRef.current = next;
+    return next;
+  }, [templateId, activeBp, projectId, isCoveredByModal]);
 
   const mediaVault = activeBp.mediaVault || [];
   const imageAssets = mediaVault.filter((m) => m.type !== 'video' && Boolean(m.thumbnailUrl || m.url));
@@ -298,10 +337,9 @@ export function MobilePreviewPane() {
             className="flex-1 min-h-[360px]"
           />
         ) : (
-          <div
+          <MemoizedMobileSiteHtml
+            html={rendered.fullHtml}
             className="flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
-            suppressHydrationWarning
-            dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
           />
         )}
       </div>
@@ -559,14 +597,12 @@ export function MobilePreviewPane() {
                   box-shadow: 0 0 0 4px rgba(13, 87, 113, 0.2) !important;
                 }
               `}</style>
-              <div
-                ref={previewRootRef}
+              <MemoizedMobileSiteHtml
+                rootRef={previewRootRef}
+                html={rendered.fullHtml}
                 className="cz-mobile-editable-preview"
                 onClick={handlePreviewClick}
                 onDoubleClick={handlePreviewDoubleClick}
-                onSubmit={(e) => e.preventDefault()}
-                suppressHydrationWarning
-                dangerouslySetInnerHTML={{ __html: rendered.fullHtml }}
               />
             </>
           )}

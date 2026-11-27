@@ -93,9 +93,10 @@ export function ModuleConfigModal() {
 
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newServiceName.trim()) return;
+    const trimmedName = newServiceName.trim();
+    if (!trimmedName) return;
     service.addServiceItem({
-      name: newServiceName.trim(),
+      name: trimmedName,
       price: parseFloat(newServicePrice) || 50,
       durationMinutes: parseInt(newServiceDuration, 10) || 60,
       locationType: 'in_studio',
@@ -104,14 +105,13 @@ export function ModuleConfigModal() {
       imageUrl: newServiceImageUrl.trim() || undefined,
       enabled: true,
     });
-    service.syncCanvasWithBlueprint();
-    void handleSave(true);
     setNewServiceName('');
     setNewServiceDesc('');
     setNewServiceImageUrl('');
     setShowAddService(false);
-    setSaveToast(`✦ Added Service: ${newServiceName}`);
+    setSaveToast(`✦ Added Service: ${trimmedName}`);
     setTimeout(() => setSaveToast(null), 2500);
+    requestAnimationFrame(() => void handleSave(true));
   };
 
   const openEditService = (srv: ServiceItem) => {
@@ -130,21 +130,21 @@ export function ModuleConfigModal() {
 
   const handleSaveEditService = (e: React.FormEvent, id: string) => {
     e.preventDefault();
-    if (!editServiceName.trim()) return;
+    const trimmedName = editServiceName.trim();
+    if (!trimmedName) return;
     const numericPrice = parseFloat(editServicePrice);
     service.updateServiceItem(id, {
-      name: editServiceName.trim(),
+      name: trimmedName,
       price: Number.isNaN(numericPrice) ? 0 : Math.max(0, numericPrice),
       durationMinutes: parseInt(editServiceDuration, 10) || 60,
       tag: editServiceTag,
       description: editServiceDesc.trim(),
       imageUrl: editServiceImageUrl.trim() || undefined,
     });
-    service.syncCanvasWithBlueprint();
-    void handleSave(true);
     setEditingServiceId(null);
-    setSaveToast(`✦ Updated Service: ${editServiceName.trim()}`);
+    setSaveToast(`✦ Updated Service: ${trimmedName}`);
     setTimeout(() => setSaveToast(null), 2500);
+    requestAnimationFrame(() => void handleSave(true));
   };
 
   const handleUploadServiceImageToVault = (dataUrl: string, name: string) => {

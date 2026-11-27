@@ -266,17 +266,16 @@ export function StudioInfrastructureHub({
       imageUrl: displayImg,
       enabled: true,
     });
-    service.syncCanvasWithBlueprint();
-    handleSave(true);
-    setSaveToast(`✨ Added "${finalName}" to Services & Live Site!`);
-
     setConvertingAssetId(null);
+    setSaveToast(`✨ Added "${finalName}" to Services & Live Site!`);
     setTimeout(() => setSaveToast(null), 3200);
+    requestAnimationFrame(() => void handleSave(true));
   };
 
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newServiceName.trim()) return;
+    const trimmedName = newServiceName.trim();
+    if (!trimmedName) return;
     if (sitePlan !== 'pro' && services.length >= FREE_PLAN_SERVICE_LIMIT) {
       setShowAddService(false);
       setSaveToast(`Free plan includes up to ${FREE_PLAN_SERVICE_LIMIT} services. Upgrade to Pro for unlimited packages!`);
@@ -287,7 +286,7 @@ export function StudioInfrastructureHub({
     const parsedPrice = newServicePriceMode === 'quote' ? 0 : (parseFloat(newServicePrice) || 0);
     const mode: ServicePriceMode = parsedPrice <= 0 ? 'quote' : newServicePriceMode;
     service.addServiceItem({
-      name: newServiceName.trim(),
+      name: trimmedName,
       price: parsedPrice,
       priceMode: mode,
       durationMinutes: parseInt(newServiceDuration, 10) || undefined,
@@ -297,15 +296,14 @@ export function StudioInfrastructureHub({
       imageUrl: newServiceImageUrl.trim() || undefined,
       enabled: true,
     });
-    service.syncCanvasWithBlueprint();
-    handleSave(true);
     setNewServiceName('');
     setNewServicePrice('');
     setNewServiceDesc('');
     setNewServiceImageUrl('');
     setShowAddService(false);
-    setSaveToast(`✦ Added Service: ${newServiceName}`);
+    setSaveToast(`✦ Added Service: ${trimmedName}`);
     setTimeout(() => setSaveToast(null), 2500);
+    requestAnimationFrame(() => void handleSave(true));
   };
 
   const openEditService = (srv: ServiceItem) => {
@@ -326,11 +324,12 @@ export function StudioInfrastructureHub({
 
   const handleSaveEditService = (e: React.FormEvent, id: string) => {
     e.preventDefault();
-    if (!editServiceName.trim()) return;
+    const trimmedName = editServiceName.trim();
+    if (!trimmedName) return;
     const parsedPrice = editServicePriceMode === 'quote' ? 0 : (parseFloat(editServicePrice) || 0);
     const mode: ServicePriceMode = parsedPrice <= 0 ? 'quote' : editServicePriceMode;
     service.updateServiceItem(id, {
-      name: editServiceName.trim(),
+      name: trimmedName,
       description: editServiceDesc.trim(),
       durationMinutes: parseInt(editServiceDuration, 10) || undefined,
       tag: editServiceTag,
@@ -338,11 +337,10 @@ export function StudioInfrastructureHub({
       price: parsedPrice,
       imageUrl: editServiceImageUrl.trim() || undefined,
     });
-    service.syncCanvasWithBlueprint();
-    handleSave(true);
     setEditingServiceId(null);
-    setSaveToast(`✦ Updated Service: ${editServiceName.trim()}`);
+    setSaveToast(`✦ Updated Service: ${trimmedName}`);
     setTimeout(() => setSaveToast(null), 2500);
+    requestAnimationFrame(() => void handleSave(true));
   };
 
   const handleAddServiceImageToVault = (dataUrl: string, name: string) => {
@@ -433,9 +431,8 @@ export function StudioInfrastructureHub({
   const testWhatsAppUrl = service.generateWhatsAppLink({ type: 'booking' });
 
   const handleCloseAndSync = () => {
-    service.syncCanvasWithBlueprint();
-    handleSave(true);
     onClose();
+    requestAnimationFrame(() => void handleSave(true));
   };
 
   const MODULE_TABS = [
@@ -836,8 +833,7 @@ export function StudioInfrastructureHub({
                         onChange={(e) => {
                           const mode = e.target.value as ServicePriceMode;
                           service.updateServiceItem(srv.id, { priceMode: mode, ...(mode === 'quote' ? { price: 0 } : {}) });
-                          service.syncCanvasWithBlueprint();
-                          void handleSave(true);
+                          requestAnimationFrame(() => void handleSave(true));
                         }}
                         className="text-[11px] font-bold bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 text-slate-700"
                       >
@@ -854,10 +850,9 @@ export function StudioInfrastructureHub({
                             onChange={(e) => {
                               const val = parseFloat(e.target.value);
                               service.updateServiceItem(srv.id, { price: isNaN(val) ? 0 : val });
-                              service.syncCanvasWithBlueprint();
                             }}
                             onBlur={() => {
-                              void handleSave(true);
+                              requestAnimationFrame(() => void handleSave(true));
                             }}
                             className="w-20 text-sm font-mono font-extrabold text-[#0D5771] bg-transparent focus:outline-none"
                             title="Tap to edit price"
@@ -878,10 +873,9 @@ export function StudioInfrastructureHub({
                       </button>
                       <button
                         onClick={() => {
-                          service.deleteServiceItem(srv.id);
-                          service.syncCanvasWithBlueprint();
-                          void handleSave(true);
                           if (isEditing) setEditingServiceId(null);
+                          service.deleteServiceItem(srv.id);
+                          requestAnimationFrame(() => void handleSave(true));
                         }}
                         className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                         title="Delete Service"

@@ -1,5 +1,6 @@
 import type { Editor } from 'grapesjs';
 import { GrapesAdapter } from './GrapesAdapter';
+import { HeadlessBlueprintAdapter } from './HeadlessBlueprintAdapter';
 import { ThemeEngine } from '../theme/ThemeEngine';
 import { ComponentRegistry } from './ComponentRegistry';
 import { BlockRegistry } from './BlockRegistry';
@@ -18,7 +19,7 @@ import {
 } from './blueprint-persistence';
 
 export class EditorService {
-  private adapter: GrapesAdapter;
+  private adapter: GrapesAdapter | HeadlessBlueprintAdapter;
   private themeEngine: ThemeEngine;
   private historyManager: HistoryManager;
   private blueprintManager: BlueprintManager;
@@ -31,15 +32,20 @@ export class EditorService {
   private currentTheme: ThemeName = 'bram-light';
   private activeSiteId: string | null = null;
   private hasCustomCanvasBlocks = false;
+  private lastSyncedCanvasKey = '';
 
-  constructor(grapesEditor: Editor, initialBusinessName?: string) {
-    this.adapter = new GrapesAdapter(grapesEditor);
+  constructor(grapesEditor: Editor | null, initialBusinessName?: string) {
+    this.blueprintManager = new BlueprintManager(initialBusinessName);
+    this.adapter = grapesEditor
+      ? new GrapesAdapter(grapesEditor)
+      : new HeadlessBlueprintAdapter(() => this.blueprintManager.getBlueprint());
     this.themeEngine = new ThemeEngine(this.adapter);
     this.historyManager = new HistoryManager(50);
-    this.blueprintManager = new BlueprintManager(initialBusinessName);
 
-    ComponentRegistry.register(grapesEditor);
-    BlockRegistry.register(grapesEditor);
+    if (grapesEditor) {
+      ComponentRegistry.register(grapesEditor);
+      BlockRegistry.register(grapesEditor);
+    }
 
     // Forward blueprint updates & dynamically synchronize canvas DOM
     this.blueprintManager.onChange((bp) => {
@@ -324,9 +330,15 @@ export class EditorService {
         }
       }
 
-      // Update blueprint's media vault
-      this.blueprintManager.setMediaVault(assets);
-      this.notifyChange();
+      // Update blueprint's media vault ONLY if caller passed new assets that differ from stored vault
+      if (mediaVault && mediaVault.length > 0) {
+        const prevIds = this.blueprintManager.getMediaVault().map((m) => m.id).join(',');
+        const nextIds = mediaVault.map((m) => m.id).join(',');
+        if (prevIds !== nextIds) {
+          this.blueprintManager.setMediaVault(assets);
+          this.notifyChange();
+        }
+      }
     } catch (err) {
       console.warn('[EditorService] Error in injectInstagramMediaToCanvas:', err);
     }
@@ -337,9 +349,26 @@ export class EditorService {
     if (this.isRestoringState || this.historyManager.isPerformingRestore) return;
 
     try {
+      const theme = themeOverride || this.currentTheme;
+      // Fast lossless path: avoid expensive GrapesJS getHtml/getCss/getProjectData DOM serialization
+      // on mobile headless mode or standard blueprint edits.
+      if (this.adapter.isHeadless || !this.hasCustomCanvasBlocks) {
+        const bp = this.blueprintManager.getBlueprint();
+        this.historyManager.push({
+          id: `snap-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          timestamp: Date.now(),
+          description,
+          source,
+          html: '',
+          css: '',
+          theme,
+          blueprintJson: JSON.stringify(bp),
+        });
+        return;
+      }
+
       const html = this.adapter.getHtml();
       const css = this.adapter.getCss();
-      const theme = themeOverride || this.currentTheme;
       const grapesData = this.adapter.getProjectData();
 
       this.historyManager.push({
@@ -402,12 +431,23 @@ export class EditorService {
     }
 
     try {
-      this.adapter.setHtmlContent(previous.html);
+      if (previous.blueprintJson) {
+        const parsedBp = JSON.parse(previous.blueprintJson) as BusinessBlueprint;
+        this.blueprintManager.hydrate(parsedBp);
+        this.lastSyncedCanvasKey = '';
+        if (!this.adapter.isHeadless) {
+          this.syncCanvasWithBlueprint(this.blueprintManager.getBlueprint());
+          this.adapter.sanitizeCanvas();
+        }
+        this.blueprintListeners.forEach((fn) => fn(this.blueprintManager.getBlueprint()));
+      } else {
+        this.adapter.setHtmlContent(previous.html);
+        this.adapter.sanitizeCanvas();
+      }
       if (previous.theme) {
         this.currentTheme = previous.theme;
         this.themeEngine.applyTheme(previous.theme);
       }
-      this.adapter.sanitizeCanvas();
       this.notifyChange();
       return true;
     } catch (err) {
@@ -438,12 +478,23 @@ export class EditorService {
     }
 
     try {
-      this.adapter.setHtmlContent(next.html);
+      if (next.blueprintJson) {
+        const parsedBp = JSON.parse(next.blueprintJson) as BusinessBlueprint;
+        this.blueprintManager.hydrate(parsedBp);
+        this.lastSyncedCanvasKey = '';
+        if (!this.adapter.isHeadless) {
+          this.syncCanvasWithBlueprint(this.blueprintManager.getBlueprint());
+          this.adapter.sanitizeCanvas();
+        }
+        this.blueprintListeners.forEach((fn) => fn(this.blueprintManager.getBlueprint()));
+      } else {
+        this.adapter.setHtmlContent(next.html);
+        this.adapter.sanitizeCanvas();
+      }
       if (next.theme) {
         this.currentTheme = next.theme;
         this.themeEngine.applyTheme(next.theme);
       }
-      this.adapter.sanitizeCanvas();
       this.notifyChange();
       return true;
     } catch (err) {
@@ -495,9 +546,11 @@ export class EditorService {
     this.isSyncingFromCanvas = true;
     try {
       this.blueprintManager.setTemplateId(tplId);
-      const rendered = renderTemplateEngine(tplId, this.blueprintManager.getBlueprint(), { siteId });
-      this.adapter.setHtmlContent(rendered.fullHtml);
-      this.adapter.sanitizeCanvas();
+      if (!this.adapter.isHeadless) {
+        const rendered = renderTemplateEngine(tplId, this.blueprintManager.getBlueprint(), { siteId });
+        this.adapter.setHtmlContent(rendered.fullHtml);
+        this.adapter.sanitizeCanvas();
+      }
       this.recordSnapshot(`Switched Template: ${TEMPLATE_ENGINES[tplId].name}`, 'manual_edit');
     } finally {
       this.isSyncingFromCanvas = false;
@@ -515,9 +568,11 @@ export class EditorService {
     this.isSyncingFromCanvas = true;
     try {
       this.blueprintManager.setNicheId(niche.id, niche.label);
-      const rendered = renderTemplateEngine(this.getTemplateId(), this.blueprintManager.getBlueprint(), { siteId });
-      this.adapter.setHtmlContent(rendered.fullHtml);
-      this.adapter.sanitizeCanvas();
+      if (!this.adapter.isHeadless) {
+        const rendered = renderTemplateEngine(this.getTemplateId(), this.blueprintManager.getBlueprint(), { siteId });
+        this.adapter.setHtmlContent(rendered.fullHtml);
+        this.adapter.sanitizeCanvas();
+      }
       this.recordSnapshot(`Switched Niche: ${niche.label}`, 'manual_edit');
     } finally {
       this.isSyncingFromCanvas = false;
@@ -626,14 +681,16 @@ export class EditorService {
    * and re-renders the Template Engine + notifies Mobile/Desktop Studio listeners.
    */
   applyExternalBlueprint(nextBp: BusinessBlueprint, siteId?: string): void {
+    const tplId = resolveTemplateEngineId(nextBp.templateId);
     this.isSyncingFromCanvas = true;
     try {
       this.blueprintManager.hydrate(nextBp);
-      const tplId = resolveTemplateEngineId(nextBp.templateId);
       this.blueprintManager.setTemplateId(tplId);
-      const rendered = renderTemplateEngine(tplId, this.blueprintManager.getBlueprint(), { siteId });
-      this.adapter.setHtmlContent(rendered.fullHtml);
-      this.adapter.sanitizeCanvas();
+      if (!this.adapter.isHeadless) {
+        const rendered = renderTemplateEngine(tplId, this.blueprintManager.getBlueprint(), { siteId });
+        this.adapter.setHtmlContent(rendered.fullHtml);
+        this.adapter.sanitizeCanvas();
+      }
       this.recordSnapshot('AI Assistant Update (MCP Tools)', 'ai_transform');
     } finally {
       this.isSyncingFromCanvas = false;
@@ -684,12 +741,19 @@ export class EditorService {
 
   public syncCanvasWithBlueprint(blueprint?: BusinessBlueprint): void {
     if (!this.adapter || this.isSyncingFromCanvas) return;
+    // Headless mobile runtime renders directly from React blueprint state — zero hidden iframe DOM rebuild needed
+    if (this.adapter.isHeadless) return;
     const bp = blueprint || this.blueprintManager.getBlueprint();
 
     // Lossless Template Engine path: always re-render cleanly from Blueprint unless raw custom GrapesJS blocks were inserted,
     // even if the iframe hasn't completed initial load or is rendered behind a full-screen Studio modal.
     if (!this.hasCustomCanvasBlocks && bp?.templateId) {
       const tplId = resolveTemplateEngineId(bp.templateId);
+      const syncKey = `${tplId}:${bp.updatedAt || ''}:${this.activeSiteId || ''}:${bp.modules?.services?.items?.length || 0}`;
+      if (this.lastSyncedCanvasKey === syncKey) {
+        return;
+      }
+      this.lastSyncedCanvasKey = syncKey;
       const rendered = renderTemplateEngine(tplId, bp, { siteId: this.activeSiteId || undefined });
       this.adapter.setHtmlContent(rendered.fullHtml);
       this.adapter.triggerChange();
@@ -1104,7 +1168,7 @@ export class EditorService {
     blueprint?: BusinessBlueprint;
   }> {
     try {
-      const res = await fetch('/api/sites', { cache: 'no-store' });
+      const res = await fetch(`/api/sites?mode=studio&siteId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
       if (!res.ok) return { loaded: false };
       const data = await res.json();
       const sites = Array.isArray(data?.sites) ? data.sites : [];
@@ -1168,18 +1232,23 @@ export class EditorService {
       // 2. Render cleanly from authoritative blueprintData so services, photos & copy never drift behind stale grapesData/htmlContent
       if (site.blueprintData) {
         this.hasCustomCanvasBlocks = false;
-        const tplId = resolveTemplateEngineId(hydratedBp.templateId || site.templateId);
-        const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: site.id });
-        this.adapter.setHtmlContent(rendered.fullHtml);
-        this.adapter.sanitizeCanvas();
+        if (!this.adapter.isHeadless) {
+          const tplId = resolveTemplateEngineId(hydratedBp.templateId || site.templateId);
+          const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: site.id });
+          this.adapter.setHtmlContent(rendered.fullHtml);
+          this.adapter.sanitizeCanvas();
+          this.lastSyncedCanvasKey = `${tplId}:${hydratedBp.updatedAt || ''}:${site.id}:${hydratedBp.modules?.services?.items?.length || 0}`;
+        }
         this.recordSnapshot('Loaded from Blueprint', 'initial', site.theme as ThemeName);
         return { loaded: true, siteId: site.id, theme: site.theme, name: activeName, blueprint: hydratedBp };
       }
 
       // 3. Fallback to saved htmlContent
       if (site.htmlContent && site.htmlContent.length > 50) {
-        this.adapter.setHtmlContent(site.htmlContent);
-        this.adapter.sanitizeCanvas();
+        if (!this.adapter.isHeadless) {
+          this.adapter.setHtmlContent(site.htmlContent);
+          this.adapter.sanitizeCanvas();
+        }
         this.recordSnapshot('Loaded from Cloud Database', 'initial', site.theme as ThemeName);
         return { loaded: true, siteId: site.id, theme: site.theme, name: activeName, blueprint: hydratedBp };
       }
@@ -1236,18 +1305,23 @@ export class EditorService {
 
       if (snap.grapesData) {
         this.hasCustomCanvasBlocks = true;
-        this.adapter.loadProjectData(snap.grapesData);
-        this.adapter.sanitizeCanvas();
+        if (!this.adapter.isHeadless) {
+          this.adapter.loadProjectData(snap.grapesData);
+          this.adapter.sanitizeCanvas();
+        }
         this.recordSnapshot('Loaded from LocalStorage', 'initial', snap.theme as ThemeName);
         return { loaded: true, siteId: this.activeSiteId || undefined, theme: snap.theme, name: activeName, snapshot: snap };
       }
 
       if (snap.blueprint) {
         this.hasCustomCanvasBlocks = false;
-        const tplId = resolveTemplateEngineId(hydratedBp.templateId);
-        const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: this.activeSiteId || projectId });
-        this.adapter.setHtmlContent(rendered.fullHtml);
-        this.adapter.sanitizeCanvas();
+        if (!this.adapter.isHeadless) {
+          const tplId = resolveTemplateEngineId(hydratedBp.templateId);
+          const rendered = renderTemplateEngine(tplId, hydratedBp, { siteId: this.activeSiteId || projectId });
+          this.adapter.setHtmlContent(rendered.fullHtml);
+          this.adapter.sanitizeCanvas();
+          this.lastSyncedCanvasKey = `${tplId}:${hydratedBp.updatedAt || ''}:${this.activeSiteId || ''}:${hydratedBp.modules?.services?.items?.length || 0}`;
+        }
         this.recordSnapshot('Loaded from LocalStorage Blueprint', 'initial', snap.theme as ThemeName);
         return { loaded: true, siteId: this.activeSiteId || undefined, theme: snap.theme, name: activeName, snapshot: snap };
       }

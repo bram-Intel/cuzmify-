@@ -3,6 +3,7 @@ import { createDefaultBlueprint, type MediaVaultAsset } from '@/core/blueprint-s
 import { mergeOnboardingMediaVault } from '@/lib/onboarding-media-draft';
 import { renderTemplateEngine } from '@/core/template-engines';
 import { GrapesAdapter } from '@/studio/engine/GrapesAdapter';
+import { EditorService } from '@/studio/engine/EditorService';
 import {
   buildSlimSaveSitePayload,
   getStudioStorageKey,
@@ -266,10 +267,60 @@ describe('Persistence & Serialization Engine', () => {
     expect(reconciled.blueprint?.modules.services.items.map((s) => s.name)).toEqual(['MCP Added Package']);
   });
 
+  it('does not trigger redundant cloud resync on reload when savedAt cache timestamp is newer than equal updatedAt', () => {
+    const bp = createDefaultBlueprint({ name: 'Brammy Care' });
+    bp.updatedAt = '2026-11-26T12:00:00.000Z';
+
+    const reconciled = reconcileLocalAndCloudBlueprints({
+      localSnapshot: {
+        version: 2,
+        siteId: 'site_1',
+        blueprint: bp,
+        savedAt: '2026-11-26T12:30:00.000Z',
+      },
+      cloudBlueprint: { ...bp },
+      cloudSiteId: 'site_1',
+    });
+
+    expect(reconciled.winner).toBe('cloud');
+    expect(reconciled.needsCloudResync).toBe(false);
+  });
+
   it('renders enquiry form controls at 16px font-size to prevent mobile browser focus auto-zoom', () => {
     const bp = createDefaultBlueprint({ name: 'Brammy Care', templateId: 'editorial-atelier', nicheId: 'catering_cakes' });
     const rendered = renderTemplateEngine('editorial-atelier', bp);
     expect(rendered.fullHtml).toContain('name="clientName"');
     expect(rendered.fullHtml).not.toMatch(/<(?:input|select|textarea)[^>]*font-size:\s*1[0-5]px/i);
+  });
+
+  it('runs EditorService in headless mobile mode without GrapesJS and supports instant service mutations + undo/redo', () => {
+    const mobileService = new EditorService(null, 'Brammy Care');
+    expect(mobileService.getServices()).toHaveLength(0);
+
+    const added = mobileService.addServiceItem({
+      name: 'Express Bridal Trial',
+      description: 'In-studio consultation & trial glam',
+      price: 55000,
+      priceMode: 'fixed',
+      locationType: 'in_studio',
+      enabled: true,
+    });
+
+    expect(added.id).toMatch(/^srv-/);
+    expect(mobileService.getServices()).toHaveLength(1);
+    expect(mobileService.getServices()[0].name).toBe('Express Bridal Trial');
+
+    mobileService.updateServiceItem(added.id, { price: 65000 });
+    expect(mobileService.getServices()[0].price).toBe(65000);
+    expect(mobileService.canUndo()).toBe(true);
+
+    expect(mobileService.undo()).toBe(true);
+    expect(mobileService.getServices()[0].price).toBe(55000);
+    expect(mobileService.redo()).toBe(true);
+    expect(mobileService.getServices()[0].price).toBe(65000);
+
+    // Renders valid template HTML on demand without a GrapesJS iframe
+    expect(mobileService.getHtml()).toContain('Express Bridal Trial');
+    mobileService.destroy();
   });
 });

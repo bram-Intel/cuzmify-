@@ -15,6 +15,7 @@ import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { BottomBar } from './BottomBar';
 import { MobilePreviewPane } from './MobilePreviewPane';
+import { MobileStudioRuntime } from './MobileStudioRuntime';
 import { PublishModal } from './publish/PublishModal';
 import { StudioInfrastructureHub } from './modules/StudioInfrastructureHub';
 import { useEditor } from './engine/EditorContext';
@@ -45,12 +46,23 @@ function EditorShellInner() {
   const [showPublish, setShowPublish] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [isDesktopViewport, setIsDesktopViewport] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
 
-  // On screens below desktop (<1024px), keep LeftPanel closed by default
+  // Track <1024px vs >=1024px so mobile NEVER downloads or boots heavyweight desktop GrapesJS
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setIsLeftPanelOpen(false);
-    }
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const syncViewport = () => {
+      setIsDesktopViewport(mq.matches);
+      if (!mq.matches) {
+        setIsLeftPanelOpen(false);
+      }
+    };
+    syncViewport();
+    mq.addEventListener('change', syncViewport);
+    return () => mq.removeEventListener('change', syncViewport);
   }, [setIsLeftPanelOpen]);
 
   // Keyboard shortcuts: Esc (preview), Ctrl/Cmd+S (save), Ctrl/Cmd+Z (undo), Ctrl/Cmd+Y / Cmd+Shift+Z (redo)
@@ -157,15 +169,14 @@ function EditorShellInner() {
         {/* Mobile Touch-Safe 60fps Owner Studio (<1024px) */}
         <MobilePreviewPane />
 
-        {/* Desktop Interactive GrapesJS Visual Canvas (>=1024px visible; viewport-contained hidden box on <1024px so no wide off-screen element causes scroll/zoom drift) */}
-        <div
-          className={
-            'fixed inset-0 w-full h-full -z-50 opacity-0 pointer-events-none overflow-hidden ' +
-            'lg:static lg:inset-auto lg:z-auto lg:w-auto lg:h-full lg:opacity-100 lg:pointer-events-auto lg:flex lg:flex-1 lg:min-w-0'
-          }
-        >
-          <Canvas />
-        </div>
+        {/* Viewport-Gated Runtime: 0ms Headless Blueprint Runtime on Mobile (<1024px), Full GrapesJS Canvas on Desktop (>=1024px) */}
+        {isDesktopViewport ? (
+          <div className="hidden lg:flex lg:flex-1 lg:min-w-0 h-full">
+            <Canvas />
+          </div>
+        ) : (
+          <MobileStudioRuntime />
+        )}
 
         {/* Desktop Right Design Inspector (>=1024px — always ready for element styling & theme presets) */}
         {!isPreviewMode && isRightPanelOpen && (

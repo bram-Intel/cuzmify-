@@ -296,7 +296,7 @@ export function reconcileLocalAndCloudBlueprints(params: {
     return { winner: 'cloud', blueprint: cloudBp, needsCloudResync: false };
   }
 
-  const localTs = Math.max(parseTimestamp(localBp.updatedAt), parseTimestamp(localSnapshot!.savedAt));
+  const localTs = parseTimestamp(localBp.updatedAt) || parseTimestamp(localSnapshot!.savedAt);
   const cloudTs = parseTimestamp(cloudBp.updatedAt);
 
   if (localTs > cloudTs) {

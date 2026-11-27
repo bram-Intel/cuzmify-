@@ -1,12 +1,12 @@
-import type { GrapesAdapter } from '../engine/GrapesAdapter';
+import type { EditorAdapter } from '../engine/EditorAdapter';
 import type { ThemeName } from '@/core/project-schema';
 import { DESIGN_TOKENS, tokensToCSSVars } from './DesignTokens';
 
 export class ThemeEngine {
-  private adapter: GrapesAdapter;
+  private adapter: EditorAdapter;
   private currentTheme: ThemeName = 'bram-light';
 
-  constructor(adapter: GrapesAdapter) {
+  constructor(adapter: EditorAdapter) {
     this.adapter = adapter;
   }
 

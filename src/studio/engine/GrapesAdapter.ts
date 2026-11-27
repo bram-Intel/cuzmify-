@@ -4,6 +4,7 @@ import type { CuzmifyComponentTraits } from '@/core/types';
 import { RESPONSIVE_CORE_CSS } from '@/core/responsive-core';
 
 export class GrapesAdapter implements EditorAdapter {
+  public readonly isHeadless = false;
   private editor: Editor;
 
   constructor(grapesEditor: Editor) {

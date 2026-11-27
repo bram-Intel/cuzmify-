@@ -1,6 +1,7 @@
 import type { Breakpoint } from './EditorContext';
 
 export interface EditorAdapter {
+  readonly isHeadless?: boolean;
   getHtml(): string;
   getCss(): string;
   getProjectData(): Record<string, unknown>;
@@ -18,6 +19,7 @@ export interface EditorAdapter {
   disablePreview(): void;
   destroy(): void;
   sanitizeCanvas(): void;
+  injectCanvasCSS(css: string): void;
   on(event: string, cb: (...args: unknown[]) => void): void;
   off(event: string, cb: (...args: unknown[]) => void): void;
 }

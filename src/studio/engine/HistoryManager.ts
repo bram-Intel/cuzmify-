@@ -1,4 +1,5 @@
 import type { ThemeName } from '@/core/project-schema';
+import type { BusinessBlueprint } from '@/core/blueprint-schema';
 
 export interface HistorySnapshot {
   id: string;
@@ -9,6 +10,7 @@ export interface HistorySnapshot {
   css: string;
   theme: ThemeName;
   grapesData?: Record<string, unknown>;
+  blueprintJson?: string;
 }
 
 export type HistoryChangeListener = (state: { canUndo: boolean; canRedo: boolean; description?: string }) => void;
@@ -36,7 +38,12 @@ export class HistoryManager {
     if (this.isRestoring) return;
 
     // Avoid duplicate pushes if the content is identical
-    if (this.current && this.current.html === snapshot.html && this.current.theme === snapshot.theme && this.current.css === snapshot.css) {
+    if (
+      this.current &&
+      this.current.theme === snapshot.theme &&
+      ((snapshot.blueprintJson && this.current.blueprintJson === snapshot.blueprintJson) ||
+        (!snapshot.blueprintJson && this.current.html === snapshot.html && this.current.css === snapshot.css))
+    ) {
       return;
     }
 
