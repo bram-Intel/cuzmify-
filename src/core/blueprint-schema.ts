@@ -199,6 +199,7 @@ export interface TemplateDesignOverrides extends DeviceDesignOverrides {
   sectionOrder?: string[];
   submitButtonIcon?: 'auto' | 'whatsapp' | 'sparkles' | 'calendar' | 'none';
   submitButtonColor?: string;
+  galleryLimit?: number;
   customCss?: string;
   responsive?: {
     mobile?: DeviceDesignOverrides;

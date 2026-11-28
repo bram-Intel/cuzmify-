@@ -287,6 +287,8 @@ export async function POST(req: Request) {
           },
         });
         const origin = new URL(req.url).origin;
+        const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim();
+        const canonicalLiveUrl = rootDomain ? `https://${cleanSlug}.${rootDomain}` : `${origin}${liveUrl}`;
         return NextResponse.json({
           jsonrpc: '2.0',
           id: rpcId,
@@ -299,7 +301,8 @@ export async function POST(req: Request) {
                   published: true,
                   status: 'live',
                   siteId: site.id,
-                  liveUrl: `${origin}${liveUrl}`,
+                  liveUrl: canonicalLiveUrl,
+                  fallbackPath: liveUrl,
                   template: TEMPLATE_ENGINES[rendered.templateId].name,
                 }),
               },

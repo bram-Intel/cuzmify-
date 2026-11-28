@@ -264,6 +264,10 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
           type: 'number',
           description: 'Portfolio gallery grid columns (1 to 4).',
         },
+        galleryLimit: {
+          type: 'number',
+          description: 'Maximum number of portfolio gallery items to render in HTML (1 to 12, default: 12) so excess vault items are omitted cleanly without loading in the background.',
+        },
         servicesColumns: {
           type: 'number',
           description: 'Services grid columns (1 to 3).',
@@ -336,7 +340,7 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'inject_slot',
     description:
-      'Inject, replace, or clear (clear=true) sanitized HTML/SVG inside one of 12 fixed anchors in the template engine (top_bar, nav_actions, hero_above, hero_cta_after, hero_below, services_above, services_below, booking_above, submit_button_prefix, submit_button_suffix, booking_below, footer), with optional scoped CSS appended cleanly. Decision rule: use inject_slot for icons, ribbons, badges, announcements, and footers inside existing page areas; use upsert_custom_section for full standalone sections; use customize_template_design.customCss for style-only rules.',
+      'Inject, replace, or clear (clear=true) sanitized HTML/SVG inside one of 12 fixed anchors in the template engine (top_bar, nav_actions, hero_above, hero_cta_after, hero_below, services_above, services_below, booking_above, submit_button_prefix, submit_button_suffix, booking_below, footer), with optional scoped CSS appended cleanly. Decision rule: use inject_slot for icons, ribbons, badges, announcements, and footers inside existing page areas; use upsert_custom_section for full standalone sections; use customize_template_design.customCss for style-only rules. Never invent fake city names or unverified claims (use profile.city from get_site_blueprint).',
     annotations: MUTATE_IDEMPOTENT_ANNOTATIONS,
     inputSchema: {
       type: 'object',
@@ -596,6 +600,36 @@ export const CUZMIFY_MCP_TOOLS: McpToolDefinition[] = [
         photoNumber: { type: 'number', description: '1-based index of the photo or video in the Media Vault.' },
         query: { type: 'string', description: 'Keyword to match asset name or caption.' },
       },
+    },
+  },
+  {
+    name: 'manage_media_vault',
+    description:
+      'Manage Media Vault items natively without CSS hiding hacks: limit rendered gallery count (action="set_gallery_limit", galleryLimit 1-12), delete an asset (action="remove" by assetId or photoNumber), or reorder items (action="reorder" with orderedIds or assetId + targetPosition).',
+    annotations: DESTRUCTIVE_ANNOTATIONS,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: { type: 'string', description: 'Optional site ID.' },
+        action: {
+          type: 'string',
+          description: 'Operation to perform on the Media Vault or gallery.',
+          enum: ['set_gallery_limit', 'remove', 'reorder'],
+        },
+        galleryLimit: {
+          type: 'number',
+          description: 'Number of gallery items to render (1-12) when action="set_gallery_limit".',
+        },
+        assetId: { type: 'string', description: 'Media asset ID from get_site_blueprint mediaItems.' },
+        photoNumber: { type: 'number', description: '1-based index from get_site_blueprint mediaItems.' },
+        targetPosition: { type: 'number', description: '1-based destination index for action="reorder".' },
+        orderedIds: {
+          type: 'array',
+          description: 'Optional list of assetIds in desired display order for action="reorder".',
+          items: { type: 'string' },
+        },
+      },
+      required: ['action'],
     },
   },
   {
@@ -1160,6 +1194,11 @@ export function executeBlueprintMcpTool(
         const cols = Math.min(4, Math.max(1, Math.round(args.galleryColumns)));
         targetSlice.galleryColumns = cols;
         changed.push(`${scope}:galleryCols=${cols}`);
+      }
+      if (typeof args.galleryLimit === 'number' && !Number.isNaN(args.galleryLimit)) {
+        const limit = Math.min(12, Math.max(1, Math.round(args.galleryLimit)));
+        nextDesign.galleryLimit = limit;
+        changed.push(`galleryLimit=${limit}`);
       }
       if (typeof args.servicesColumns === 'number' && !Number.isNaN(args.servicesColumns)) {
         const cols = Math.min(3, Math.max(1, Math.round(args.servicesColumns)));
@@ -1827,6 +1866,126 @@ export function executeBlueprintMcpTool(
           heroMediaKind: mediaKind,
           hasPoster: mediaKind === 'video' ? Boolean(getAssetPosterUrl(picked)) : false,
         },
+      };
+    }
+
+    case 'manage_media_vault': {
+      const action = String(args.action || '').trim();
+      const activeTpl = resolveTemplateEngineId(bp.templateId);
+      if (action === 'set_gallery_limit') {
+        const rawLimit = Number(args.galleryLimit);
+        if (Number.isNaN(rawLimit) || rawLimit < 1) {
+          return {
+            ok: false,
+            blueprint: bp,
+            changeSummary: 'Invalid galleryLimit',
+            error: 'Provide galleryLimit between 1 and 12.',
+          };
+        }
+        const limit = Math.min(12, Math.max(1, Math.round(rawLimit)));
+        const scopedMap: Record<string, TemplateDesignOverrides> = { ...(bp.templateDesignOverrides || {}) };
+        const nextDesign: TemplateDesignOverrides = {
+          ...(scopedMap[activeTpl] || bp.designOverrides || {}),
+          galleryLimit: limit,
+        };
+        scopedMap[activeTpl] = nextDesign;
+        bp.templateDesignOverrides = scopedMap;
+        bp.designOverrides = nextDesign;
+        bp.updatedAt = new Date().toISOString();
+        return {
+          ok: true,
+          blueprint: bp,
+          changeSummary: `Set gallery limit to ${limit} items (extra vault items are not rendered or loaded)`,
+          data: { templateId: activeTpl, galleryLimit: limit, totalVaultItems: (bp.mediaVault || []).length },
+        };
+      }
+
+      const vault = [...(bp.mediaVault || [])];
+      if (vault.length === 0) {
+        return { ok: false, blueprint: bp, changeSummary: 'Media Vault is empty', error: 'No media items in vault.' };
+      }
+
+      const resolveIdx = (): number => {
+        if (typeof args.assetId === 'string' && args.assetId.trim()) {
+          return vault.findIndex((m) => m.id === args.assetId.trim());
+        }
+        if (typeof args.photoNumber === 'number' && args.photoNumber >= 1 && args.photoNumber <= vault.length) {
+          return Math.floor(args.photoNumber) - 1;
+        }
+        return -1;
+      };
+
+      if (action === 'remove') {
+        const idx = resolveIdx();
+        if (idx === -1) {
+          return { ok: false, blueprint: bp, changeSummary: 'Media item not found', error: 'Provide a valid assetId or photoNumber.' };
+        }
+        const [removed] = vault.splice(idx, 1);
+        bp.mediaVault = vault;
+        bp.updatedAt = new Date().toISOString();
+        return {
+          ok: true,
+          blueprint: bp,
+          changeSummary: `Removed "${removed.name}" from Media Vault (${vault.length} remaining)`,
+          data: { removedId: removed.id, remainingCount: vault.length },
+        };
+      }
+
+      if (action === 'reorder') {
+        if (Array.isArray(args.orderedIds) && args.orderedIds.length > 0) {
+          const byId = new Map(vault.map((m) => [m.id, m]));
+          const reordered: typeof vault = [];
+          const seen = new Set<string>();
+          for (const rawId of args.orderedIds) {
+            const id = String(rawId || '').trim();
+            const item = byId.get(id);
+            if (item && !seen.has(id)) {
+              reordered.push(item);
+              seen.add(id);
+            }
+          }
+          for (const item of vault) {
+            if (!seen.has(item.id)) reordered.push(item);
+          }
+          bp.mediaVault = reordered;
+          bp.updatedAt = new Date().toISOString();
+          return {
+            ok: true,
+            blueprint: bp,
+            changeSummary: `Reordered Media Vault (${reordered.length} items)`,
+            data: { mediaIds: reordered.map((m) => m.id) },
+          };
+        }
+        const idx = resolveIdx();
+        const dest =
+          typeof args.targetPosition === 'number'
+            ? Math.min(vault.length - 1, Math.max(0, Math.floor(args.targetPosition) - 1))
+            : -1;
+        if (idx === -1 || dest === -1) {
+          return {
+            ok: false,
+            blueprint: bp,
+            changeSummary: 'Invalid reorder parameters',
+            error: 'Provide orderedIds or (assetId/photoNumber + targetPosition).',
+          };
+        }
+        const [moved] = vault.splice(idx, 1);
+        vault.splice(dest, 0, moved);
+        bp.mediaVault = vault;
+        bp.updatedAt = new Date().toISOString();
+        return {
+          ok: true,
+          blueprint: bp,
+          changeSummary: `Moved "${moved.name}" to position ${dest + 1}`,
+          data: { movedId: moved.id, position: dest + 1 },
+        };
+      }
+
+      return {
+        ok: false,
+        blueprint: bp,
+        changeSummary: 'Invalid manage_media_vault action',
+        error: 'action must be set_gallery_limit, remove, or reorder.',
       };
     }
 

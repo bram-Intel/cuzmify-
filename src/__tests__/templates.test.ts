@@ -111,4 +111,48 @@ describe('Niche Blueprints & Lossless Multi-Template Engine', () => {
     const scoped = scopeCssToTemplate('h1, .card { color: cyan; }', '[data-cuzmify-template="noir-showcase"]');
     expect(scoped).toBe('[data-cuzmify-template="noir-showcase"] h1, [data-cuzmify-template="noir-showcase"] .card{ color: cyan; }');
   });
+
+  it('preserves CSS > child combinators, enforces galleryLimit without hidden DOM bloat, and prevents double arrows on CTAs', () => {
+    const bp = createDefaultBlueprint({
+      name: 'How',
+      templateId: 'noir-showcase',
+      mediaVault: Array.from({ length: 10 }, (_, idx) => ({
+        id: `mv-${idx + 1}`,
+        url: `https://example.com/${idx + 1}.webp`,
+        name: `Look ${idx + 1}`,
+        type: idx === 0 ? 'hero' : 'gallery',
+        source: 'instagram',
+        addedAt: '',
+      })),
+      services: [
+        {
+          id: 'srv-1',
+          name: 'Neural Glam',
+          price: 50000,
+          priceMode: 'fixed',
+          locationType: 'in_studio',
+          description: 'Editorial look',
+          enabled: true,
+        },
+      ],
+    });
+    bp.customCopy = {
+      primaryCta: 'Engage →',
+      serviceItemCta: 'Engage →',
+    };
+    bp.templateDesignOverrides = {
+      'noir-showcase': {
+        galleryLimit: 4,
+        customCss: '.gallery-grid > div:nth-child(n+5) { border: 1px solid cyan; }',
+      },
+    };
+
+    const rendered = renderTemplateEngine('noir-showcase', bp);
+    expect(rendered.css).toContain('.gallery-grid > div:nth-child(n+5)');
+    expect(rendered.html).not.toContain('Engage → →');
+    expect(rendered.html).toContain('>Engage →</a>');
+    // Only 4 gallery items rendered (plus 1 hero)
+    const galleryMatches = rendered.html.match(/data-cuzmify-img-role="gallery"/g) || [];
+    expect(galleryMatches).toHaveLength(4);
+  });
 });

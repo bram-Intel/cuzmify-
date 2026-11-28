@@ -768,4 +768,32 @@ describe('Cuzmify MCP Tool Registry & Execution', () => {
     expect(isAllowedMcpOrigin('https://platform.openai.com', 'https://cuzmify.com/api/mcp')).toBe(true);
     expect(isAllowedMcpOrigin('https://cuzmify.com', 'https://cuzmify.com/api/mcp')).toBe(true);
   });
+
+  it('supports manage_media_vault (set_gallery_limit, reorder, remove) natively via MCP', () => {
+    const bp = createDefaultBlueprint({
+      name: 'How',
+      templateId: 'noir-showcase',
+      mediaVault: [
+        { id: 'm1', url: 'https://example.com/1.jpg', name: 'One', type: 'hero', source: 'upload', addedAt: '' },
+        { id: 'm2', url: 'https://example.com/2.jpg', name: 'Two', type: 'gallery', source: 'upload', addedAt: '' },
+        { id: 'm3', url: 'https://example.com/3.jpg', name: 'Three', type: 'gallery', source: 'upload', addedAt: '' },
+      ],
+    });
+
+    const limRes = executeBlueprintMcpTool('manage_media_vault', { action: 'set_gallery_limit', galleryLimit: 6 }, bp);
+    expect(limRes.ok).toBe(true);
+    expect(limRes.blueprint.designOverrides?.galleryLimit).toBe(6);
+
+    const reordRes = executeBlueprintMcpTool(
+      'manage_media_vault',
+      { action: 'reorder', orderedIds: ['m1', 'm3', 'm2'] },
+      limRes.blueprint
+    );
+    expect(reordRes.ok).toBe(true);
+    expect(reordRes.blueprint.mediaVault.map((m) => m.id)).toEqual(['m1', 'm3', 'm2']);
+
+    const remRes = executeBlueprintMcpTool('manage_media_vault', { action: 'remove', assetId: 'm2' }, reordRes.blueprint);
+    expect(remRes.ok).toBe(true);
+    expect(remRes.blueprint.mediaVault.map((m) => m.id)).toEqual(['m1', 'm3']);
+  });
 });

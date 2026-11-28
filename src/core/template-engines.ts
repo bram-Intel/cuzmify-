@@ -96,6 +96,11 @@ export function escapeHtml(raw?: string | number | null): string {
     .replace(/'/g, '&#39;');
 }
 
+function formatArrowCtaLabel(raw: string): string {
+  const clean = raw.replace(/\s*[→➜]+\s*$/, '').trim();
+  return clean ? `${clean} →` : '→';
+}
+
 export function formatServicePrice(srv: ServiceItem, currencySymbol: string): string {
   const mode = srv.priceMode || (srv.price > 0 ? 'fixed' : 'quote');
   if (mode === 'quote' || !srv.price || srv.price <= 0) {
@@ -288,7 +293,8 @@ function buildDesignOverrideCss(templateId: TemplateEngineId, bp: BusinessBluepr
       ? ov.customCss
           .trim()
           .slice(0, 6000)
-          .replace(/[<>]/g, '')
+          .replace(/<\/?[a-z!/][^>]*>/gi, '')
+          .replace(/</g, '')
           .replace(/javascript:|expression\s*\(|@import|behavior\s*:|-moz-binding/gi, '')
       : '';
   const safeCustomCss = sanitizedCustomCss
@@ -484,7 +490,7 @@ function renderSharedCustomSections(bp: BusinessBlueprint, templateId: TemplateE
             <h2 data-cuzmify-field="custom-title" class="${headingCls}" style="font-size:clamp(1.45rem,3vw,2rem);font-weight:700;margin:0;">${escapeHtml(sec.title)}</h2>
             ${sec.subtitle ? `<p data-cuzmify-field="custom-subtitle" style="font-size:14px;color:${muted};line-height:1.6;margin:8px 0 0;">${escapeHtml(sec.subtitle)}</p>` : ''}
           </div>
-          ${sec.ctaText ? `<a data-cuzmify-field="custom-cta" href="${escapeHtml(sec.ctaHref || '#booking')}" style="padding:12px 22px;border-radius:999px;background:${accent};color:#FFFFFF;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(sec.ctaText)} →</a>` : ''}
+          ${sec.ctaText ? `<a data-cuzmify-field="custom-cta" href="${escapeHtml(sec.ctaHref || '#booking')}" style="padding:12px 22px;border-radius:999px;background:${accent};color:#FFFFFF;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">${escapeHtml(formatArrowCtaLabel(sec.ctaText))}</a>` : ''}
         </div>`;
       } else if (sec.layout === 'checklist' || sec.layout === 'hours_info') {
         bodyHtml = `<div style="max-width:780px;margin:0 auto;">
@@ -643,7 +649,7 @@ function renderSharedEnquiryForm(
   const submitLabel =
     bp.customCopy?.submitButtonText ||
     (waPhone
-      ? `${bp.customCopy?.primaryCta || niche.vocabulary.primaryCta} via WhatsApp →`
+      ? `${formatArrowCtaLabel(bp.customCopy?.primaryCta || niche.vocabulary.primaryCta).replace(/\s*→$/, '')} via WhatsApp →`
       : 'Send Enquiry →');
   const inputBg = isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF';
   const inputBorder = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(15,23,42,0.14)';
@@ -753,7 +759,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
           <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.5rem);font-weight:700;line-height:1.1;margin:0 0 16px;color:${ink};max-width:720px;">${escapeHtml(headline)}</h1>
           <p data-cuzmify-field="subheadline" style="font-size:15px;line-height:1.68;color:${muted};margin:0 0 26px;max-width:560px;">${escapeHtml(subheadline)}</p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px;">
-            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(primaryCta))}</a>
             ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
           </div>
           ${heroAsset ? `<div class="cz-hero-media" style="margin-top:32px;width:100%;max-width:620px;border-radius:22px;overflow:hidden;aspect-ratio:16/10;max-height:420px;border:1px solid ${border};background:${surface};">${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profileName, style: 'width:100%;height:100%;object-fit:cover;display:block;' })}</div>` : ''}
@@ -770,7 +776,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
         <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.1rem,5vw,3.6rem);font-weight:800;line-height:1.08;margin:0 0 14px;max-width:700px;color:#FAFAFA;">${escapeHtml(headline)}</h1>
         <p data-cuzmify-field="subheadline" style="font-size:15px;color:#E4E4E7;line-height:1.65;margin:0 0 26px;max-width:540px;">${escapeHtml(subheadline)}</p>
         <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-          <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:12px;background:${accent};color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:12px;background:${accent};color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(primaryCta))}</a>
           ${hasGallery ? `<a href="#portfolio" style="padding:13px 22px;border-radius:12px;background:rgba(255,255,255,0.12);color:#FAFAFA;font-weight:700;font-size:13px;text-decoration:none;">View Work</a>` : ''}
         </div>
       </div>
@@ -785,7 +791,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
           <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(1.85rem,4.5vw,2.9rem);font-weight:800;line-height:1.12;margin:0 0 12px;color:${ink};">${escapeHtml(headline)}</h1>
           <p data-cuzmify-field="subheadline" style="font-size:14px;line-height:1.65;color:${muted};margin:0 0 22px;max-width:600px;">${escapeHtml(subheadline)}</p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
-            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:12px 22px;border-radius:12px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:12px 22px;border-radius:12px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(primaryCta))}</a>
           </div>
           ${heroAsset ? `<div class="cz-hero-media" style="margin-top:24px;border-radius:18px;overflow:hidden;aspect-ratio:16/9;max-height:360px;background:${surface};border:1px solid ${border};">${renderVaultSlotMedia(heroAsset, { role: 'hero', alt: profileName, style: 'width:100%;height:100%;object-fit:cover;display:block;' })}</div>` : ''}
         </div>
@@ -801,7 +807,7 @@ function renderCustomHeroLayout(layout: NonNullable<DeviceDesignOverrides['heroL
         <h1 data-cuzmify-field="headline" class="${headingCls} cz-hero-title" style="font-size:clamp(2.2rem,5vw,3.6rem);font-weight:700;line-height:1.08;margin:0 0 16px;color:${ink};">${escapeHtml(headline)}</h1>
         <p data-cuzmify-field="subheadline" style="font-size:15px;line-height:1.68;color:${muted};margin:0 0 26px;max-width:480px;">${escapeHtml(subheadline)}</p>
         <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-          <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 26px;border-radius:999px;background:${btnBg};color:${btnColor};font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(primaryCta))}</a>
           ${hasServices ? `<a href="#services" style="padding:13px 22px;border-radius:999px;border:1px solid ${border};background:${surface};color:${ink};font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
         </div>
       </div>
@@ -880,7 +886,7 @@ function renderCustomServicesLayout(
                   </div>
                   ${srv.description ? `<p data-cuzmify-field="service-description" style="margin:8px 0 0;font-size:13px;color:${muted};line-height:1.55;">${escapeHtml(srv.description)}</p>` : ''}
                 </div>
-                <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:${accent};color:${isDark ? '#09090B' : '#FFFFFF'};font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(itemCta)} →</a>
+                <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;background:${accent};color:${isDark ? '#09090B' : '#FFFFFF'};font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(itemCta))}</a>
               </div>`;
             })
             .join('')}
@@ -943,6 +949,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
   const heroBadge = copy.heroBadge || `${niche.shortLabel}${locationLine ? ` • ${locationLine}` : ''}`;
   const serviceItemCta = copy.serviceItemCta || niche.vocabulary.serviceItemCta;
   const activeOv = getActiveDesignOverrides('editorial-atelier', bp);
+  const galleryLimit = Math.min(12, Math.max(1, Math.round(activeOv?.galleryLimit || 12)));
 
   const css = `
     :root, [data-cuzmify-template="editorial-atelier"] { --cz-bg:#FAF7F2; --cz-surface:#FFFFFF; --cz-ink:#1C1917; --cz-muted:#6B635B; --cz-accent:#9A6B4C; --cz-border:#E7E0D6; }
@@ -1013,7 +1020,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
             </div>
             <div class="cz-ea-gallery gallery-grid">
               ${galleryAssets
-                .slice(0, 12)
+                .slice(0, galleryLimit)
                 .map(
                   (m) => `<div style="border-radius:16px;overflow:hidden;aspect-ratio:4/5;background:#EFEAE1;">
                     ${renderVaultSlotMedia(m, { role: 'gallery', alt: m.name, style: 'width:100%;height:100%;object-fit:cover;display:block;', lazy: true })}
@@ -1052,7 +1059,7 @@ function renderEditorialAtelier(bp: BusinessBlueprint, niche: NicheBlueprint, si
             ${escapeHtml(subheadline)}
           </p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:14px 26px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-weight:600;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:14px 26px;border-radius:999px;background:var(--cz-ink);color:var(--cz-bg);font-weight:600;font-size:13px;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(primaryCta))}</a>
             ${services.length > 0 && isSectionVisible(bp, 'services') ? `<a href="#services" style="padding:14px 22px;border-radius:999px;border:1px solid var(--cz-border);background:var(--cz-surface);color:var(--cz-ink);font-weight:600;font-size:13px;text-decoration:none;">View Rates</a>` : ''}
           </div>
         </div>
@@ -1139,6 +1146,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   const heroBadge = copy.heroBadge || `${niche.shortLabel}${locationLine ? ` • ${locationLine}` : ''}`;
   const serviceItemCta = copy.serviceItemCta || niche.vocabulary.serviceItemCta;
   const activeOv = getActiveDesignOverrides('noir-showcase', bp);
+  const galleryLimit = Math.min(12, Math.max(1, Math.round(activeOv?.galleryLimit || 12)));
 
   const css = `
     :root, [data-cuzmify-template="noir-showcase"] { --cz-noir-bg:#09090B; --cz-noir-card:#141418; --cz-noir-text:#FAFAFA; --cz-noir-muted:#A1A1AA; --cz-noir-accent:#F59E0B; }
@@ -1165,7 +1173,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
             </div>
             <div class="cz-nr-gallery gallery-grid">
               ${galleryAssets
-                .slice(0, 12)
+                .slice(0, galleryLimit)
                 .map(
                   (m) => `<div style="border-radius:12px;overflow:hidden;aspect-ratio:3/4;background:#18181B;">
                     ${renderVaultSlotMedia(m, { role: 'gallery', alt: m.name, style: 'width:100%;height:100%;object-fit:cover;display:block;', lazy: true })}
@@ -1207,7 +1215,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
                       </div>
                       ${srv.description ? `<p data-cuzmify-field="service-description" style="font-size:13px;color:var(--cz-noir-muted);line-height:1.65;margin:10px 0 0;">${escapeHtml(srv.description)}</p>` : ''}
                     </div>
-                    <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:inline-flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:var(--cz-noir-text);font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(serviceItemCta)} →</a>
+                    <a data-cuzmify-field="service-item-cta" href="#booking" data-select-service="${escapeHtml(`${srv.name} (${pText})`)}" style="display:inline-flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:var(--cz-noir-text);font-size:12px;font-weight:700;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(serviceItemCta))}</a>
                   </div>`;
                 })
                 .join('')}
@@ -1248,7 +1256,7 @@ function renderNoirShowcase(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
           ${escapeHtml(subheadline)}
         </p>
         <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:12px;">
-          <a data-cuzmify-field="primary-cta" href="#booking" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:12px;background:var(--cz-noir-accent);color:#09090B;font-weight:800;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+          <a data-cuzmify-field="primary-cta" href="#booking" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:12px;background:var(--cz-noir-accent);color:#09090B;font-weight:800;font-size:13px;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(primaryCta))}</a>
           ${galleryAssets.length > 0 && isSectionVisible(bp, 'portfolio') ? `<a href="#portfolio" style="display:inline-flex;align-items:center;padding:13px 22px;border-radius:12px;background:rgba(255,255,255,0.1);color:var(--cz-noir-text);font-weight:700;font-size:13px;text-decoration:none;backdrop-filter:blur(8px);">View Work</a>` : ''}
         </div>
       </div>
@@ -1325,6 +1333,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
   const serviceItemCta = copy.serviceItemCta || niche.vocabulary.serviceItemCta;
   const waPhone = (bp.modules?.whatsapp?.phoneNumber || profile.whatsapp || '').replace(/[^\d]/g, '');
   const activeOv = getActiveDesignOverrides('modern-studio', bp);
+  const galleryLimit = Math.min(12, Math.max(1, Math.round(activeOv?.galleryLimit || 12)));
 
   const css = `
     :root, [data-cuzmify-template="modern-studio"] { --cz-ms-bg:#F8FAFC; --cz-ms-card:#FFFFFF; --cz-ms-primary:#0D5771; --cz-ms-ink:#0F172A; --cz-ms-muted:#64748B; --cz-ms-border:#E2E8F0; }
@@ -1406,7 +1415,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
             </div>
             <div class="cz-ms-gallery gallery-grid">
               ${vault
-                .slice(0, 12)
+                .slice(0, galleryLimit)
                 .map(
                   (m) => `<div style="border-radius:14px;overflow:hidden;aspect-ratio:1/1;background:#E2E8F0;">
                     ${renderVaultSlotMedia(m, { role: 'gallery', alt: m.name, style: 'width:100%;height:100%;object-fit:cover;display:block;', lazy: true })}
@@ -1445,7 +1454,7 @@ function renderModernStudio(bp: BusinessBlueprint, niche: NicheBlueprint, siteId
             ${escapeHtml(subheadline)}
           </p>
           <div class="cz-hero-actions" style="display:flex;flex-wrap:wrap;gap:10px;">
-            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 22px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(primaryCta)} →</a>
+            <a data-cuzmify-field="primary-cta" href="#booking" style="padding:13px 22px;border-radius:12px;background:var(--cz-ms-primary);color:#FFFFFF;font-weight:700;font-size:13px;text-decoration:none;">${escapeHtml(formatArrowCtaLabel(primaryCta))}</a>
             ${waPhone ? `<a href="${escapeHtml(buildWhatsAppDirectHref(waPhone, `Hello ${profile.name}, I found your website and have a quick question.`))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:13px 20px;border-radius:12px;background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;font-weight:700;font-size:13px;text-decoration:none;">${WHATSAPP_BRAND_SVG}<span>Chat on WhatsApp</span></a>` : ''}
           </div>
           ${stripHtml}
