@@ -714,12 +714,21 @@ export function MobilePreviewPane() {
             <>
               <style>{`
                 .cz-mobile-editable-preview {
+                  position: relative;
+                  transform: translateZ(0);
+                  contain: layout paint;
                   touch-action: pan-y;
                   overflow-x: hidden;
+                  overflow-y: hidden;
                   max-width: 100%;
                   -webkit-user-select: none;
                   user-select: none;
                   -webkit-touch-callout: none;
+                }
+                .cz-mobile-editable-preview [data-cuzmify-template] {
+                  position: relative;
+                  transform: translateZ(0);
+                  overflow: hidden;
                 }
                 .cz-mobile-editable-preview * {
                   touch-action: manipulation;
